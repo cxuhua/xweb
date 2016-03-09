@@ -1,1 +1,1 @@
-{"ImportPath":"github.com/cxuhua/xweb","GoVersion":"go1.6","Deps":[{"ImportPath":"github.com/go-martini/martini"},{"ImportPath":"github.com/martini-contrib/binding"}]}
+{"ImportPath":"github.com/cxuhua/xweb","GoVersion":"go1.6","Deps":[{"ImportPath":"github.com/go-martini/martini"},{"ImportPath":"github.com/martini-contrib/binding"},{"ImportPath":"gopkg.in/check.v1"},{"ImportPath":"github.com/martini-contrib/render"}]}
