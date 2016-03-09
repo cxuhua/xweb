@@ -1,12 +1,12 @@
 package main
 
 import (
+	"github.com/cxuhua/xweb"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
 	"log"
 	"net/http"
-	"xweb"
 )
 
 type FormArg struct {
