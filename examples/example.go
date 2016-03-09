@@ -30,24 +30,19 @@ type XmlArgs struct {
 type MainDispatcher struct {
 	xweb.Dispatcher
 
-	//use IndexHandler(default handler)
-	XWEB_ xweb.NullArgs `url:"/" method:"GET" before:"LogRequest"`
+	POST struct {
+		PostForm FormArg  `url:"/post/form"`
+		PostJson JsonArgs `url:"/post/json" `
+		PostXml  XmlArgs  `url:"/post/xml" after:"PrintInfo"`
+	} `handler:"NeedAuth"`
 
-	//use PostForm Handler
-	XWEB_PostForm FormArg `url:"/post/form" method:"POST"`
-
-	//use PostJson Handler
-	XWEB_PostJson JsonArgs `url:"/post/json" method:"POST"`
-
-	//use PostBody Handler
-	XWEB_PostBody xweb.BodyArgs `url:"/post/body" method:"POST"`
-
-	//use NeedAuth,PostXml,PrintInfo Handler
-	XWEB_PostXml XmlArgs `url:"/post/xml" method:"POST" before:"NeedAuth" after:"PrintInfo"`
+	GET struct {
+		IndexHandler xweb.NullArgs `url:"/" before:"LogRequest"`
+	}
 }
 
-func (this *MainDispatcher) NeedAuth(args XmlArgs) {
-	log.Println("before handler", args)
+func (this *MainDispatcher) NeedAuth() {
+	log.Println("NeedAuth Handler")
 }
 
 func (this *MainDispatcher) PostXml(err binding.Errors, args XmlArgs, render render.Render) {

@@ -21,11 +21,6 @@ import (
 	"strings"
 )
 
-const (
-	HANDLER_PREFIX  = "XWEB_"
-	DEFAULT_HANDLER = "IndexHandler"
-)
-
 //获得上传文件数据
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 	if fh == nil {
@@ -223,102 +218,158 @@ func queryFieldName(v interface{}) string {
 	return ""
 }
 
-//注册控制器
-func Use(r martini.Router, c IDispatcher) {
-	tv := reflect.TypeOf(c).Elem()
-	nv := reflect.ValueOf(c)
+//support method
+func doMethod(m string) bool {
+	switch m {
+	case http.MethodHead:
+		return true
+	case http.MethodOptions:
+		return true
+	case http.MethodPatch:
+		return true
+	case http.MethodDelete:
+		return true
+	case http.MethodPut:
+		return true
+	case http.MethodGet:
+		return true
+	case http.MethodPost:
+		return true
+	}
+	return false
+}
+
+//
+func doHandlers(f *reflect.StructField, tag string) []string {
+	ret := []string{}
+	for _, s := range strings.Split(f.Tag.Get(tag), ",") {
+		if len(s) == 0 {
+			continue
+		}
+		ret = append(ret, s)
+	}
+	return ret
+}
+
+//搜索可用挂接字段
+func doFields(tv reflect.Type, nv reflect.Value, pv func(*reflect.StructField, *reflect.Value)) {
+	if tv.Kind() != reflect.Struct {
+		return
+	}
 	for i := 0; i < tv.NumField(); i++ {
 		f := tv.Field(i)
-		//get field value
-		v := nv.Elem().FieldByName(f.Name)
+		if f.Type.Kind() != reflect.Struct {
+			continue
+		}
+		v := nv.FieldByName(f.Name)
 		if !v.IsValid() {
 			continue
 		}
-		iv, ok := v.Interface().(IArgs)
-		if !ok {
-			continue
+		if doMethod(f.Name) {
+			pv(&f, &v)
 		}
-		//get http url
-		url := f.Tag.Get("url")
-		if len(url) == 0 {
-			log.Println("must set url path")
-			continue
-		}
-		//get http methpd
-		method := f.Tag.Get("method")
-		if len(method) == 0 {
-			method = "GET"
-		}
-		method = strings.ToUpper(method)
-		//query handler
-		in := []martini.Handler{}
-		//bind args handler
-		if method == http.MethodPost {
-			field := queryFieldName(iv)
-			switch iv.ReqType() {
-			case AT_FORM:
-				in = append(in, binding.Bind(iv))
-			case AT_JSON:
-				in = append(in, JsonHandler(iv, field))
-			case AT_BODY:
-				in = append(in, BodyHandler(field))
-			case AT_XML:
-				in = append(in, XmlHandler(iv, field))
-			}
-		}
-		//before handler
-		for _, htv := range strings.Split(f.Tag.Get("before"), ",") {
-			if len(htv) == 0 {
-				continue
-			}
-			if mv := nv.MethodByName(htv); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
-			} else {
-				log.Println("before handler", htv, "miss")
-			}
-		}
-		//HANDLER_PREFIX
-		if strings.HasPrefix(f.Name, HANDLER_PREFIX) {
-			htv := f.Name[len(HANDLER_PREFIX):]
-			if len(htv) == 0 {
-				htv = DEFAULT_HANDLER
-			}
-			if mv := nv.MethodByName(htv); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
-			} else {
-				log.Println("main handler", htv, "miss")
-			}
-		}
-		//before handler
-		for _, htv := range strings.Split(f.Tag.Get("after"), ",") {
-			if len(htv) == 0 {
-				continue
-			}
-			if mv := nv.MethodByName(htv); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
-			} else {
-				log.Println("after handler", htv, "miss")
-			}
-		}
-		//set method handler
-		switch method {
-		case http.MethodHead:
-			r.Head(url, in...)
-		case http.MethodOptions:
-			r.Options(url, in...)
-		case http.MethodPatch:
-			r.Patch(url, in...)
-		case http.MethodDelete:
-			r.Delete(url, in...)
-		case http.MethodPut:
-			r.Put(url, in...)
-		case http.MethodGet:
-			r.Get(url, in...)
-		case http.MethodPost:
-			r.Post(url, in...)
-		default:
-			panic(errors.New("NOT SUPPORT METHOD:" + method))
-		}
+		doFields(f.Type, v, pv)
 	}
+}
+
+//注册控制器
+func Use(r martini.Router, c IDispatcher) {
+	stv := reflect.TypeOf(c).Elem()
+	svv := reflect.ValueOf(c)
+	snv := svv.Elem()
+	doFields(stv, snv, func(fs *reflect.StructField, nv *reflect.Value) {
+		tv := fs.Type
+		method := strings.ToUpper(fs.Name)
+		handler := fs.Tag.Get("handler")
+		for i := 0; i < tv.NumField(); i++ {
+			f := tv.Field(i)
+			//get field value
+			v := nv.FieldByName(f.Name)
+			if !v.IsValid() {
+				continue
+			}
+			iv, ok := v.Interface().(IArgs)
+			if !ok {
+				continue
+			}
+			//get http url
+			url := f.Tag.Get("url")
+			if len(url) == 0 {
+				log.Println("must set url path")
+				continue
+			}
+			//query handler
+			in := []martini.Handler{}
+			//bind args handler
+			if method == http.MethodPost {
+				field := queryFieldName(iv)
+				switch iv.ReqType() {
+				case AT_FORM:
+					in = append(in, binding.Bind(iv))
+				case AT_JSON:
+					in = append(in, JsonHandler(iv, field))
+				case AT_BODY:
+					in = append(in, BodyHandler(field))
+				case AT_XML:
+					in = append(in, XmlHandler(iv, field))
+				}
+			}
+			//group handler
+			for _, htv := range strings.Split(handler, ",") {
+				if len(htv) == 0 {
+					continue
+				}
+				if mv := svv.MethodByName(htv); mv.IsValid() {
+					in = append(in, mv.Interface().(martini.Handler))
+				} else {
+					log.Println("group handler", htv, "miss")
+				}
+			}
+			//before handler
+			for _, htv := range doHandlers(&f, "before") {
+				if mv := svv.MethodByName(htv); mv.IsValid() {
+					in = append(in, mv.Interface().(martini.Handler))
+				} else {
+					log.Println("before handler", htv, "miss")
+				}
+			}
+			//main handler
+			for _, htv := range strings.Split(f.Name, "_") {
+				if len(htv) == 0 {
+					continue
+				}
+				if mv := svv.MethodByName(htv); mv.IsValid() {
+					in = append(in, mv.Interface().(martini.Handler))
+				} else {
+					log.Println("main handler", htv, "miss")
+				}
+			}
+			//before handler
+			for _, htv := range doHandlers(&f, "after") {
+				if mv := svv.MethodByName(htv); mv.IsValid() {
+					in = append(in, mv.Interface().(martini.Handler))
+				} else {
+					log.Println("after handler", htv, "miss")
+				}
+			}
+			//set method handler
+			switch method {
+			case http.MethodHead:
+				r.Head(url, in...)
+			case http.MethodOptions:
+				r.Options(url, in...)
+			case http.MethodPatch:
+				r.Patch(url, in...)
+			case http.MethodDelete:
+				r.Delete(url, in...)
+			case http.MethodPut:
+				r.Put(url, in...)
+			case http.MethodGet:
+				r.Get(url, in...)
+			case http.MethodPost:
+				r.Post(url, in...)
+			}
+		}
+	})
 	c.Init(r)
 }
