@@ -35,7 +35,7 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
-	Init(martini.Router)
+	Init(martini.Router) error
 }
 
 type Dispatcher struct {
@@ -54,7 +54,8 @@ func (this *Dispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func (this *Dispatcher) Init(r martini.Router) {
+func (this *Dispatcher) Init(r martini.Router) error {
+	return nil
 }
 
 //参数类型
@@ -252,35 +253,46 @@ func doHandlers(f *reflect.StructField, tag string) []string {
 }
 
 //搜索可用挂接字段
-func doFields(tv reflect.Type, nv reflect.Value, pv func(*reflect.StructField, *reflect.Value)) {
+func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.StructField, *reflect.Value)) {
 	if tv.Kind() != reflect.Struct {
 		return
 	}
 	for i := 0; i < tv.NumField(); i++ {
 		f := tv.Field(i)
-		if f.Type.Kind() != reflect.Struct {
-			continue
-		}
 		v := nv.FieldByName(f.Name)
+		k := f.Type.Kind()
 		if !v.IsValid() {
 			continue
 		}
-		if doMethod(f.Name) {
-			pv(&f, &v)
+		if k != reflect.Struct {
+			continue
+		}
+		method := f.Tag.Get("method")
+		if len(method) == 0 {
+			method = f.Name
+		}
+		if len(method) > 0 {
+			method = strings.ToUpper(method)
+		}
+		if doMethod(method) {
+			pv(method, &f, &v)
 		}
 		doFields(f.Type, v, pv)
 	}
 }
 
 //注册控制器
-func Use(r martini.Router, c IDispatcher) {
+func Use(r martini.Router, c IDispatcher) error {
+	if err := c.Init(r); err != nil {
+		return err
+	}
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
-	doFields(stv, snv, func(fs *reflect.StructField, nv *reflect.Value) {
+	doFields(stv, snv, func(method string, fs *reflect.StructField, nv *reflect.Value) {
 		tv := fs.Type
-		method := strings.ToUpper(fs.Name)
 		handler := fs.Tag.Get("handler")
+		gurl := fs.Tag.Get("url")
 		for i := 0; i < tv.NumField(); i++ {
 			f := tv.Field(i)
 			//get field value
@@ -298,22 +310,11 @@ func Use(r martini.Router, c IDispatcher) {
 				log.Println("must set url path")
 				continue
 			}
+			//append group url
+			url = gurl + url
 			//query handler
 			in := []martini.Handler{}
-			//bind args handler
-			if method == http.MethodPost {
-				field := queryFieldName(iv)
-				switch iv.ReqType() {
-				case AT_FORM:
-					in = append(in, binding.Bind(iv))
-				case AT_JSON:
-					in = append(in, JsonHandler(iv, field))
-				case AT_BODY:
-					in = append(in, BodyHandler(field))
-				case AT_XML:
-					in = append(in, XmlHandler(iv, field))
-				}
-			}
+			ns := []string{}
 			//group handler
 			for _, htv := range strings.Split(handler, ",") {
 				if len(htv) == 0 {
@@ -321,14 +322,35 @@ func Use(r martini.Router, c IDispatcher) {
 				}
 				if mv := svv.MethodByName(htv); mv.IsValid() {
 					in = append(in, mv.Interface().(martini.Handler))
+					ns = append(ns, htv)
 				} else {
 					log.Println("group handler", htv, "miss")
+				}
+			}
+			//bind args handler
+			if method == http.MethodPost {
+				field := queryFieldName(iv)
+				it := reflect.TypeOf(iv)
+				switch iv.ReqType() {
+				case AT_FORM:
+					in = append(in, binding.Bind(iv))
+					ns = append(ns, "AT_FORM{"+it.Name()+"}")
+				case AT_JSON:
+					in = append(in, JsonHandler(iv, field))
+					ns = append(ns, "AT_JSON{"+it.Name()+"}")
+				case AT_BODY:
+					in = append(in, BodyHandler(field))
+					ns = append(ns, "AT_BODY{"+it.Name()+"}")
+				case AT_XML:
+					in = append(in, XmlHandler(iv, field))
+					ns = append(ns, "AT_XML{"+it.Name()+"}")
 				}
 			}
 			//before handler
 			for _, htv := range doHandlers(&f, "before") {
 				if mv := svv.MethodByName(htv); mv.IsValid() {
 					in = append(in, mv.Interface().(martini.Handler))
+					ns = append(ns, htv)
 				} else {
 					log.Println("before handler", htv, "miss")
 				}
@@ -340,6 +362,7 @@ func Use(r martini.Router, c IDispatcher) {
 				}
 				if mv := svv.MethodByName(htv); mv.IsValid() {
 					in = append(in, mv.Interface().(martini.Handler))
+					ns = append(ns, htv)
 				} else {
 					log.Println("main handler", htv, "miss")
 				}
@@ -348,6 +371,7 @@ func Use(r martini.Router, c IDispatcher) {
 			for _, htv := range doHandlers(&f, "after") {
 				if mv := svv.MethodByName(htv); mv.IsValid() {
 					in = append(in, mv.Interface().(martini.Handler))
+					ns = append(ns, htv)
 				} else {
 					log.Println("after handler", htv, "miss")
 				}
@@ -371,5 +395,5 @@ func Use(r martini.Router, c IDispatcher) {
 			}
 		}
 	})
-	c.Init(r)
+	return nil
 }
