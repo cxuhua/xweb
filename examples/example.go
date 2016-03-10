@@ -121,6 +121,7 @@ func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
 
 func (this *MainDispatcher) IndexHandler(c martini.Context, args QueryArgs, render render.Render) {
 	m := args.Model()
+	log.Println(args.Req)
 	render.HTML(http.StatusOK, m.View(), m)
 }
 

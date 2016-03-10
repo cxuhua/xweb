@@ -37,7 +37,7 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
-	Init(*Context) error
+	Init(*Context)
 }
 
 type HttpDispatcher struct {
@@ -55,8 +55,8 @@ func (this *HttpDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func (this *HttpDispatcher) Init(m *Context) error {
-	return nil
+func (this *HttpDispatcher) Init(m *Context) {
+
 }
 
 const (
@@ -88,6 +88,7 @@ type IArgs interface {
 
 type QueryArgs struct {
 	IArgs
+	Req *http.Request
 }
 
 func (this QueryArgs) ReqType() int {
@@ -214,6 +215,9 @@ func JsonHandler(v interface{}, name string) martini.Handler {
 func QueryHandler(v interface{}) martini.Handler {
 	return func(c martini.Context, req *http.Request) {
 		v := reflect.New(reflect.TypeOf(v))
+		if f := v.Elem().FieldByName("Req"); f.IsValid() {
+			f.Set(reflect.ValueOf(req))
+		}
 		c.Map(v.Elem().Interface())
 	}
 }
@@ -317,15 +321,12 @@ func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.Struct
 		if doMethod(method) {
 			pv(method, &f, &v)
 		}
-
 		doFields(f.Type, v, pv)
 	}
 }
 
 func (this *Context) Dispatcher(c IDispatcher) {
-	if err := c.Init(this); err != nil {
-		panic(err)
-	}
+	c.Init(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
