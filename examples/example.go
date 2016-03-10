@@ -5,7 +5,6 @@ import (
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
-	"gopkg.in/validator.v2"
 	"log"
 	"net/http"
 )
@@ -33,19 +32,50 @@ type XmlArgs struct {
 	B            int            `xml:"b"`
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//args
+type QueryArgs struct {
+	xweb.QueryArgs
+}
+
+//bind model
+func (this QueryArgs) Model() xweb.IModel {
+	m := IdxModel{}
+	m.A = 100
+	return &m
+}
+
+//model
+type IdxModel struct {
+	xweb.Model
+	A int
+}
+
+func (this *IdxModel) Invoke(req *http.Request) {
+	log.Println("IdxModel Invoke", req.URL)
+}
+
+//bind view
+func (this *IdxModel) View() string {
+	return "test"
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 type SubDispatcher struct {
-	xweb.Dispatcher
-	POST struct {
-		PostTest xweb.NullArgs `url:"/post/test"`
+	GET struct {
+		PostTest xweb.QueryArgs `url:"/test"`
 	}
 }
 
-func (this *BD) PostTest() {
-
+func (this *SubDispatcher) PostTest() {
+	x := xweb.GetDispatcher((*SubDispatcher)(nil))
+	log.Println(x)
 }
 
 type MainDispatcher struct {
-	xweb.Dispatcher
+	xweb.HttpDispatcher
 	SubDispatcher //子分发器不能取名字
 
 	POST struct {
@@ -58,7 +88,7 @@ type MainDispatcher struct {
 	} `url:"/post" handler:"LogRequest,NeedAuth" method:"POST"`
 
 	GET struct {
-		IndexHandler xweb.NullArgs `url:"/"`
+		IndexHandler QueryArgs `url:"/"`
 	} `handler:"LogRequest"`
 }
 
@@ -81,38 +111,23 @@ func (this *MainDispatcher) PostBody(body xweb.BodyArgs, render render.Render) {
 }
 
 func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
-	if err := validator.Validate(args); err != nil {
-		render.JSON(http.StatusOK, err)
-		return
-	}
-	log.Println(args)
-	render.Text(http.StatusOK, args.A)
+	m := args.Model()
+	render.JSON(http.StatusOK, m)
 }
 
 func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
 	render.JSON(http.StatusOK, args)
 }
 
-func (this *MainDispatcher) IndexHandler(req *http.Request, render render.Render) {
-	render.HTML(http.StatusOK, "test", nil)
-}
-
-func (this *MainDispatcher) Init(r martini.Router) error {
-	return nil
+func (this *MainDispatcher) IndexHandler(c martini.Context, args QueryArgs, render render.Render) {
+	m := args.Model()
+	render.HTML(http.StatusOK, m.View(), m)
 }
 
 func server() {
 	log.SetFlags(log.Llongfile)
-	m := martini.Classic()
-
-	m.Use(render.Renderer(render.Options{
-		IndentJSON: false,
-	}))
-	c := new(MainDispatcher)
-	if err := xweb.Use(m, c); err != nil {
-		panic(err)
-	}
-	m.RunOnAddr(":8010")
+	xweb.Dispatcher(new(MainDispatcher))
+	xweb.RunOnAddr(":8010")
 }
 
 func main() {

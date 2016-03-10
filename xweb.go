@@ -8,11 +8,13 @@ Deps:
 */
 
 import (
+	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
+	"github.com/martini-contrib/render"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
@@ -35,15 +37,14 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
-	Init(martini.Router) error
+	Init(*Context) error
 }
 
-type Dispatcher struct {
+type HttpDispatcher struct {
 	IDispatcher
 }
 
-//print request info handler
-func (this *Dispatcher) LogRequest(req *http.Request, log *log.Logger) {
+func (this *HttpDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------LogRequest------------------------")
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
@@ -54,33 +55,49 @@ func (this *Dispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func (this *Dispatcher) Init(r martini.Router) error {
+func (this *HttpDispatcher) Init(m *Context) error {
 	return nil
 }
 
-//参数类型
 const (
-	AT_NULL = iota
+	AT_QUERY = iota
 	AT_FORM
 	AT_JSON
 	AT_XML
 	AT_BODY
 )
 
-type IArgs interface {
-	ReqType() int //AT_*
+type IModel interface {
+	View() string
 }
 
-//null args
-type NullArgs struct {
+type Model struct {
+	IModel `json:"-"`
+	Code   int   `json:"code"`
+	Error  error `json:"error,omitempty"`
+}
+
+func (this *Model) View() string {
+	return ""
+}
+
+type IArgs interface {
+	ReqType() int  //AT_*
+	Model() IModel //
+}
+
+type QueryArgs struct {
 	IArgs
 }
 
-func (this NullArgs) ReqType() int {
-	return AT_NULL
+func (this QueryArgs) ReqType() int {
+	return AT_QUERY
 }
 
-//form表单 用于:POST 需要:enctype=application/x-www-form-urlencoded
+func (this QueryArgs) Model() IModel {
+	return &Model{}
+}
+
 type FormArgs struct {
 	IArgs
 }
@@ -89,7 +106,10 @@ func (this FormArgs) ReqType() int {
 	return AT_FORM
 }
 
-//数据流，将获得 []byte参数类型
+func (this FormArgs) Model() IModel {
+	return &Model{}
+}
+
 type BodyArgs struct {
 	IArgs
 	Data []byte
@@ -99,7 +119,10 @@ func (this BodyArgs) ReqType() int {
 	return AT_BODY
 }
 
-//post json实体数据 用于:POST 需要enctype=application/json
+func (this BodyArgs) Model() IModel {
+	return &Model{}
+}
+
 type JsonArgs struct {
 	IArgs
 }
@@ -108,7 +131,10 @@ func (this JsonArgs) ReqType() int {
 	return AT_JSON
 }
 
-//post xml数据 用于:POST 需要enctype=application/xml
+func (this JsonArgs) Model() IModel {
+	return &Model{}
+}
+
 type XmlArgs struct {
 	IArgs
 }
@@ -117,7 +143,21 @@ func (this XmlArgs) ReqType() int {
 	return AT_XML
 }
 
-//获取指定的form数据
+func (this XmlArgs) Model() IModel {
+	return &Model{}
+}
+
+//execute tempate render html
+func Execute(render render.Render, m IModel) (*bytes.Buffer, error) {
+	buf := bytes.NewBuffer(nil)
+	v := m.View()
+	if len(v) == 0 {
+		return nil, errors.New("model view miss")
+	}
+	err := render.Template().ExecuteTemplate(buf, v, m)
+	return buf, err
+}
+
 func QueryHttpRequestData(name string, req *http.Request) ([]byte, error) {
 	if req.Method != http.MethodPost {
 		return nil, errors.New("http method error")
@@ -152,7 +192,6 @@ func QueryHttpRequestData(name string, req *http.Request) ([]byte, error) {
 	return nil, errors.New("form data miss")
 }
 
-//解析json数据
 func JsonHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding json models")
@@ -172,7 +211,13 @@ func JsonHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-//解析xml数据
+func QueryHandler(v interface{}) martini.Handler {
+	return func(c martini.Context, req *http.Request) {
+		v := reflect.New(reflect.TypeOf(v))
+		c.Map(v.Elem().Interface())
+	}
+}
+
 func XmlHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding xml models")
@@ -192,7 +237,6 @@ func XmlHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-//map []byte
 func BodyHandler(name string) martini.Handler {
 	return func(c martini.Context, req *http.Request) {
 		data := []byte{}
@@ -206,7 +250,6 @@ func BodyHandler(name string) martini.Handler {
 	}
 }
 
-//查询数据源字段名称
 func queryFieldName(v interface{}) string {
 	t := reflect.TypeOf(v)
 	for i := 0; i < t.NumField(); i++ {
@@ -219,7 +262,6 @@ func queryFieldName(v interface{}) string {
 	return ""
 }
 
-//support method
 func doMethod(m string) bool {
 	switch m {
 	case http.MethodHead:
@@ -240,7 +282,6 @@ func doMethod(m string) bool {
 	return false
 }
 
-//
 func doHandlers(f *reflect.StructField, tag string) []string {
 	ret := []string{}
 	for _, s := range strings.Split(f.Tag.Get(tag), ",") {
@@ -252,7 +293,6 @@ func doHandlers(f *reflect.StructField, tag string) []string {
 	return ret
 }
 
-//搜索可用挂接字段
 func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.StructField, *reflect.Value)) {
 	if tv.Kind() != reflect.Struct {
 		return
@@ -277,15 +317,16 @@ func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.Struct
 		if doMethod(method) {
 			pv(method, &f, &v)
 		}
+
 		doFields(f.Type, v, pv)
 	}
 }
 
-//注册控制器
-func Use(r martini.Router, c IDispatcher) error {
-	if err := c.Init(r); err != nil {
-		return err
+func (this *Context) Dispatcher(c IDispatcher) {
+	if err := c.Init(this); err != nil {
+		panic(err)
 	}
+	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
@@ -312,7 +353,6 @@ func Use(r martini.Router, c IDispatcher) error {
 			}
 			//append group url
 			url = gurl + url
-			//query handler
 			in := []martini.Handler{}
 			ns := []string{}
 			//group handler
@@ -327,11 +367,14 @@ func Use(r martini.Router, c IDispatcher) error {
 					log.Println("group handler", htv, "miss")
 				}
 			}
-			//bind args handler
-			if method == http.MethodPost {
+			//args handler
+			if method == http.MethodPost || method == http.MethodGet {
 				field := queryFieldName(iv)
 				it := reflect.TypeOf(iv)
 				switch iv.ReqType() {
+				case AT_QUERY:
+					in = append(in, QueryHandler(iv))
+					ns = append(ns, "AT_QUERY{"+it.Name()+"}")
 				case AT_FORM:
 					in = append(in, binding.Bind(iv))
 					ns = append(ns, "AT_FORM{"+it.Name()+"}")
@@ -367,7 +410,7 @@ func Use(r martini.Router, c IDispatcher) error {
 					log.Println("main handler", htv, "miss")
 				}
 			}
-			//before handler
+			//after handler
 			for _, htv := range doHandlers(&f, "after") {
 				if mv := svv.MethodByName(htv); mv.IsValid() {
 					in = append(in, mv.Interface().(martini.Handler))
@@ -379,21 +422,22 @@ func Use(r martini.Router, c IDispatcher) error {
 			//set method handler
 			switch method {
 			case http.MethodHead:
-				r.Head(url, in...)
+				this.Head(url, in...)
 			case http.MethodOptions:
-				r.Options(url, in...)
+				this.Options(url, in...)
 			case http.MethodPatch:
-				r.Patch(url, in...)
+				this.Patch(url, in...)
 			case http.MethodDelete:
-				r.Delete(url, in...)
+				this.Delete(url, in...)
 			case http.MethodPut:
-				r.Put(url, in...)
+				this.Put(url, in...)
 			case http.MethodGet:
-				r.Get(url, in...)
+				this.Get(url, in...)
 			case http.MethodPost:
-				r.Post(url, in...)
+				this.Post(url, in...)
 			}
+			log.Println(method, url, ns)
 		}
 	})
-	return nil
+	this.Map(c)
 }
