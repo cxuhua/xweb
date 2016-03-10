@@ -52,10 +52,6 @@ type IdxModel struct {
 	A int
 }
 
-func (this *IdxModel) Invoke(req *http.Request) {
-	log.Println("IdxModel Invoke", req.URL)
-}
-
 //bind view
 func (this *IdxModel) View() string {
 	return "test"
@@ -127,8 +123,9 @@ func (this *MainDispatcher) IndexHandler(c martini.Context, args QueryArgs, rend
 
 func server() {
 	log.SetFlags(log.Llongfile)
-	xweb.Dispatcher(new(MainDispatcher))
-	xweb.RunOnAddr(":8010")
+	xweb.SetDispatcher(new(MainDispatcher))
+	xweb.ListenAndServe(":8010")
+	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))
 }
 
 func main() {

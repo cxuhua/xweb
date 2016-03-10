@@ -5,6 +5,7 @@ import (
 	"github.com/martini-contrib/render"
 	"gopkg.in/validator.v2"
 	"log"
+	"net/http"
 	"reflect"
 )
 
@@ -22,7 +23,7 @@ func MapTo(v interface{}, t interface{}) {
 	main.MapTo(v, t)
 }
 
-func Dispatcher(c IDispatcher) {
+func SetDispatcher(c IDispatcher) {
 	main.Dispatcher(c)
 }
 
@@ -45,16 +46,16 @@ func GetDispatcher(t interface{}) IDispatcher {
 	return nil
 }
 
-func SetValidationFunc(name string, vf validator.ValidationFunc) error {
-	return main.SetValidationFunc(name, vf)
-}
-
 func Validate(v interface{}) error {
 	return main.Validate(v)
 }
 
-func RunOnAddr(addr string) {
-	main.RunOnAddr(addr)
+func ListenAndServe(addr string) error {
+	return main.ListenAndServe(addr)
+}
+
+func ListenAndServeTLS(addr string, cert, key string) error {
+	return main.ListenAndServeTLS(addr, cert, key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +74,15 @@ func (this *Context) Validate(v interface{}) error {
 
 func (this *Context) Logger() *log.Logger {
 	return this.Injector.Get(reflect.TypeOf((*log.Logger)(nil))).Interface().(*log.Logger)
+}
+
+func (this *Context) ListenAndServe(addr string) error {
+	this.Logger().Printf("listening on %s (%s)\n", addr, martini.Env)
+	return http.ListenAndServe(addr, this)
+}
+
+func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
+	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
 func NewContext() *Context {
