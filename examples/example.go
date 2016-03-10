@@ -123,6 +123,9 @@ func (this *MainDispatcher) IndexHandler(c martini.Context, args QueryArgs, rend
 
 func server() {
 	log.SetFlags(log.Llongfile)
+	xweb.Use(render.Renderer(render.Options{
+		IndentJSON: false,
+	}))
 	xweb.SetDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")
 	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))

@@ -2,7 +2,6 @@ package xweb
 
 import (
 	"github.com/go-martini/martini"
-	"github.com/martini-contrib/render"
 	"gopkg.in/validator.v2"
 	"log"
 	"net/http"
@@ -96,10 +95,5 @@ func NewContext() *Context {
 	m.Action(r.Handle)
 	h.Martini = m
 	h.Router = r
-	h.Use(render.Renderer(render.Options{
-		IndentJSON: false,
-		Directory:  "templates",
-		Extensions: []string{".tmpl"},
-	}))
 	return h
 }
