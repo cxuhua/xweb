@@ -40,11 +40,43 @@ type IDispatcher interface {
 	Init(*Context)
 }
 
-type HttpDispatcher struct {
+const (
+	DEFAULT_HANDLER = "HTTPHandler"
+)
+
+type HTTPDispatcher struct {
 	IDispatcher
 }
 
-func (this *HttpDispatcher) LogRequest(req *http.Request, log *log.Logger) {
+func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, render render.Render, log *log.Logger) {
+	m := args.Model()
+	if v := reflect.ValueOf(m); !v.IsValid() {
+		log.Println("model", reflect.TypeOf(m), "value not valid")
+	} else if mf := v.MethodByName("HTML"); mf.IsValid() {
+		if _, err := c.Invoke(mf.Interface()); err != nil {
+			panic(err)
+		}
+		render.HTML(http.StatusOK, m.View(), m)
+	} else if mf := v.MethodByName("JSON"); mf.IsValid() {
+		if _, err := c.Invoke(mf.Interface()); err != nil {
+			panic(err)
+		}
+		render.JSON(http.StatusOK, m)
+	} else if mf := v.MethodByName("XML"); mf.IsValid() {
+		if _, err := c.Invoke(mf.Interface()); err != nil {
+			panic(err)
+		}
+		render.XML(http.StatusOK, m)
+	} else if mf := v.MethodByName("ANY"); mf.IsValid() {
+		if _, err := c.Invoke(mf.Interface()); err != nil {
+			panic(err)
+		}
+	} else {
+		log.Println("model", reflect.TypeOf(m), "miss (HTML|JSON|XML|ANY) method")
+	}
+}
+
+func (this *HTTPDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------LogRequest------------------------")
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
@@ -55,7 +87,7 @@ func (this *HttpDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func (this *HttpDispatcher) Init(m *Context) {
+func (this *HTTPDispatcher) Init(m *Context) {
 
 }
 
@@ -88,7 +120,6 @@ type IArgs interface {
 
 type QueryArgs struct {
 	IArgs
-	Req *http.Request
 }
 
 func (this QueryArgs) ReqType() int {
@@ -214,11 +245,10 @@ func JsonHandler(v interface{}, name string) martini.Handler {
 
 func QueryHandler(v interface{}) martini.Handler {
 	return func(c martini.Context, req *http.Request) {
-		v := reflect.New(reflect.TypeOf(v))
-		if f := v.Elem().FieldByName("Req"); f.IsValid() {
-			f.Set(reflect.ValueOf(req))
+		t := reflect.TypeOf(v)
+		if v := reflect.New(t); v.IsValid() {
+			c.Map(v.Elem().Interface())
 		}
-		c.Map(v.Elem().Interface())
 	}
 }
 
@@ -286,17 +316,6 @@ func doMethod(m string) bool {
 	return false
 }
 
-func doHandlers(f *reflect.StructField, tag string) []string {
-	ret := []string{}
-	for _, s := range strings.Split(f.Tag.Get(tag), ",") {
-		if len(s) == 0 {
-			continue
-		}
-		ret = append(ret, s)
-	}
-	return ret
-}
-
 func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.StructField, *reflect.Value)) {
 	if tv.Kind() != reflect.Struct {
 		return
@@ -325,7 +344,7 @@ func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.Struct
 	}
 }
 
-func (this *Context) Dispatcher(c IDispatcher) {
+func (this *Context) SetDispatcher(c IDispatcher) {
 	c.Init(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
@@ -355,70 +374,37 @@ func (this *Context) Dispatcher(c IDispatcher) {
 			//append group url
 			url = gurl + url
 			in := []martini.Handler{}
-			ns := []string{}
 			//group handler
-			for _, htv := range strings.Split(handler, ",") {
-				if len(htv) == 0 {
-					continue
-				}
-				if mv := svv.MethodByName(htv); mv.IsValid() {
-					in = append(in, mv.Interface().(martini.Handler))
-					ns = append(ns, htv)
-				} else {
-					log.Println("group handler", htv, "miss")
-				}
+			if mv := svv.MethodByName(handler); mv.IsValid() {
+				in = append(in, mv.Interface().(martini.Handler))
 			}
 			//args handler
-			if method == http.MethodPost || method == http.MethodGet {
-				field := queryFieldName(iv)
-				it := reflect.TypeOf(iv)
-				switch iv.ReqType() {
-				case AT_QUERY:
-					in = append(in, QueryHandler(iv))
-					ns = append(ns, "AT_QUERY{"+it.Name()+"}")
-				case AT_FORM:
-					in = append(in, binding.Bind(iv))
-					ns = append(ns, "AT_FORM{"+it.Name()+"}")
-				case AT_JSON:
-					in = append(in, JsonHandler(iv, field))
-					ns = append(ns, "AT_JSON{"+it.Name()+"}")
-				case AT_BODY:
-					in = append(in, BodyHandler(field))
-					ns = append(ns, "AT_BODY{"+it.Name()+"}")
-				case AT_XML:
-					in = append(in, XmlHandler(iv, field))
-					ns = append(ns, "AT_XML{"+it.Name()+"}")
-				}
+			field := queryFieldName(iv)
+			switch iv.ReqType() {
+			case AT_QUERY:
+				in = append(in, QueryHandler(iv))
+			case AT_FORM:
+				in = append(in, binding.Bind(iv))
+			case AT_JSON:
+				in = append(in, JsonHandler(iv, field))
+			case AT_BODY:
+				in = append(in, BodyHandler(field))
+			case AT_XML:
+				in = append(in, XmlHandler(iv, field))
 			}
 			//before handler
-			for _, htv := range doHandlers(&f, "before") {
-				if mv := svv.MethodByName(htv); mv.IsValid() {
-					in = append(in, mv.Interface().(martini.Handler))
-					ns = append(ns, htv)
-				} else {
-					log.Println("before handler", htv, "miss")
-				}
+			if mv := svv.MethodByName(f.Tag.Get("before")); mv.IsValid() {
+				in = append(in, mv.Interface().(martini.Handler))
 			}
 			//main handler
-			for _, htv := range strings.Split(f.Name, "_") {
-				if len(htv) == 0 {
-					continue
-				}
-				if mv := svv.MethodByName(htv); mv.IsValid() {
-					in = append(in, mv.Interface().(martini.Handler))
-					ns = append(ns, htv)
-				} else {
-					log.Println("main handler", htv, "miss")
-				}
+			if mv := svv.MethodByName(f.Name); mv.IsValid() {
+				in = append(in, mv.Interface().(martini.Handler))
+			} else if mv := svv.MethodByName(DEFAULT_HANDLER); mv.IsValid() {
+				in = append(in, mv.Interface().(martini.Handler))
 			}
 			//after handler
-			for _, htv := range doHandlers(&f, "after") {
-				if mv := svv.MethodByName(htv); mv.IsValid() {
-					in = append(in, mv.Interface().(martini.Handler))
-					ns = append(ns, htv)
-				} else {
-					log.Println("after handler", htv, "miss")
-				}
+			if mv := svv.MethodByName(f.Tag.Get("after")); mv.IsValid() {
+				in = append(in, mv.Interface().(martini.Handler))
 			}
 			//set method handler
 			switch method {
@@ -437,8 +423,8 @@ func (this *Context) Dispatcher(c IDispatcher) {
 			case http.MethodPost:
 				this.Post(url, in...)
 			}
-			log.Println(method, url, ns)
 		}
 	})
+	//map dispatcher
 	this.Map(c)
 }

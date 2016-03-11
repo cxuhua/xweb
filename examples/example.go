@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/cxuhua/xweb"
-	"github.com/go-martini/martini"
+	// "github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
 	"log"
@@ -49,7 +49,22 @@ func (this QueryArgs) Model() xweb.IModel {
 //model
 type IdxModel struct {
 	xweb.Model
-	A int
+	XMLName struct{} `xml:"xml"` //if xml
+	A       int
+}
+
+//echo HTML use View
+// func (this *IdxModel) HTML() {
+// 	this.A = 145
+// }
+
+// func (this *IdxModel) JSON() {
+// 	this.A = 400
+// }
+
+func (this *IdxModel) XML(args QueryArgs) {
+	log.Println(args)
+	this.A = 400
 }
 
 //bind view
@@ -66,12 +81,12 @@ type SubDispatcher struct {
 }
 
 func (this *SubDispatcher) PostTest() {
-	x := xweb.GetDispatcher((*SubDispatcher)(nil))
+	x := xweb.GetDispatcher((*MainDispatcher)(nil))
 	log.Println(x)
 }
 
 type MainDispatcher struct {
-	xweb.HttpDispatcher
+	xweb.HTTPDispatcher
 	SubDispatcher //子分发器不能取名字
 
 	POST struct {
@@ -84,7 +99,7 @@ type MainDispatcher struct {
 	} `url:"/post" handler:"LogRequest,NeedAuth" method:"POST"`
 
 	GET struct {
-		IndexHandler QueryArgs `url:"/"`
+		IndexHandler QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler
 	} `handler:"LogRequest"`
 }
 
@@ -113,12 +128,6 @@ func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
 
 func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
 	render.JSON(http.StatusOK, args)
-}
-
-func (this *MainDispatcher) IndexHandler(c martini.Context, args QueryArgs, render render.Render) {
-	m := args.Model()
-	log.Println(args.Req)
-	render.HTML(http.StatusOK, m.View(), m)
 }
 
 func server() {

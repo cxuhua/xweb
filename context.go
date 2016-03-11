@@ -14,6 +14,10 @@ var (
 	main = NewContext()
 )
 
+func SetEnv(env string) {
+	martini.Env = env
+}
+
 func Map(v interface{}) {
 	main.Map(v)
 }
@@ -23,7 +27,7 @@ func MapTo(v interface{}, t interface{}) {
 }
 
 func SetDispatcher(c IDispatcher) {
-	main.Dispatcher(c)
+	main.SetDispatcher(c)
 }
 
 func Group(url string, rf func(martini.Router), hs ...martini.Handler) {
@@ -72,15 +76,27 @@ func (this *Context) Validate(v interface{}) error {
 }
 
 func (this *Context) Logger() *log.Logger {
-	return this.Injector.Get(reflect.TypeOf((*log.Logger)(nil))).Interface().(*log.Logger)
+	t := reflect.TypeOf((*log.Logger)(nil))
+	if v := this.Injector.Get(t); !v.IsValid() {
+		return nil
+	} else if r, ok := v.Interface().(*log.Logger); ok {
+		return r
+	} else {
+		return nil
+	}
 }
 
 func (this *Context) ListenAndServe(addr string) error {
-	this.Logger().Printf("listening on %s (%s)\n", addr, martini.Env)
+	if log := this.Logger(); log != nil {
+		log.Printf("http listening on %s (%s)\n", addr, martini.Env)
+	}
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
+	if log := this.Logger(); log != nil {
+		log.Printf("https listening on %s (%s)\n", addr, martini.Env)
+	}
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
