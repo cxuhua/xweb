@@ -96,7 +96,6 @@ const (
 	AT_FORM
 	AT_JSON
 	AT_XML
-	AT_BODY
 )
 
 type IModel interface {
@@ -139,19 +138,6 @@ func (this FormArgs) ReqType() int {
 }
 
 func (this FormArgs) Model() IModel {
-	return &Model{}
-}
-
-type BodyArgs struct {
-	IArgs
-	Data []byte
-}
-
-func (this BodyArgs) ReqType() int {
-	return AT_BODY
-}
-
-func (this BodyArgs) Model() IModel {
 	return &Model{}
 }
 
@@ -271,19 +257,6 @@ func XmlHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-func BodyHandler(name string) martini.Handler {
-	return func(c martini.Context, req *http.Request) {
-		data := []byte{}
-		errors := binding.Errors{}
-		data, err := QueryHttpRequestData(name, req)
-		if err != nil {
-			errors.Add([]string{}, binding.RequiredError, err.Error())
-		}
-		c.Map(errors)
-		c.Map(BodyArgs{Data: data})
-	}
-}
-
 func queryFieldName(v interface{}) string {
 	t := reflect.TypeOf(v)
 	for i := 0; i < t.NumField(); i++ {
@@ -387,8 +360,6 @@ func (this *Context) SetDispatcher(c IDispatcher) {
 				in = append(in, binding.Bind(iv))
 			case AT_JSON:
 				in = append(in, JsonHandler(iv, field))
-			case AT_BODY:
-				in = append(in, BodyHandler(field))
 			case AT_XML:
 				in = append(in, XmlHandler(iv, field))
 			}
