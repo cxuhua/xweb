@@ -62,10 +62,10 @@ type HTTPValidate struct {
 }
 
 type HTTPValidateModel struct {
-	IModel  `json:"-"`
-	XMLName struct{}       `xml:"xml" json:"-"`
-	Code    int            `xml:"code" json:"code"`
-	Errors  []HTTPValidate `xml:"errors>item" json:"errors"`
+	JsonModel `json:"-"`
+	XMLName   struct{}       `xml:"xml" json:"-"`
+	Code      int            `xml:"code" json:"code"`
+	Errors    []HTTPValidate `xml:"errors>item" json:"errors"`
 }
 
 func (this *HTTPValidateModel) Init(err validator.ErrorMap) {
@@ -75,19 +75,6 @@ func (this *HTTPValidateModel) Init(err validator.ErrorMap) {
 		this.Errors = append(this.Errors, e)
 	}
 	this.Code = ValidateErrorCode
-}
-
-func (this *HTTPValidateModel) ANY(args IArgs, render render.Render) {
-	switch args.ErrorType() {
-	case OT_JSON:
-		render.JSON(http.StatusOK, this)
-	case OT_XML:
-		render.XML(http.StatusOK, this)
-	case OT_TEXT:
-		render.Text(http.StatusOK, fmt.Sprintf("%v", this))
-	default:
-		render.HTML(http.StatusOK, args.ErrorView(), this)
-	}
 }
 
 const (
@@ -118,50 +105,37 @@ func (this *HTTPDispatcher) ValidateError(err error) IModel {
 	return m
 }
 
-func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, render render.Render, log *log.Logger) {
+func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, req *http.Request, render render.Render, log *log.Logger) {
 	var m IModel = nil
+	//校验数据
 	if err := this.ctx.Validate(args); err != nil {
 		m = this.ValidateError(err)
 	} else {
 		m = args.Model()
 	}
+	//检测模型
 	if m == nil {
 		panic(errors.New(reflect.TypeOf(args).Name() + " Model nil"))
 	}
 	if reflect.TypeOf(m).Kind() != reflect.Ptr {
 		panic(errors.New(reflect.TypeOf(m).Name() + " Model must is Ptr type"))
 	}
-	v := reflect.ValueOf(m)
-	if mf := v.MethodByName("HTML"); mf.IsValid() {
-		if _, err := c.Invoke(mf.Interface()); err != nil {
-			panic(err)
-		}
-		view := m.View()
-		if len(view) == 0 {
-			panic(errors.New(reflect.TypeOf(m).Elem().Name() + " View nil"))
-		}
-		render.HTML(http.StatusOK, view, m)
-		return
+	//动态获得Run处理数据
+	if mf := reflect.ValueOf(m).MethodByName("Run"); mf.IsValid() {
+		c.Invoke(mf.Interface())
 	}
-	if mf := v.MethodByName("JSON"); mf.IsValid() {
-		if _, err := c.Invoke(mf.Interface()); err != nil {
-			panic(err)
-		}
+	//根据参数输出数据类型
+	switch m.OutType() {
+	case OT_HTML:
+		render.HTML(http.StatusOK, m.OutView(), m)
+	case OT_JSON:
 		render.JSON(http.StatusOK, m)
-		return
-	}
-	if mf := v.MethodByName("XML"); mf.IsValid() {
-		if _, err := c.Invoke(mf.Interface()); err != nil {
-			panic(err)
-		}
+	case OT_XML:
 		render.XML(http.StatusOK, m)
-		return
-	}
-	if mf := v.MethodByName("ANY"); mf.IsValid() {
-		if _, err := c.Invoke(mf.Interface()); err != nil {
-			panic(err)
-		}
-		return
+	case OT_TEXT:
+		render.Text(http.StatusOK, fmt.Sprintf("%v", m))
+	default:
+		c.Map(m)
 	}
 }
 
@@ -176,9 +150,10 @@ func (this *HTTPDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-//args type
+//req type
 const (
-	AT_QUERY = iota
+	AT_NONE = iota
+	AT_QUERY
 	AT_FORM
 	AT_JSON
 	AT_XML
@@ -186,55 +161,81 @@ const (
 
 //output type
 const (
-	OT_TEXT = iota
+	OT_NONE = iota
+	OT_TEXT
 	OT_JSON
 	OT_XML
+	OT_HTML
 )
 
+//Run被动态调用处理
 type IModel interface {
-	View() string
+	//template view
+	OutView() string
+	//error output type,model not set HTML JSON XML ANY func
+	OutType() int //OT_*
+}
+
+type Model struct {
+	IModel
+}
+
+func (this *Model) OutView() string {
+	return ""
+}
+
+func (this *Model) OutType() int {
+	return OT_JSON
+}
+
+type HtmlModel struct {
+	Model
+}
+
+func (this *HtmlModel) OutType() int {
+	return OT_HTML
+}
+
+type TextModel struct {
+	Model
+}
+
+func (this *TextModel) OutType() int {
+	return OT_TEXT
+}
+
+type JsonModel struct {
+	Model
+}
+
+func (this *JsonModel) OutType() int {
+	return OT_JSON
+}
+
+type XmlModel struct {
+	Model
+}
+
+func (this *XmlModel) OutType() int {
+	return OT_XML
 }
 
 type HTTPModel struct {
-	IModel  `json:"-"`
-	XMLName struct{} `xml:"xml" json:"-"`
-	Code    int      `json:"code" xml:"code"`
-	Error   string   `json:"error" xml:"error"`
-}
-
-func (this *HTTPModel) ANY(args IArgs, render render.Render) {
-	if args.ReqType() == AT_JSON {
-		render.JSON(http.StatusOK, this)
-		return
-	}
-	if args.ReqType() == AT_XML {
-		render.XML(http.StatusOK, this)
-		return
-	}
+	JsonModel `json:"-"`
+	XMLName   struct{} `xml:"xml" json:"-"`
+	Code      int      `json:"code" xml:"code"`
+	Error     string   `json:"error" xml:"error"`
 }
 
 type IArgs interface {
 	//request parse data type
 	ReqType() int //AT_*
-
 	//process Model
 	Model() IModel //IModel
-
-	//error output type,model not set HTML JSON XML ANY func
-	ErrorType() int    //OT_*
-	ErrorView() string //error Output html template view
 }
 
 type QueryArgs struct {
 	IArgs
-}
-
-func (this QueryArgs) ErrorView() string {
-	return "error"
-}
-
-func (this QueryArgs) ErrorType() int {
-	return -1
 }
 
 func (this QueryArgs) ReqType() int {
@@ -260,20 +261,12 @@ type JsonArgs struct {
 	QueryArgs
 }
 
-func (this JsonArgs) ErrorType() int {
-	return OT_JSON
-}
-
 func (this JsonArgs) ReqType() int {
 	return AT_JSON
 }
 
 type XmlArgs struct {
 	QueryArgs
-}
-
-func (this XmlArgs) ErrorType() int {
-	return OT_XML
 }
 
 func (this XmlArgs) ReqType() int {
@@ -283,7 +276,7 @@ func (this XmlArgs) ReqType() int {
 //execute tempate render html
 func Execute(render render.Render, m IModel) (*bytes.Buffer, error) {
 	buf := bytes.NewBuffer(nil)
-	v := m.View()
+	v := m.OutView()
 	if len(v) == 0 {
 		return nil, errors.New("model view miss")
 	}

@@ -2,141 +2,44 @@ package main
 
 import (
 	"github.com/cxuhua/xweb"
-	// "github.com/go-martini/martini"
-	// "github.com/martini-contrib/binding"
-	"github.com/martini-contrib/render"
 	"log"
-	"net/http"
 )
-
-type FormArg struct {
-	xweb.FormArgs
-	A string `form:"a"`
-}
-
-type AuthArg struct {
-	xweb.FormArgs
-	A string `form:"a"`
-}
-
-type JsonArgs struct {
-	xweb.JsonArgs `form:"Body"`
-	A             string `json:"a" validate:"min=1,max=2"`
-	B             int    `json:"b"`
-}
-
-func (this JsonArgs) Model() xweb.IModel {
-	return &xweb.HTTPModel{Code: 0, Error: "not error"}
-}
-
-type XmlArgs struct {
-	xweb.XmlArgs `form:"Body"` //from form field get data source
-	XMLName      struct{}      `xml:"xml"` //xml root element name
-	A            string        `xml:"a" validate:"min=1,max=2"`
-	B            int           `xml:"b" validate:"min=1,max=2"`
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //args
 type QueryArgs struct {
 	xweb.QueryArgs
 }
 
-//bind model
+// html/
+// json/
+// xml/
+// text/
+
+type ListModel struct {
+	xweb.HtmlModel
+	XXX string
+}
+
+//1
 func (this QueryArgs) Model() xweb.IModel {
-	m := IdxModel{}
-	m.A = 100
-	return &m
+	return new(ListModel)
 }
 
-//model
-type IdxModel struct {
-	xweb.IModel
-	XMLName struct{} `xml:"xml"` //if xml
-	A       int
+//4
+func (this *ListModel) OutView() string {
+	return this.XXX
 }
 
-//echo HTML use View
-func (this *IdxModel) HTML() {
-	this.A = 145
-}
-
-//bind view
-func (this *IdxModel) View() string {
-	return "test"
-}
-
-// func (this *IdxModel) JSON() {
-// 	this.A = 400
-// }
-
-// func (this *IdxModel) XML(args QueryArgs) {
-// 	log.Println(args)
-// 	this.A = 400
-// }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-type SubDispatcher struct {
-	GET struct {
-		PostTest xweb.QueryArgs `url:"/test"`
-	}
-}
-
-func (this *SubDispatcher) PostTest() {
-	x := xweb.GetDispatcher((*MainDispatcher)(nil))
-	log.Println(x)
+//2
+func (this *ListModel) Run(args QueryArgs) {
+	this.XXX = "list"
 }
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-
-	SubDispatcher //子分发器不能取名字
-
-	// POST struct {
-	// 	PostForm FormArg `url:"/form" before:"LogRequest"`
-	// } `url:"/post" handler:"NeedAuth"`
-
-	POST2 struct {
-		PostJson JsonArgs `url:"/json"`
-		PostXml  XmlArgs  `url:"/xml" after:"PrintInfo"`
-	} `url:"/post" handler:"LogRequest,NeedAuth" method:"POST"`
-
 	GET struct {
 		IndexHandler QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler
 	} `handler:"LogRequest"`
-}
-
-func (this *MainDispatcher) NeedAuth() {
-	log.Println("NeedAuth Handler")
-}
-
-// func (this *MainDispatcher) PostXml(err binding.Errors, args XmlArgs, render render.Render) {
-// 	log.Println("main handler", args, err)
-// 	// render.Text(http.StatusOK, args.A)
-// }
-
-func (this *MainDispatcher) PrintInfo(args XmlArgs) {
-	log.Println("after handler", args)
-}
-
-// func (this *SubDispatcher) IndexHandler(render render.Render) {
-// 	render.Text(http.StatusOK, "ok SubDispatcher")
-// }
-
-// //MainDispatcher.IndexHandler replace  SubDispatcher.IndexHandler
-// func (this *MainDispatcher) IndexHandler(render render.Render) {
-// 	render.Text(http.StatusOK, "ok MainDispatcher")
-// }
-
-// func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
-// 	m := args.Model()
-// 	render.JSON(http.StatusOK, m)
-// }
-
-func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
-	render.JSON(http.StatusOK, args)
 }
 
 func server() {

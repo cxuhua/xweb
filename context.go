@@ -115,11 +115,13 @@ func NewContext() *Context {
 	h := new(Context)
 	r := martini.NewRouter()
 	m := martini.New()
+
 	m.Use(martini.Logger())
 	m.Use(martini.Recovery())
 	m.Use(martini.Static("public"))
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
+
 	h.Martini = m
 	h.Router = r
 	return h

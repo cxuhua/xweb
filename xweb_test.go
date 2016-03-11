@@ -17,9 +17,9 @@ type TestArgs struct {
 
 //定义输出模型
 type TestModel struct {
-	IModel `json:"-"`
-	C      string `json:"a"`
-	D      int    `json:"b"`
+	JsonModel `json:"-"`
+	C         string `json:"a"`
+	D         int    `json:"b"`
 }
 
 //使用返回的模型处理参数
@@ -39,7 +39,7 @@ func (this TestArgs) Model() IModel {
 
 //处理参数并返回 json类型(如果定义了JSON方法)
 //JSON HTML XML ANY
-func (this *TestModel) JSON(args TestArgs) {
+func (this *TestModel) Run(args TestArgs) {
 	this.C = args.A + "54321"
 	this.D = args.B + 10
 }
