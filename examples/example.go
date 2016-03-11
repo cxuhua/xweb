@@ -91,7 +91,8 @@ func (this *SubDispatcher) PostTest() {
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-	// SubDispatcher //子分发器不能取名字
+
+	SubDispatcher //子分发器不能取名字
 
 	// POST struct {
 	// 	PostForm FormArg `url:"/form" before:"LogRequest"`
@@ -120,6 +121,15 @@ func (this *MainDispatcher) PrintInfo(args XmlArgs) {
 	log.Println("after handler", args)
 }
 
+// func (this *SubDispatcher) IndexHandler(render render.Render) {
+// 	render.Text(http.StatusOK, "ok SubDispatcher")
+// }
+
+// //MainDispatcher.IndexHandler replace  SubDispatcher.IndexHandler
+// func (this *MainDispatcher) IndexHandler(render render.Render) {
+// 	render.Text(http.StatusOK, "ok MainDispatcher")
+// }
+
 // func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
 // 	m := args.Model()
 // 	render.JSON(http.StatusOK, m)
@@ -131,7 +141,7 @@ func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
 
 func server() {
 	log.SetFlags(log.Llongfile)
-	xweb.SetDispatcher(new(MainDispatcher))
+	xweb.UseDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")
 	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))
 }

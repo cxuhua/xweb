@@ -26,11 +26,13 @@ import (
 )
 
 const (
-	ValidateErrorCode  = 10000
+	//IArgs validate error return code
+	ValidateErrorCode = 10000
+
+	//model miss return code
 	ModelMissErrorCode = 10001
 )
 
-//获得上传文件数据
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 	if fh == nil {
 		return nil, errors.New("args null")
@@ -44,12 +46,14 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
-	//
+	//保存上下文
 	SetContext(*Context)
-	//
+
+	//获得上下文
 	GetContext() *Context
-	//valid args error mode
-	ValidateError(IArgs, error) IModel
+
+	//当数据校验失败时候返回输出Model
+	ValidateError(error) IModel
 }
 
 type HTTPValidate struct {
@@ -73,7 +77,21 @@ func (this *HTTPValidateModel) Init(err validator.ErrorMap) {
 	this.Code = ValidateErrorCode
 }
 
+func (this *HTTPValidateModel) ANY(args IArgs, render render.Render) {
+	switch args.ErrorType() {
+	case OT_JSON:
+		render.JSON(http.StatusOK, this)
+	case OT_XML:
+		render.XML(http.StatusOK, this)
+	case OT_TEXT:
+		render.Text(http.StatusOK, fmt.Sprintf("%v", this))
+	default:
+		render.HTML(http.StatusOK, args.ErrorView(), this)
+	}
+}
+
 const (
+	//默认处理组件
 	DEFAULT_HANDLER = "HTTPHandler"
 )
 
@@ -90,7 +108,7 @@ func (this *HTTPDispatcher) GetContext() *Context {
 	return this.ctx
 }
 
-func (this *HTTPDispatcher) ValidateError(args IArgs, err error) IModel {
+func (this *HTTPDispatcher) ValidateError(err error) IModel {
 	v, ok := err.(validator.ErrorMap)
 	if !ok {
 		return nil
@@ -103,7 +121,7 @@ func (this *HTTPDispatcher) ValidateError(args IArgs, err error) IModel {
 func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, render render.Render, log *log.Logger) {
 	var m IModel = nil
 	if err := this.ctx.Validate(args); err != nil {
-		m = this.ValidateError(args, err)
+		m = this.ValidateError(err)
 	} else {
 		m = args.Model()
 	}
@@ -144,16 +162,6 @@ func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, render re
 			panic(err)
 		}
 		return
-	}
-	switch args.ErrorType() {
-	case OT_JSON:
-		render.JSON(http.StatusOK, m)
-	case OT_XML:
-		render.XML(http.StatusOK, m)
-	case OT_TEXT:
-		render.Text(http.StatusOK, fmt.Sprintf("%v", m))
-	default:
-		render.HTML(http.StatusOK, args.ErrorView(), m)
 	}
 }
 
@@ -212,7 +220,7 @@ type IArgs interface {
 	//process Model
 	Model() IModel //IModel
 
-	//error output type
+	//error output type,model not set HTML JSON XML ANY func
 	ErrorType() int    //OT_*
 	ErrorView() string //error Output html template view
 }
@@ -425,7 +433,7 @@ func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.Struct
 	}
 }
 
-func (this *Context) SetDispatcher(c IDispatcher) {
+func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 	c.SetContext(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
@@ -506,5 +514,9 @@ func (this *Context) SetDispatcher(c IDispatcher) {
 		}
 	})
 	//map dispatcher
-	this.Map(c)
+	if len(v) == 0 {
+		this.Map(c)
+	} else {
+		this.MapTo(c, v[0])
+	}
 }

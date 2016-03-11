@@ -31,8 +31,8 @@ func MapTo(v interface{}, t interface{}) {
 	main.MapTo(v, t)
 }
 
-func SetDispatcher(c IDispatcher) {
-	main.SetDispatcher(c)
+func UseDispatcher(c IDispatcher) {
+	main.UseDispatcher(c)
 }
 
 func Group(url string, rf func(martini.Router), hs ...martini.Handler) {

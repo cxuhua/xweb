@@ -37,6 +37,7 @@ func reloadHandler(sig os.Signal) error {
 }
 
 func Daemon(mainFunc func(), workdir, pidFile, logFile string) {
+	log.SetFlags(log.Llongfile | log.LstdFlags)
 	flag.Parse()
 	if !*runDaemon && len(*signal) == 0 {
 		log.Println("use: -s(stop|reload) -d(daemon mode)")
