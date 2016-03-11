@@ -27,6 +27,8 @@ import (
 const (
 	//IArgs validate error return code
 	ValidateErrorCode = 10000
+	ValidateSuffix    = "Validate"
+	HandlerSuffix     = "Handler"
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -95,36 +97,32 @@ func (this *HTTPDispatcher) GetContext() *Context {
 	return this.ctx
 }
 
-func (this *HTTPDispatcher) Validate(args IArgs) error {
-	return this.ctx.Validate(args)
-}
-
 //校验结果传递到下个
-func (this *HTTPDispatcher) ValidateToNext(c martini.Context, args IArgs) {
+func (this *HTTPDispatcher) ToNextValidate(c martini.Context, args IArgs) {
 	var m *HTTPValidateModel = nil
-	if err := this.Validate(args); err != nil {
+	if err := this.ctx.Validate(args); err != nil {
 		m = NewHTTPValidateModel(err)
 	}
 	c.Map(m)
 }
 
 //校验失败输出json
-func (this *HTTPDispatcher) ValidateToJSON(args IArgs, render render.Render) {
-	if err := this.Validate(args); err != nil {
+func (this *HTTPDispatcher) ToJSONValidate(args IArgs, render render.Render) {
+	if err := this.ctx.Validate(args); err != nil {
 		m := NewHTTPValidateModel(err)
 		render.JSON(http.StatusOK, m)
 	}
 }
 
 //校验失败输出xml
-func (this *HTTPDispatcher) ValidateToXML(args IArgs, render render.Render) {
-	if err := this.Validate(args); err != nil {
+func (this *HTTPDispatcher) ToXMLValidate(args IArgs, render render.Render) {
+	if err := this.ctx.Validate(args); err != nil {
 		m := NewHTTPValidateModel(err)
 		render.XML(http.StatusOK, m)
 	}
 }
 
-func (this *HTTPDispatcher) LogRequest(req *http.Request, log *log.Logger) {
+func (this *HTTPDispatcher) LogHandler(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------LogRequest------------------------")
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
@@ -381,31 +379,31 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 				in = append(in, XmlHandler(iv, name))
 			}
 			//validate handler
-			if mv := svv.MethodByName(g.Tag.Get("validate")); mv.IsValid() {
+			if mv := svv.MethodByName(g.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
 			//group handler
-			if mv := svv.MethodByName(g.Tag.Get("handler")); mv.IsValid() {
+			if mv := svv.MethodByName(g.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
 			//validate handler
-			if mv := svv.MethodByName(f.Tag.Get("validate")); mv.IsValid() {
+			if mv := svv.MethodByName(f.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
 			//before handler
-			if mv := svv.MethodByName(f.Tag.Get("before")); mv.IsValid() {
+			if mv := svv.MethodByName(f.Tag.Get("before") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
 			//main handler
-			if mv := svv.MethodByName(f.Tag.Get("handler")); mv.IsValid() {
+			if mv := svv.MethodByName(f.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
-			} else if mv := svv.MethodByName(f.Name); mv.IsValid() {
+			} else if mv := svv.MethodByName(f.Name + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			} else {
 				panic(errors.New(f.Name + " handler miss"))
 			}
 			//after handler
-			if mv := svv.MethodByName(f.Tag.Get("after")); mv.IsValid() {
+			if mv := svv.MethodByName(f.Tag.Get("after") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
 			//set method handler

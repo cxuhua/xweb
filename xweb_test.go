@@ -26,16 +26,16 @@ type TestModel struct {
 type TestDistacher struct {
 	HTTPDispatcher
 	POST struct {
-		P1 TestArgs `url:"/json" handler:"PX" validate:"ValidateToJSON"`
+		P1 TestArgs `url:"/json" handler:"PX" validate:"ToJSON"`
 		P2 TestArgs `url:"/json"`
 	} `url:"/post"`
 }
 
-func (this *TestDistacher) P2() {
+func (this *TestDistacher) P2Handler() {
 
 }
 
-func (this *TestDistacher) PX(args TestArgs, render render.Render) {
+func (this *TestDistacher) PXHandler(args TestArgs, render render.Render) {
 	m := TestModel{}
 	m.C = args.A + "54321"
 	m.D = args.B + 10

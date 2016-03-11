@@ -21,19 +21,19 @@ type JsonArgs struct {
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	POST struct {
-		PostJson JsonArgs `url:"/json" validate:"ValidateToJSON"`
-	} `url:"/post" handler:"LogRequest"`
+		PostJson JsonArgs `url:"/json" validate:"ToJSON"`
+	} `url:"/post" handler:"Log"`
 	GET struct {
-		IndexHandler QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler
-	} `handler:"LogRequest"`
+		Index QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler
+	} `handler:"Log"`
 }
 
-func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
+func (this *MainDispatcher) PostJsonHandler(args JsonArgs, render render.Render) {
+	log.Println(args)
 	render.JSON(http.StatusOK, args)
 }
 
 func (this *MainDispatcher) IndexHandler(render render.Render) {
-	log.Println("IndexHandler")
 	render.HTML(http.StatusOK, "test", nil)
 }
 
