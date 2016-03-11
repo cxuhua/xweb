@@ -28,7 +28,7 @@ type TestDistacher struct {
 	POST struct {
 		P1 TestArgs `url:"/json" handler:"PX" validate:"ToJSON"`
 		P2 TestArgs `url:"/json"`
-	} `url:"/post"`
+	} `url:"/post" handler:"Logger"`
 }
 
 func (this *TestDistacher) P2Handler() {

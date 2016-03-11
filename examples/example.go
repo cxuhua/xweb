@@ -22,10 +22,10 @@ type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	POST struct {
 		PostJson JsonArgs `url:"/json" validate:"ToJSON"`
-	} `url:"/post" handler:"Log"`
+	} `url:"/post" handler:"Logger"`
 	GET struct {
 		Index QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler
-	} `handler:"Log"`
+	} `handler:"Logger"`
 }
 
 func (this *MainDispatcher) PostJsonHandler(args JsonArgs, render render.Render) {

@@ -122,8 +122,8 @@ func (this *HTTPDispatcher) ToXMLValidate(args IArgs, render render.Render) {
 	}
 }
 
-func (this *HTTPDispatcher) LogHandler(req *http.Request, log *log.Logger) {
-	log.Println("----------------------------LogRequest------------------------")
+func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
+	log.Println("----------------------------Logger---------------------------")
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
 	for k, v := range req.Header {
