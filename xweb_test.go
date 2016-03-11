@@ -2,17 +2,30 @@ package xweb
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/martini-contrib/render"
 	. "gopkg.in/check.v1"
+	"gopkg.in/validator.v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 )
 
+var (
+	ErrUserExists = validator.TextErr{errors.New("user exists")}
+)
+
+func userExists(v interface{}, param string) error {
+	if param == "true" {
+		return ErrUserExists
+	}
+	return nil
+}
+
 //定义输入参数
 type TestArgs struct {
 	JSONArgs        // `form:"Body"`
-	A        string `json:"a" validate:"len=5"`
+	A        string `json:"a" validate:"len=5,exists=false"`
 	B        int    `json:"b" validate:"min=2,max=6"`
 }
 
@@ -27,7 +40,6 @@ type TestDistacher struct {
 	HTTPDispatcher
 	POST struct {
 		P1 TestArgs `url:"/json" handler:"PX" validate:"ToJSON"`
-		P2 TestArgs `url:"/json"`
 	} `url:"/post" handler:"Logger"`
 }
 
@@ -53,6 +65,7 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (this *WebSuite) SetUpSuite(c *C) {
+	main.SetValidationFunc("exists", userExists)
 	main.UseRender()
 	main.UseDispatcher(new(TestDistacher))
 }

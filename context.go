@@ -54,6 +54,10 @@ func GetDispatcher(t interface{}) IDispatcher {
 	return nil
 }
 
+func SetValidationFunc(name string, vf validator.ValidationFunc) error {
+	return main.SetValidationFunc(name, vf)
+}
+
 func Validate(v interface{}) error {
 	return main.Validate(v)
 }
