@@ -2,6 +2,7 @@ package xweb
 
 import (
 	"github.com/go-martini/martini"
+	"github.com/martini-contrib/render"
 	"gopkg.in/validator.v2"
 	"log"
 	"net/http"
@@ -13,6 +14,10 @@ import (
 var (
 	main = NewContext()
 )
+
+func UseRender(opts ...render.Options) {
+	main.UseRender(opts...)
+}
 
 func SetEnv(env string) {
 	martini.Env = env
@@ -54,10 +59,12 @@ func Validate(v interface{}) error {
 }
 
 func ListenAndServe(addr string) error {
+	main.UseRender()
 	return main.ListenAndServe(addr)
 }
 
 func ListenAndServeTLS(addr string, cert, key string) error {
+	main.UseRender()
 	return main.ListenAndServeTLS(addr, cert, key)
 }
 
@@ -65,6 +72,10 @@ func ListenAndServeTLS(addr string, cert, key string) error {
 
 type Context struct {
 	martini.ClassicMartini
+}
+
+func (this *Context) UseRender(opts ...render.Options) {
+	this.Use(render.Renderer(opts...))
 }
 
 func (this *Context) SetValidationFunc(name string, vf validator.ValidationFunc) error {

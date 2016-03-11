@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/cxuhua/xweb"
 	// "github.com/go-martini/martini"
-	"github.com/martini-contrib/binding"
+	// "github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
 	"log"
 	"net/http"
@@ -20,16 +20,20 @@ type AuthArg struct {
 }
 
 type JsonArgs struct {
-	xweb.JsonArgs `field:"Body"`
+	xweb.JsonArgs `form:"Body"`
 	A             string `json:"a" validate:"min=1,max=2"`
 	B             int    `json:"b"`
 }
 
+func (this JsonArgs) Model() xweb.IModel {
+	return &xweb.HTTPModel{Code: 0, Error: "not error"}
+}
+
 type XmlArgs struct {
-	xweb.XmlArgs `field:"file"` //from field get data source
-	XMLName      struct{}       `xml:"xml"` //xml root element name
-	A            string         `xml:"a"`
-	B            int            `xml:"b"`
+	xweb.XmlArgs `form:"Body"` //from form field get data source
+	XMLName      struct{}      `xml:"xml"` //xml root element name
+	A            string        `xml:"a" validate:"min=1,max=2"`
+	B            int           `xml:"b" validate:"min=1,max=2"`
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -48,29 +52,29 @@ func (this QueryArgs) Model() xweb.IModel {
 
 //model
 type IdxModel struct {
-	xweb.Model
+	xweb.IModel
 	XMLName struct{} `xml:"xml"` //if xml
 	A       int
 }
 
 //echo HTML use View
-// func (this *IdxModel) HTML() {
-// 	this.A = 145
-// }
-
-// func (this *IdxModel) JSON() {
-// 	this.A = 400
-// }
-
-func (this *IdxModel) XML(args QueryArgs) {
-	log.Println(args)
-	this.A = 400
+func (this *IdxModel) HTML() {
+	this.A = 145
 }
 
 //bind view
 func (this *IdxModel) View() string {
 	return "test"
 }
+
+// func (this *IdxModel) JSON() {
+// 	this.A = 400
+// }
+
+// func (this *IdxModel) XML(args QueryArgs) {
+// 	log.Println(args)
+// 	this.A = 400
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -87,11 +91,11 @@ func (this *SubDispatcher) PostTest() {
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-	SubDispatcher //子分发器不能取名字
+	// SubDispatcher //子分发器不能取名字
 
-	POST struct {
-		PostForm FormArg `url:"/form" before:"LogRequest"`
-	} `url:"/post" handler:"NeedAuth"`
+	// POST struct {
+	// 	PostForm FormArg `url:"/form" before:"LogRequest"`
+	// } `url:"/post" handler:"NeedAuth"`
 
 	POST2 struct {
 		PostJson JsonArgs `url:"/json"`
@@ -107,24 +111,19 @@ func (this *MainDispatcher) NeedAuth() {
 	log.Println("NeedAuth Handler")
 }
 
-func (this *MainDispatcher) PostXml(err binding.Errors, args XmlArgs, render render.Render) {
-	log.Println("main handler", args, err)
-	// render.Text(http.StatusOK, args.A)
-}
+// func (this *MainDispatcher) PostXml(err binding.Errors, args XmlArgs, render render.Render) {
+// 	log.Println("main handler", args, err)
+// 	// render.Text(http.StatusOK, args.A)
+// }
 
 func (this *MainDispatcher) PrintInfo(args XmlArgs) {
 	log.Println("after handler", args)
 }
 
-func (this *MainDispatcher) PostBody(body xweb.BodyArgs, render render.Render) {
-	log.Println(body)
-	render.Text(http.StatusOK, string(body.Data))
-}
-
-func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
-	m := args.Model()
-	render.JSON(http.StatusOK, m)
-}
+// func (this *MainDispatcher) PostJson(args JsonArgs, render render.Render) {
+// 	m := args.Model()
+// 	render.JSON(http.StatusOK, m)
+// }
 
 func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
 	render.JSON(http.StatusOK, args)
@@ -132,9 +131,6 @@ func (this *MainDispatcher) PostForm(args FormArg, render render.Render) {
 
 func server() {
 	log.SetFlags(log.Llongfile)
-	xweb.Use(render.Renderer(render.Options{
-		IndentJSON: false,
-	}))
 	xweb.SetDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")
 	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))

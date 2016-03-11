@@ -12,15 +12,22 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
+	"gopkg.in/validator.v2"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"reflect"
 	"strings"
+)
+
+const (
+	ValidateErrorCode  = 10000
+	ModelMissErrorCode = 10001
 )
 
 //获得上传文件数据
@@ -37,7 +44,33 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
-	Init(*Context)
+	//
+	SetContext(*Context)
+	//
+	GetContext() *Context
+	//valid args error mode
+	ValidateError(IArgs, error) IModel
+}
+
+type HTTPValidate struct {
+	Field string `xml:"field,attr" json:"field"`
+	Error string `xml:",chardata" json:"error"`
+}
+
+type HTTPValidateModel struct {
+	IModel  `json:"-"`
+	XMLName struct{}       `xml:"xml" json:"-"`
+	Code    int            `xml:"code" json:"code"`
+	Errors  []HTTPValidate `xml:"errors>item" json:"errors"`
+}
+
+func (this *HTTPValidateModel) Init(err validator.ErrorMap) {
+	this.Errors = []HTTPValidate{}
+	for k, v := range err {
+		e := HTTPValidate{Field: k, Error: v.Error()}
+		this.Errors = append(this.Errors, e)
+	}
+	this.Code = ValidateErrorCode
 }
 
 const (
@@ -46,33 +79,81 @@ const (
 
 type HTTPDispatcher struct {
 	IDispatcher
+	ctx *Context
+}
+
+func (this *HTTPDispatcher) SetContext(ctx *Context) {
+	this.ctx = ctx
+}
+
+func (this *HTTPDispatcher) GetContext() *Context {
+	return this.ctx
+}
+
+func (this *HTTPDispatcher) ValidateError(args IArgs, err error) IModel {
+	v, ok := err.(validator.ErrorMap)
+	if !ok {
+		return nil
+	}
+	m := &HTTPValidateModel{}
+	m.Init(v)
+	return m
 }
 
 func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, render render.Render, log *log.Logger) {
-	m := args.Model()
-	if v := reflect.ValueOf(m); !v.IsValid() {
-		log.Println("model", reflect.TypeOf(m), "value not valid")
-	} else if mf := v.MethodByName("HTML"); mf.IsValid() {
+	var m IModel = nil
+	if err := this.ctx.Validate(args); err != nil {
+		m = this.ValidateError(args, err)
+	} else {
+		m = args.Model()
+	}
+	if m == nil {
+		panic(errors.New(reflect.TypeOf(args).Name() + " Model nil"))
+	}
+	if reflect.TypeOf(m).Kind() != reflect.Ptr {
+		panic(errors.New(reflect.TypeOf(m).Name() + " Model must is Ptr type"))
+	}
+	v := reflect.ValueOf(m)
+	if mf := v.MethodByName("HTML"); mf.IsValid() {
 		if _, err := c.Invoke(mf.Interface()); err != nil {
 			panic(err)
 		}
-		render.HTML(http.StatusOK, m.View(), m)
-	} else if mf := v.MethodByName("JSON"); mf.IsValid() {
+		view := m.View()
+		if len(view) == 0 {
+			panic(errors.New(reflect.TypeOf(m).Elem().Name() + " View nil"))
+		}
+		render.HTML(http.StatusOK, view, m)
+		return
+	}
+	if mf := v.MethodByName("JSON"); mf.IsValid() {
 		if _, err := c.Invoke(mf.Interface()); err != nil {
 			panic(err)
 		}
 		render.JSON(http.StatusOK, m)
-	} else if mf := v.MethodByName("XML"); mf.IsValid() {
+		return
+	}
+	if mf := v.MethodByName("XML"); mf.IsValid() {
 		if _, err := c.Invoke(mf.Interface()); err != nil {
 			panic(err)
 		}
 		render.XML(http.StatusOK, m)
-	} else if mf := v.MethodByName("ANY"); mf.IsValid() {
+		return
+	}
+	if mf := v.MethodByName("ANY"); mf.IsValid() {
 		if _, err := c.Invoke(mf.Interface()); err != nil {
 			panic(err)
 		}
-	} else {
-		log.Println("model", reflect.TypeOf(m), "miss (HTML|JSON|XML|ANY) method")
+		return
+	}
+	switch args.ErrorType() {
+	case OT_JSON:
+		render.JSON(http.StatusOK, m)
+	case OT_XML:
+		render.XML(http.StatusOK, m)
+	case OT_TEXT:
+		render.Text(http.StatusOK, fmt.Sprintf("%v", m))
+	default:
+		render.HTML(http.StatusOK, args.ErrorView(), m)
 	}
 }
 
@@ -87,10 +168,7 @@ func (this *HTTPDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func (this *HTTPDispatcher) Init(m *Context) {
-
-}
-
+//args type
 const (
 	AT_QUERY = iota
 	AT_FORM
@@ -98,27 +176,57 @@ const (
 	AT_XML
 )
 
+//output type
+const (
+	OT_TEXT = iota
+	OT_JSON
+	OT_XML
+)
+
 type IModel interface {
 	View() string
 }
 
-type Model struct {
-	IModel `json:"-"`
-	Code   int   `json:"code"`
-	Error  error `json:"error,omitempty"`
+type HTTPModel struct {
+	IModel  `json:"-"`
+	XMLName struct{} `xml:"xml" json:"-"`
+	Code    int      `json:"code" xml:"code"`
+	Error   string   `json:"error" xml:"error"`
 }
 
-func (this *Model) View() string {
-	return ""
+func (this *HTTPModel) ANY(args IArgs, render render.Render) {
+	if args.ReqType() == AT_JSON {
+		render.JSON(http.StatusOK, this)
+		return
+	}
+	if args.ReqType() == AT_XML {
+		render.XML(http.StatusOK, this)
+		return
+	}
 }
 
 type IArgs interface {
-	ReqType() int  //AT_*
-	Model() IModel //
+	//request parse data type
+	ReqType() int //AT_*
+
+	//process Model
+	Model() IModel //IModel
+
+	//error output type
+	ErrorType() int    //OT_*
+	ErrorView() string //error Output html template view
 }
 
 type QueryArgs struct {
 	IArgs
+}
+
+func (this QueryArgs) ErrorView() string {
+	return "error"
+}
+
+func (this QueryArgs) ErrorType() int {
+	return -1
 }
 
 func (this QueryArgs) ReqType() int {
@@ -126,43 +234,42 @@ func (this QueryArgs) ReqType() int {
 }
 
 func (this QueryArgs) Model() IModel {
-	return &Model{}
+	m := new(HTTPModel)
+	m.Code = ModelMissErrorCode
+	m.Error = reflect.TypeOf(this).Name() + " Model miss"
+	return m
 }
 
 type FormArgs struct {
-	IArgs
+	QueryArgs
 }
 
 func (this FormArgs) ReqType() int {
 	return AT_FORM
 }
 
-func (this FormArgs) Model() IModel {
-	return &Model{}
+type JsonArgs struct {
+	QueryArgs
 }
 
-type JsonArgs struct {
-	IArgs
+func (this JsonArgs) ErrorType() int {
+	return OT_JSON
 }
 
 func (this JsonArgs) ReqType() int {
 	return AT_JSON
 }
 
-func (this JsonArgs) Model() IModel {
-	return &Model{}
+type XmlArgs struct {
+	QueryArgs
 }
 
-type XmlArgs struct {
-	IArgs
+func (this XmlArgs) ErrorType() int {
+	return OT_XML
 }
 
 func (this XmlArgs) ReqType() int {
 	return AT_XML
-}
-
-func (this XmlArgs) Model() IModel {
-	return &Model{}
 }
 
 //execute tempate render html
@@ -257,13 +364,14 @@ func XmlHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
+//from name get data source,use AT_JSON AT_XML
 func queryFieldName(v interface{}) string {
 	t := reflect.TypeOf(v)
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
-		field := f.Tag.Get("field")
-		if len(field) > 0 {
-			return field
+		name := f.Tag.Get("form")
+		if len(name) > 0 {
+			return name
 		}
 	}
 	return ""
@@ -318,7 +426,7 @@ func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.Struct
 }
 
 func (this *Context) SetDispatcher(c IDispatcher) {
-	c.Init(this)
+	c.SetContext(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
@@ -329,6 +437,12 @@ func (this *Context) SetDispatcher(c IDispatcher) {
 		gurl := fs.Tag.Get("url")
 		for i := 0; i < tv.NumField(); i++ {
 			f := tv.Field(i)
+			//get http url
+			url := f.Tag.Get("url")
+			if len(url) == 0 {
+				log.Println("must set url path")
+				continue
+			}
 			//get field value
 			v := nv.FieldByName(f.Name)
 			if !v.IsValid() {
@@ -336,12 +450,6 @@ func (this *Context) SetDispatcher(c IDispatcher) {
 			}
 			iv, ok := v.Interface().(IArgs)
 			if !ok {
-				continue
-			}
-			//get http url
-			url := f.Tag.Get("url")
-			if len(url) == 0 {
-				log.Println("must set url path")
 				continue
 			}
 			//append group url
@@ -352,16 +460,17 @@ func (this *Context) SetDispatcher(c IDispatcher) {
 				in = append(in, mv.Interface().(martini.Handler))
 			}
 			//args handler
-			field := queryFieldName(iv)
 			switch iv.ReqType() {
 			case AT_QUERY:
 				in = append(in, QueryHandler(iv))
 			case AT_FORM:
 				in = append(in, binding.Bind(iv))
 			case AT_JSON:
-				in = append(in, JsonHandler(iv, field))
+				name := queryFieldName(iv)
+				in = append(in, JsonHandler(iv, name))
 			case AT_XML:
-				in = append(in, XmlHandler(iv, field))
+				name := queryFieldName(iv)
+				in = append(in, XmlHandler(iv, name))
 			}
 			//before handler
 			if mv := svv.MethodByName(f.Tag.Get("before")); mv.IsValid() {
