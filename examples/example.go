@@ -14,14 +14,14 @@ type QueryArgs struct {
 
 type JsonArgs struct {
 	xweb.JSONArgs `form:"Body" json:"-"`
-	A             string `json:"a" validate:"min=1,max=2"`
+	A             string `json:"a" validate:"regexp=^a$"`
 	B             int    `json:"b" validate:"min=1,max=50"`
 }
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	POST struct {
-		PostJson JsonArgs `url:"/json" validate:"RenderJSON"`
+		PostJson JsonArgs `url:"/json" validate:"ValidateToJSON"`
 	} `url:"/post" handler:"LogRequest"`
 	GET struct {
 		IndexHandler QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler

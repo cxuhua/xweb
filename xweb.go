@@ -46,6 +46,8 @@ type IDispatcher interface {
 	SetContext(*Context)
 	//获得上下文
 	GetContext() *Context
+	//获得URL前缀
+	GetPrefix() string
 }
 
 type HTTPValidateError struct {
@@ -81,6 +83,10 @@ type HTTPDispatcher struct {
 	ctx *Context
 }
 
+func (this *HTTPDispatcher) GetPrefix() string {
+	return ""
+}
+
 func (this *HTTPDispatcher) SetContext(ctx *Context) {
 	this.ctx = ctx
 }
@@ -93,8 +99,17 @@ func (this *HTTPDispatcher) Validate(args IArgs) error {
 	return this.ctx.Validate(args)
 }
 
+//校验结果传递到下个
+func (this *HTTPDispatcher) ValidateToNext(c martini.Context, args IArgs) {
+	var m *HTTPValidateModel = nil
+	if err := this.Validate(args); err != nil {
+		m = NewHTTPValidateModel(err)
+	}
+	c.Map(m)
+}
+
 //校验失败输出json
-func (this *HTTPDispatcher) RenderJSON(args IArgs, render render.Render) {
+func (this *HTTPDispatcher) ValidateToJSON(args IArgs, render render.Render) {
 	if err := this.Validate(args); err != nil {
 		m := NewHTTPValidateModel(err)
 		render.JSON(http.StatusOK, m)
@@ -102,7 +117,7 @@ func (this *HTTPDispatcher) RenderJSON(args IArgs, render render.Render) {
 }
 
 //校验失败输出xml
-func (this *HTTPDispatcher) RenderXML(args IArgs, render render.Render) {
+func (this *HTTPDispatcher) ValidateToXML(args IArgs, render render.Render) {
 	if err := this.Validate(args); err != nil {
 		m := NewHTTPValidateModel(err)
 		render.XML(http.StatusOK, m)
@@ -233,6 +248,10 @@ func JsonHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
+func FormHandler(obj interface{}, ifv ...interface{}) martini.Handler {
+	return binding.Bind(obj, ifv...)
+}
+
 func URLHandler(v interface{}) martini.Handler {
 	return func(c martini.Context, req *http.Request) {
 		t := reflect.TypeOf(v)
@@ -345,14 +364,15 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 			if !ok {
 				continue
 			}
-			url = g.Tag.Get("url") + url
+			//拼接url
+			url = c.GetPrefix() + g.Tag.Get("url") + url
 			in := []martini.Handler{}
 			//args handler
 			switch iv.ReqType() {
 			case AT_URL:
 				in = append(in, URLHandler(iv))
 			case AT_FORM:
-				in = append(in, binding.Bind(iv))
+				in = append(in, FormHandler(iv))
 			case AT_JSON:
 				name := queryFieldName(iv)
 				in = append(in, JsonHandler(iv, name))
@@ -360,7 +380,7 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 				name := queryFieldName(iv)
 				in = append(in, XmlHandler(iv, name))
 			}
-			//group validate handler (RenderXML RenderJSON)
+			//validate handler
 			if mv := svv.MethodByName(g.Tag.Get("validate")); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
@@ -368,7 +388,7 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 			if mv := svv.MethodByName(g.Tag.Get("handler")); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
-			//filed validate handler (RenderXML RenderJSON)
+			//validate handler
 			if mv := svv.MethodByName(f.Tag.Get("validate")); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}

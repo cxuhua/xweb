@@ -26,7 +26,7 @@ type TestModel struct {
 type TestDistacher struct {
 	HTTPDispatcher
 	POST struct {
-		P1 TestArgs `url:"/json" handler:"PX" validate:"RenderJSON"`
+		P1 TestArgs `url:"/json" handler:"PX" validate:"ValidateToJSON"`
 		P2 TestArgs `url:"/json"`
 	} `url:"/post"`
 }
