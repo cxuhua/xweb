@@ -2,6 +2,7 @@ package xweb
 
 import (
 	"encoding/json"
+	"github.com/martini-contrib/render"
 	. "gopkg.in/check.v1"
 	"net/http"
 	"net/http/httptest"
@@ -10,46 +11,35 @@ import (
 
 //定义输入参数
 type TestArgs struct {
-	JsonArgs        // `form:"Body"`
+	JSONArgs        // `form:"Body"`
 	A        string `json:"a" validate:"len=5"`
 	B        int    `json:"b" validate:"min=2,max=6"`
 }
 
 //定义输出模型
 type TestModel struct {
-	JsonModel `json:"-"`
-	C         string `json:"a"`
-	D         int    `json:"b"`
-}
-
-//使用返回的模型处理参数
-func (this TestArgs) Model() IModel {
-	return new(TestModel)
-}
-
-// func (this *TestModel) View() string {
-// 	return "index"
-// }
-
-//处理参数并返回 html类型(如果定义了HTML方法)
-// func (this *TestModel) HTML(args TestArgs) {
-// 	this.A = args.A + "54321"
-// 	this.B = args.B + 10
-// }
-
-//处理参数并返回 json类型(如果定义了JSON方法)
-//JSON HTML XML ANY
-func (this *TestModel) Run(args TestArgs) {
-	this.C = args.A + "54321"
-	this.D = args.B + 10
+	C string `json:"a"`
+	D int    `json:"b"`
 }
 
 //定义url分发器
 type TestDistacher struct {
 	HTTPDispatcher
 	POST struct {
-		P1 TestArgs `url:"/json"`
+		P1 TestArgs `url:"/json" handler:"PX" validate:"RenderJSON"`
+		P2 TestArgs `url:"/json"`
 	} `url:"/post"`
+}
+
+func (this *TestDistacher) P2() {
+
+}
+
+func (this *TestDistacher) PX(args TestArgs, render render.Render) {
+	m := TestModel{}
+	m.C = args.A + "54321"
+	m.D = args.B + 10
+	render.JSON(http.StatusOK, m)
 }
 
 type BDistacher struct {
@@ -101,19 +91,19 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 func (this *WebSuite) TestQueryArgs(c *C) {
 	var v interface{} = nil
 
-	v = QueryArgs{}
+	v = URLArgs{}
 	_, ok := v.(IArgs)
 	c.Assert(ok, Equals, true)
 
-	v = JsonArgs{}
+	v = JSONArgs{}
 	_, ok = v.(IArgs)
 	c.Assert(ok, Equals, true)
 
-	v = FormArgs{}
+	v = FORMArgs{}
 	_, ok = v.(IArgs)
 	c.Assert(ok, Equals, true)
 
-	v = XmlArgs{}
+	v = XMLArgs{}
 	_, ok = v.(IArgs)
 	c.Assert(ok, Equals, true)
 }

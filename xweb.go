@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
@@ -28,9 +27,6 @@ import (
 const (
 	//IArgs validate error return code
 	ValidateErrorCode = 10000
-
-	//model miss return code
-	ModelMissErrorCode = 10001
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -48,39 +44,37 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 type IDispatcher interface {
 	//保存上下文
 	SetContext(*Context)
-
 	//获得上下文
 	GetContext() *Context
-
-	//当数据校验失败时候返回输出Model
-	ValidateError(error) IModel
 }
 
-type HTTPValidate struct {
+type HTTPValidateError struct {
 	Field string `xml:"field,attr" json:"field"`
 	Error string `xml:",chardata" json:"error"`
 }
 
 type HTTPValidateModel struct {
-	JsonModel `json:"-"`
-	XMLName   struct{}       `xml:"xml" json:"-"`
-	Code      int            `xml:"code" json:"code"`
-	Errors    []HTTPValidate `xml:"errors>item" json:"errors"`
+	XMLName struct{}            `xml:"xml" json:"-"`
+	Code    int                 `xml:"code" json:"code"`
+	Errors  []HTTPValidateError `xml:"errors>item" json:"errors"`
 }
 
-func (this *HTTPValidateModel) Init(err validator.ErrorMap) {
-	this.Errors = []HTTPValidate{}
-	for k, v := range err {
-		e := HTTPValidate{Field: k, Error: v.Error()}
-		this.Errors = append(this.Errors, e)
+func (this *HTTPValidateModel) Init(e error) {
+	this.Errors = []HTTPValidateError{}
+	if err, ok := e.(validator.ErrorMap); ok {
+		for k, v := range err {
+			e := HTTPValidateError{Field: k, Error: v.Error()}
+			this.Errors = append(this.Errors, e)
+		}
 	}
 	this.Code = ValidateErrorCode
 }
 
-const (
-	//默认处理组件
-	DEFAULT_HANDLER = "HTTPHandler"
-)
+func NewHTTPValidateModel(err error) *HTTPValidateModel {
+	m := &HTTPValidateModel{}
+	m.Init(err)
+	return m
+}
 
 type HTTPDispatcher struct {
 	IDispatcher
@@ -95,47 +89,23 @@ func (this *HTTPDispatcher) GetContext() *Context {
 	return this.ctx
 }
 
-func (this *HTTPDispatcher) ValidateError(err error) IModel {
-	v, ok := err.(validator.ErrorMap)
-	if !ok {
-		return nil
-	}
-	m := &HTTPValidateModel{}
-	m.Init(v)
-	return m
+func (this *HTTPDispatcher) Validate(args IArgs) error {
+	return this.ctx.Validate(args)
 }
 
-func (this *HTTPDispatcher) HTTPHandler(c martini.Context, args IArgs, req *http.Request, render render.Render, log *log.Logger) {
-	var m IModel = nil
-	//校验数据
-	if err := this.ctx.Validate(args); err != nil {
-		m = this.ValidateError(err)
-	} else {
-		m = args.Model()
-	}
-	//检测模型
-	if m == nil {
-		panic(errors.New(reflect.TypeOf(args).Name() + " Model nil"))
-	}
-	if reflect.TypeOf(m).Kind() != reflect.Ptr {
-		panic(errors.New(reflect.TypeOf(m).Name() + " Model must is Ptr type"))
-	}
-	//动态获得Run处理数据
-	if mf := reflect.ValueOf(m).MethodByName("Run"); mf.IsValid() {
-		c.Invoke(mf.Interface())
-	}
-	//根据参数输出数据类型
-	switch m.OutType() {
-	case OT_HTML:
-		render.HTML(http.StatusOK, m.OutView(), m)
-	case OT_JSON:
+//校验失败输出json
+func (this *HTTPDispatcher) RenderJSON(args IArgs, render render.Render) {
+	if err := this.Validate(args); err != nil {
+		m := NewHTTPValidateModel(err)
 		render.JSON(http.StatusOK, m)
-	case OT_XML:
+	}
+}
+
+//校验失败输出xml
+func (this *HTTPDispatcher) RenderXML(args IArgs, render render.Render) {
+	if err := this.Validate(args); err != nil {
+		m := NewHTTPValidateModel(err)
 		render.XML(http.StatusOK, m)
-	case OT_TEXT:
-		render.Text(http.StatusOK, fmt.Sprintf("%v", m))
-	default:
-		c.Map(m)
 	}
 }
 
@@ -153,134 +123,60 @@ func (this *HTTPDispatcher) LogRequest(req *http.Request, log *log.Logger) {
 //req type
 const (
 	AT_NONE = iota
-	AT_QUERY
+	AT_URL
 	AT_FORM
 	AT_JSON
 	AT_XML
 )
 
-//output type
-const (
-	OT_NONE = iota
-	OT_TEXT
-	OT_JSON
-	OT_XML
-	OT_HTML
-)
-
-//Run被动态调用处理
-type IModel interface {
-	//template view
-	OutView() string
-	//error output type,model not set HTML JSON XML ANY func
-	OutType() int //OT_*
-}
-
-type Model struct {
-	IModel
-}
-
-func (this *Model) OutView() string {
-	return ""
-}
-
-func (this *Model) OutType() int {
-	return OT_JSON
-}
-
-type HtmlModel struct {
-	Model
-}
-
-func (this *HtmlModel) OutType() int {
-	return OT_HTML
-}
-
-type TextModel struct {
-	Model
-}
-
-func (this *TextModel) OutType() int {
-	return OT_TEXT
-}
-
-type JsonModel struct {
-	Model
-}
-
-func (this *JsonModel) OutType() int {
-	return OT_JSON
-}
-
-type XmlModel struct {
-	Model
-}
-
-func (this *XmlModel) OutType() int {
-	return OT_XML
-}
-
 type HTTPModel struct {
-	JsonModel `json:"-"`
-	XMLName   struct{} `xml:"xml" json:"-"`
-	Code      int      `json:"code" xml:"code"`
-	Error     string   `json:"error" xml:"error"`
+	XMLName struct{} `xml:"xml" json:"-"`
+	Code    int      `json:"code" xml:"code"`
+	Error   string   `json:"error" xml:"error"`
 }
 
 type IArgs interface {
 	//request parse data type
-	ReqType() int //AT_*
-	//process Model
-	Model() IModel //IModel
+	//AT_*
+	ReqType() int
 }
 
-type QueryArgs struct {
+type URLArgs struct {
 	IArgs
 }
 
-func (this QueryArgs) ReqType() int {
-	return AT_QUERY
+func (this URLArgs) ReqType() int {
+	return AT_URL
 }
 
-func (this QueryArgs) Model() IModel {
-	m := new(HTTPModel)
-	m.Code = ModelMissErrorCode
-	m.Error = reflect.TypeOf(this).Name() + " Model miss"
-	return m
+type FORMArgs struct {
+	URLArgs
 }
 
-type FormArgs struct {
-	QueryArgs
-}
-
-func (this FormArgs) ReqType() int {
+func (this FORMArgs) ReqType() int {
 	return AT_FORM
 }
 
-type JsonArgs struct {
-	QueryArgs
+type JSONArgs struct {
+	URLArgs
 }
 
-func (this JsonArgs) ReqType() int {
+func (this JSONArgs) ReqType() int {
 	return AT_JSON
 }
 
-type XmlArgs struct {
-	QueryArgs
+type XMLArgs struct {
+	URLArgs
 }
 
-func (this XmlArgs) ReqType() int {
+func (this XMLArgs) ReqType() int {
 	return AT_XML
 }
 
 //execute tempate render html
-func Execute(render render.Render, m IModel) (*bytes.Buffer, error) {
+func Execute(render render.Render, view string, m interface{}) (*bytes.Buffer, error) {
 	buf := bytes.NewBuffer(nil)
-	v := m.OutView()
-	if len(v) == 0 {
-		return nil, errors.New("model view miss")
-	}
-	err := render.Template().ExecuteTemplate(buf, v, m)
+	err := render.Template().ExecuteTemplate(buf, view, m)
 	return buf, err
 }
 
@@ -337,7 +233,7 @@ func JsonHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-func QueryHandler(v interface{}) martini.Handler {
+func URLHandler(v interface{}) martini.Handler {
 	return func(c martini.Context, req *http.Request) {
 		t := reflect.TypeOf(v)
 		if v := reflect.New(t); v.IsValid() {
@@ -432,13 +328,9 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
-	doFields(stv, snv, func(method string, fs *reflect.StructField, nv *reflect.Value) {
-		tv := fs.Type
-		handler := fs.Tag.Get("handler")
-		gurl := fs.Tag.Get("url")
-		for i := 0; i < tv.NumField(); i++ {
-			f := tv.Field(i)
-			//get http url
+	doFields(stv, snv, func(method string, g *reflect.StructField, nv *reflect.Value) {
+		for i := 0; i < g.Type.NumField(); i++ {
+			f := g.Type.Field(i)
 			url := f.Tag.Get("url")
 			if len(url) == 0 {
 				log.Println("must set url path")
@@ -453,17 +345,12 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 			if !ok {
 				continue
 			}
-			//append group url
-			url = gurl + url
+			url = g.Tag.Get("url") + url
 			in := []martini.Handler{}
-			//group handler
-			if mv := svv.MethodByName(handler); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
-			}
 			//args handler
 			switch iv.ReqType() {
-			case AT_QUERY:
-				in = append(in, QueryHandler(iv))
+			case AT_URL:
+				in = append(in, URLHandler(iv))
 			case AT_FORM:
 				in = append(in, binding.Bind(iv))
 			case AT_JSON:
@@ -473,19 +360,33 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 				name := queryFieldName(iv)
 				in = append(in, XmlHandler(iv, name))
 			}
+			//group validate handler (RenderXML RenderJSON)
+			if mv := svv.MethodByName(g.Tag.Get("validate")); mv.IsValid() {
+				in = append(in, mv.Interface())
+			}
+			//group handler
+			if mv := svv.MethodByName(g.Tag.Get("handler")); mv.IsValid() {
+				in = append(in, mv.Interface())
+			}
+			//filed validate handler (RenderXML RenderJSON)
+			if mv := svv.MethodByName(f.Tag.Get("validate")); mv.IsValid() {
+				in = append(in, mv.Interface())
+			}
 			//before handler
 			if mv := svv.MethodByName(f.Tag.Get("before")); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
+				in = append(in, mv.Interface())
 			}
 			//main handler
-			if mv := svv.MethodByName(f.Name); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
-			} else if mv := svv.MethodByName(DEFAULT_HANDLER); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
+			if mv := svv.MethodByName(f.Tag.Get("handler")); mv.IsValid() {
+				in = append(in, mv.Interface())
+			} else if mv := svv.MethodByName(f.Name); mv.IsValid() {
+				in = append(in, mv.Interface())
+			} else {
+				panic(errors.New(f.Name + " handler miss"))
 			}
 			//after handler
 			if mv := svv.MethodByName(f.Tag.Get("after")); mv.IsValid() {
-				in = append(in, mv.Interface().(martini.Handler))
+				in = append(in, mv.Interface())
 			}
 			//set method handler
 			switch method {
