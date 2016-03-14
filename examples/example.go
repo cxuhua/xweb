@@ -8,23 +8,24 @@ import (
 )
 
 //args
-type QueryArgs struct {
+type URLArgs struct {
 	xweb.URLArgs
 }
 
+//form:"Body",表示JSON数据来自 form=Body字段
 type JsonArgs struct {
 	xweb.JSONArgs `form:"Body" json:"-"`
-	A             string `json:"a" validate:"regexp=^a$"`
+	A             string `json:"a" validate:"regexp=^a.*$"`
 	B             int    `json:"b" validate:"min=1,max=50"`
 }
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	POST struct {
-		PostJson JsonArgs `url:"/json" validate:"ToJSON"`
+		PostJson JsonArgs `url:"/json" validate:"ToJSON"` //ToJSON ToXML ToNEXT
 	} `url:"/post" handler:"Logger"`
 	GET struct {
-		Index QueryArgs `url:"/"` //if IndexHandler func miss,use HTTPDispatcher.HTTPHandler
+		Index URLArgs `url:"/"`
 	} `handler:"Logger"`
 }
 

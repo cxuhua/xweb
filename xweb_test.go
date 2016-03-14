@@ -93,7 +93,7 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 	body := strings.NewReader(`{"a":"123456","b":300}`)
 	req, _ := http.NewRequest(http.MethodPost, "/post/json", body)
 	main.ServeHTTP(res, req)
-	m := &HTTPValidateModel{}
+	m := &ValidateModel{}
 	c.Assert(res.Body, NotNil)
 	d := res.Body.Bytes()
 	c.Log(string(d))

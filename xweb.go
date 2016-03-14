@@ -25,10 +25,9 @@ import (
 )
 
 const (
-	//IArgs validate error return code
 	ValidateErrorCode = 10000
-	ValidateSuffix    = "Validate"
-	HandlerSuffix     = "Handler"
+	ValidateSuffix    = "Validate" //validate组件必须的后缀
+	HandlerSuffix     = "Handler"  //处理组件必须的后缀
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -52,30 +51,32 @@ type IDispatcher interface {
 	GetPrefix() string
 }
 
-type HTTPValidateError struct {
+type ValidateError struct {
 	Field string `xml:"field,attr" json:"field"`
 	Error string `xml:",chardata" json:"error"`
 }
 
-type HTTPValidateModel struct {
-	XMLName struct{}            `xml:"xml" json:"-"`
-	Code    int                 `xml:"code" json:"code"`
-	Errors  []HTTPValidateError `xml:"errors>item" json:"errors"`
+type ValidateModel struct {
+	XMLName struct{}        `xml:"xml" json:"-"`
+	Code    int             `xml:"code" json:"code"`
+	Errors  []ValidateError `xml:"errors>item" json:"errors"`
 }
 
-func (this *HTTPValidateModel) Init(e error) {
-	this.Errors = []HTTPValidateError{}
-	if err, ok := e.(validator.ErrorMap); ok {
-		for k, v := range err {
-			e := HTTPValidateError{Field: k, Error: v.Error()}
-			this.Errors = append(this.Errors, e)
-		}
-	}
+func (this *ValidateModel) Init(e error) {
+	this.Errors = []ValidateError{}
 	this.Code = ValidateErrorCode
+	err, ok := e.(validator.ErrorMap)
+	if !ok {
+		return
+	}
+	for k, v := range err {
+		e := ValidateError{Field: k, Error: v.Error()}
+		this.Errors = append(this.Errors, e)
+	}
 }
 
-func NewHTTPValidateModel(err error) *HTTPValidateModel {
-	m := &HTTPValidateModel{}
+func NewValidateModel(err error) *ValidateModel {
+	m := &ValidateModel{}
 	m.Init(err)
 	return m
 }
@@ -97,11 +98,11 @@ func (this *HTTPDispatcher) GetContext() *Context {
 	return this.ctx
 }
 
-//校验结果传递到下个
-func (this *HTTPDispatcher) ToNextValidate(c martini.Context, args IArgs) {
-	var m *HTTPValidateModel = nil
+//校验结果传递到下个组件
+func (this *HTTPDispatcher) ToNEXTValidate(c martini.Context, args IArgs) {
+	var m *ValidateModel = nil
 	if err := this.ctx.Validate(args); err != nil {
-		m = NewHTTPValidateModel(err)
+		m = NewValidateModel(err)
 	}
 	c.Map(m)
 }
@@ -109,7 +110,7 @@ func (this *HTTPDispatcher) ToNextValidate(c martini.Context, args IArgs) {
 //校验失败输出json
 func (this *HTTPDispatcher) ToJSONValidate(args IArgs, render render.Render) {
 	if err := this.ctx.Validate(args); err != nil {
-		m := NewHTTPValidateModel(err)
+		m := NewValidateModel(err)
 		render.JSON(http.StatusOK, m)
 	}
 }
@@ -117,13 +118,15 @@ func (this *HTTPDispatcher) ToJSONValidate(args IArgs, render render.Render) {
 //校验失败输出xml
 func (this *HTTPDispatcher) ToXMLValidate(args IArgs, render render.Render) {
 	if err := this.ctx.Validate(args); err != nil {
-		m := NewHTTPValidateModel(err)
+		m := NewValidateModel(err)
 		render.XML(http.StatusOK, m)
 	}
 }
 
+//日志打印调试Handler
 func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------Logger---------------------------")
+	log.Println("Remote:", req.RemoteAddr)
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
 	for k, v := range req.Header {
@@ -187,13 +190,13 @@ func (this XMLArgs) ReqType() int {
 }
 
 //execute tempate render html
-func Execute(render render.Render, view string, m interface{}) (*bytes.Buffer, error) {
+func (this *Context) Execute(render render.Render, view string, m interface{}) (*bytes.Buffer, error) {
 	buf := bytes.NewBuffer(nil)
 	err := render.Template().ExecuteTemplate(buf, view, m)
 	return buf, err
 }
 
-func QueryHttpRequestData(name string, req *http.Request) ([]byte, error) {
+func (this *Context) QueryHttpRequestData(name string, req *http.Request) ([]byte, error) {
 	if req.Method != http.MethodPost {
 		return nil, errors.New("http method error")
 	}
@@ -227,14 +230,14 @@ func QueryHttpRequestData(name string, req *http.Request) ([]byte, error) {
 	return nil, errors.New("form data miss")
 }
 
-func JsonHandler(v interface{}, name string) martini.Handler {
+func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding json models")
 	}
 	return func(c martini.Context, req *http.Request) {
 		errors := binding.Errors{}
 		v := reflect.New(reflect.TypeOf(v))
-		data, err := QueryHttpRequestData(name, req)
+		data, err := this.QueryHttpRequestData(name, req)
 		if err != nil {
 			errors.Add([]string{}, binding.RequiredError, "request method must POST")
 		}
@@ -246,27 +249,28 @@ func JsonHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-func FormHandler(obj interface{}, ifv ...interface{}) martini.Handler {
+func (this *Context) FormHandler(obj interface{}, ifv ...interface{}) martini.Handler {
 	return binding.Bind(obj, ifv...)
 }
 
-func URLHandler(v interface{}) martini.Handler {
+func (this *Context) URLHandler(v interface{}) martini.Handler {
 	return func(c martini.Context, req *http.Request) {
 		t := reflect.TypeOf(v)
-		if v := reflect.New(t); v.IsValid() {
-			c.Map(v.Elem().Interface())
+		v := reflect.New(t)
+		if args, ok := v.Interface().(IArgs); ok {
+			c.Map(args)
 		}
 	}
 }
 
-func XmlHandler(v interface{}, name string) martini.Handler {
+func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding xml models")
 	}
 	return func(c martini.Context, req *http.Request) {
 		errors := binding.Errors{}
 		v := reflect.New(reflect.TypeOf(v))
-		data, err := QueryHttpRequestData(name, req)
+		data, err := this.QueryHttpRequestData(name, req)
 		if err != nil {
 			errors.Add([]string{}, binding.RequiredError, "request method must POST")
 		}
@@ -279,7 +283,7 @@ func XmlHandler(v interface{}, name string) martini.Handler {
 }
 
 //from name get data source,use AT_JSON AT_XML
-func queryFieldName(v interface{}) string {
+func (this *Context) queryFieldName(v interface{}) string {
 	t := reflect.TypeOf(v)
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -291,7 +295,7 @@ func queryFieldName(v interface{}) string {
 	return ""
 }
 
-func doMethod(m string) bool {
+func (this *Context) doMethod(m string) bool {
 	switch m {
 	case http.MethodHead:
 		return true
@@ -307,11 +311,12 @@ func doMethod(m string) bool {
 		return true
 	case http.MethodPost:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
-func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.StructField, *reflect.Value)) {
+func (this *Context) doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.StructField, *reflect.Value)) {
 	if tv.Kind() != reflect.Struct {
 		return
 	}
@@ -332,61 +337,65 @@ func doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.Struct
 		if len(method) > 0 {
 			method = strings.ToUpper(method)
 		}
-		if doMethod(method) {
+		if this.doMethod(method) {
 			pv(method, &f, &v)
 		}
-		doFields(f.Type, v, pv)
+		this.doFields(f.Type, v, pv)
 	}
 }
 
-func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
+func (this *Context) UseDispatcher(c IDispatcher) {
 	c.SetContext(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
-	doFields(stv, snv, func(method string, g *reflect.StructField, nv *reflect.Value) {
+	this.doFields(stv, snv, func(method string, g *reflect.StructField, nv *reflect.Value) {
 		for i := 0; i < g.Type.NumField(); i++ {
 			f := g.Type.Field(i)
 			url := f.Tag.Get("url")
 			if len(url) == 0 {
-				log.Println("must set url path")
+				log.Println(f.Name, "must set url path")
 				continue
 			}
 			//get field value
 			v := nv.FieldByName(f.Name)
 			if !v.IsValid() {
+				log.Println(f.Name, "value not vaild")
 				continue
 			}
 			iv, ok := v.Interface().(IArgs)
 			if !ok {
+				log.Println(f.Name, "error,only support IArgs type")
 				continue
 			}
 			//拼接url
 			url = c.GetPrefix() + g.Tag.Get("url") + url
 			in := []martini.Handler{}
-			//args handler
-			switch iv.ReqType() {
-			case AT_URL:
-				in = append(in, URLHandler(iv))
-			case AT_FORM:
-				in = append(in, FormHandler(iv))
-			case AT_JSON:
-				name := queryFieldName(iv)
-				in = append(in, JsonHandler(iv, name))
-			case AT_XML:
-				name := queryFieldName(iv)
-				in = append(in, XmlHandler(iv, name))
-			}
-			//validate handler
-			if mv := svv.MethodByName(g.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
-				in = append(in, mv.Interface())
-			}
 			//group handler
 			if mv := svv.MethodByName(g.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
-			//validate handler
+			//args handler
+			switch iv.ReqType() {
+			case AT_URL:
+				in = append(in, this.URLHandler(iv))
+			case AT_FORM:
+				in = append(in, this.FormHandler(iv))
+			case AT_JSON:
+				name := this.queryFieldName(iv)
+				in = append(in, this.JsonHandler(iv, name))
+			case AT_XML:
+				name := this.queryFieldName(iv)
+				in = append(in, this.XmlHandler(iv, name))
+			default:
+				panic(errors.New(url + " field reqType not supprt"))
+			}
+			//global validate handler
+			if mv := svv.MethodByName(g.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
+				in = append(in, mv.Interface())
+			}
+			//single validate handler
 			if mv := svv.MethodByName(f.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
@@ -395,12 +404,16 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 				in = append(in, mv.Interface())
 			}
 			//main handler
+			mhs := stv.PkgPath() + "/" + stv.Name()
 			if mv := svv.MethodByName(f.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
+				mhs += "." + f.Tag.Get("handler") + HandlerSuffix
 				in = append(in, mv.Interface())
 			} else if mv := svv.MethodByName(f.Name + HandlerSuffix); mv.IsValid() {
+				mhs += "." + f.Name + HandlerSuffix
 				in = append(in, mv.Interface())
 			} else {
-				panic(errors.New(f.Name + " handler miss"))
+				mhs += ".(" + f.Name + "|" + f.Tag.Get("handler") + ")" + HandlerSuffix
+				panic(errors.New(mhs + " miss"))
 			}
 			//after handler
 			if mv := svv.MethodByName(f.Tag.Get("after") + HandlerSuffix); mv.IsValid() {
@@ -423,12 +436,8 @@ func (this *Context) UseDispatcher(c IDispatcher, v ...interface{}) {
 			case http.MethodPost:
 				this.Post(url, in...)
 			}
+			log.Println("+", method, url, mhs)
 		}
 	})
-	//map dispatcher
-	if len(v) == 0 {
-		this.Map(c)
-	} else {
-		this.MapTo(c, v[0])
-	}
+	this.Map(c)
 }

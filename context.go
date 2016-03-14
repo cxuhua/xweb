@@ -1,12 +1,15 @@
 package xweb
 
 import (
+	"github.com/garyburd/redigo/redis"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
+	"github.com/martini-contrib/sessions"
 	"gopkg.in/validator.v2"
 	"log"
 	"net/http"
 	"reflect"
+	"time"
 )
 
 //default context
@@ -14,6 +17,14 @@ import (
 var (
 	main = NewContext()
 )
+
+func UseCookie(key string, name string, opts sessions.Options) {
+	main.UseCookie(key, name, opts)
+}
+
+func UseRedis(addr string) {
+	main.UseRedis(addr)
+}
 
 func UseRender(opts ...render.Options) {
 	main.UseRender(opts...)
@@ -63,19 +74,56 @@ func Validate(v interface{}) error {
 }
 
 func ListenAndServe(addr string) error {
-	main.UseRender()
 	return main.ListenAndServe(addr)
 }
 
 func ListenAndServeTLS(addr string, cert, key string) error {
-	main.UseRender()
 	return main.ListenAndServeTLS(addr, cert, key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+func newRedisPool(server string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp4", server)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
+}
+
+//初始化Redis
+func InitRedis(addr string) martini.Handler {
+	pool := newRedisPool(addr)
+	return func(c martini.Context) {
+		conn := pool.Get()
+		defer conn.Close()
+		c.Map(conn)
+		c.Next()
+	}
+}
+
 type Context struct {
 	martini.ClassicMartini
+}
+
+func (this *Context) UseCookie(key string, name string, opts sessions.Options) {
+	store := sessions.NewCookieStore([]byte(key))
+	store.Options(opts)
+	this.Use(sessions.Sessions(name, store))
+}
+
+func (this *Context) UseRedis(addr string) {
+	this.Use(InitRedis(addr))
 }
 
 func (this *Context) UseRender(opts ...render.Options) {
