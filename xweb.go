@@ -1,19 +1,11 @@
 package xweb
 
-/*
-Deps:
-	go get github.com/sevlyar/go-daemon
-	go get github.com/go-martini/martini
-	go get github.com/martini-contrib/binding
-*/
-
 import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"github.com/go-martini/martini"
-	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
 	"gopkg.in/validator.v2"
 	"io/ioutil"
@@ -21,13 +13,14 @@ import (
 	"mime/multipart"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
 const (
+	MaxMemory         = 1024 * 1024 * 10
 	ValidateErrorCode = 10000
-	ValidateSuffix    = "Validate" //validate组件必须的后缀
-	HandlerSuffix     = "Handler"  //处理组件必须的后缀
+	HandlerSuffix     = "Handler" //处理组件必须的后缀
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -98,31 +91,6 @@ func (this *HTTPDispatcher) GetContext() *Context {
 	return this.ctx
 }
 
-//校验结果传递到下个组件
-func (this *HTTPDispatcher) ToNEXTValidate(c martini.Context, args IArgs) {
-	var m *ValidateModel = nil
-	if err := this.ctx.Validate(args); err != nil {
-		m = NewValidateModel(err)
-	}
-	c.Map(m)
-}
-
-//校验失败输出json
-func (this *HTTPDispatcher) ToJSONValidate(args IArgs, render render.Render) {
-	if err := this.ctx.Validate(args); err != nil {
-		m := NewValidateModel(err)
-		render.JSON(http.StatusOK, m)
-	}
-}
-
-//校验失败输出xml
-func (this *HTTPDispatcher) ToXMLValidate(args IArgs, render render.Render) {
-	if err := this.ctx.Validate(args); err != nil {
-		m := NewValidateModel(err)
-		render.XML(http.StatusOK, m)
-	}
-}
-
 //日志打印调试Handler
 func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------Logger---------------------------")
@@ -158,11 +126,16 @@ func NewHTTPSuccess() *HTTPModel {
 }
 
 type IArgs interface {
+	ValType() int //validate failed out
 	ReqType() int
 }
 
 type FORMArgs struct {
 	IArgs
+}
+
+func (this FORMArgs) ValType() int {
+	return AT_FORM
 }
 
 func (this FORMArgs) ReqType() int {
@@ -173,12 +146,20 @@ type JSONArgs struct {
 	IArgs
 }
 
+func (this JSONArgs) ValType() int {
+	return AT_JSON
+}
+
 func (this JSONArgs) ReqType() int {
 	return AT_JSON
 }
 
 type XMLArgs struct {
 	IArgs
+}
+
+func (this XMLArgs) ValType() int {
+	return AT_XML
 }
 
 func (this XMLArgs) ReqType() int {
@@ -199,7 +180,7 @@ func (this *Context) QueryHttpRequestData(name string, req *http.Request) ([]byt
 	if len(name) > 0 {
 		contentType := req.Header.Get("Content-Type")
 		if strings.Contains(contentType, "multipart/form-data") {
-			if err := req.ParseMultipartForm(binding.MaxMemory); err != nil {
+			if err := req.ParseMultipartForm(MaxMemory); err != nil {
 				return nil, err
 			}
 		} else {
@@ -230,10 +211,11 @@ func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding JSON Args")
 	}
-	return func(c martini.Context, req *http.Request, log *log.Logger) {
+	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
-		if _, ok := v.Interface().(IArgs); !ok {
+		args, ok := v.Interface().(IArgs)
+		if !ok {
 			panic(errors.New(t.Name() + "not imp IArgs"))
 		}
 		data, err := this.QueryHttpRequestData(name, req)
@@ -244,6 +226,130 @@ func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 			log.Println(err)
 		}
 		c.Map(v.Elem().Interface())
+		this.validateMapData(c, args, render)
+	}
+}
+
+func (this *Context) setWithProperType(vk reflect.Kind, val string, sf reflect.Value) {
+	switch vk {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if val == "" {
+			val = "0"
+		}
+		intVal, err := strconv.ParseInt(val, 10, 64)
+		if err == nil {
+			sf.SetInt(intVal)
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if val == "" {
+			val = "0"
+		}
+		uintVal, err := strconv.ParseUint(val, 10, 64)
+		if err == nil {
+			sf.SetUint(uintVal)
+		}
+	case reflect.Bool:
+		if val == "" {
+			val = "false"
+		}
+		boolVal, err := strconv.ParseBool(val)
+		if err == nil {
+			sf.SetBool(boolVal)
+		}
+	case reflect.Float32:
+		if val == "" {
+			val = "0.0"
+		}
+		floatVal, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			sf.SetFloat(floatVal)
+		}
+	case reflect.Float64:
+		if val == "" {
+			val = "0.0"
+		}
+		floatVal, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			sf.SetFloat(floatVal)
+		}
+	case reflect.String:
+		sf.SetString(val)
+	}
+}
+
+func (this *Context) mapForm(value reflect.Value, form map[string][]string, files map[string][]*multipart.FileHeader) {
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	typ := value.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		tf := typ.Field(i)
+		sf := value.Field(i)
+		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
+			sf.Set(reflect.New(tf.Type.Elem()))
+			this.mapForm(sf.Elem(), form, files)
+			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
+				sf.Set(reflect.Zero(sf.Type()))
+			}
+		} else if tf.Type.Kind() == reflect.Struct {
+			this.mapForm(sf, form, files)
+		} else if inputFieldName := tf.Tag.Get("form"); inputFieldName != "" {
+			if !sf.CanSet() {
+				continue
+			}
+			inputValue, exists := form[inputFieldName]
+			if exists {
+				numElems := len(inputValue)
+				if sf.Kind() == reflect.Slice && numElems > 0 {
+					sliceOf := sf.Type().Elem().Kind()
+					slice := reflect.MakeSlice(sf.Type(), numElems, numElems)
+					for i := 0; i < numElems; i++ {
+						this.setWithProperType(sliceOf, inputValue[i], slice.Index(i))
+					}
+					value.Field(i).Set(slice)
+				} else {
+					this.setWithProperType(tf.Type.Kind(), inputValue[0], sf)
+				}
+				continue
+			}
+			inputFile, exists := files[inputFieldName]
+			if !exists {
+				continue
+			}
+			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
+			numElems := len(inputFile)
+			if sf.Kind() == reflect.Slice && numElems > 0 && sf.Type().Elem() == fileType {
+				slice := reflect.MakeSlice(sf.Type(), numElems, numElems)
+				for i := 0; i < numElems; i++ {
+					slice.Index(i).Set(reflect.ValueOf(inputFile[i]))
+				}
+				sf.Set(slice)
+			} else if sf.Type() == fileType {
+				sf.Set(reflect.ValueOf(inputFile[0]))
+			}
+		}
+	}
+}
+
+func (this *Context) validateMapData(c martini.Context, v IArgs, render render.Render) {
+	if v.ValType() == AT_NONE {
+		return
+	}
+	var m *ValidateModel = nil
+	if err := this.Validate(v); err != nil {
+		m = NewValidateModel(err)
+	}
+	if m == nil {
+		c.Map(m)
+		return
+	}
+	switch v.ValType() {
+	case AT_JSON:
+		render.JSON(http.StatusOK, m)
+	case AT_XML:
+		render.XML(http.StatusOK, m)
+	case AT_FORM:
+		c.Map(m)
 	}
 }
 
@@ -251,17 +357,46 @@ func (this *Context) FormHandler(v interface{}, ifv ...interface{}) martini.Hand
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding FORM Args")
 	}
-	return binding.Bind(v, ifv...)
+	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
+		t := reflect.TypeOf(v)
+		v := reflect.New(t)
+		args, ok := v.Interface().(IArgs)
+		if !ok {
+			panic(errors.New(t.Name() + "not imp IArgs"))
+		}
+		if req.Method != http.MethodPost {
+			c.Map(v.Elem().Interface())
+			return
+		}
+		ct := req.Header.Get("Content-Type")
+		if len(ct) == 0 {
+			c.Map(v.Elem().Interface())
+			return
+		}
+		ct = strings.ToLower(ct)
+		if strings.Contains(ct, "multipart/form-data") {
+			if err := req.ParseMultipartForm(MaxMemory); err == nil {
+				this.mapForm(v, req.MultipartForm.Value, req.MultipartForm.File)
+			}
+		} else {
+			if err := req.ParseForm(); err == nil {
+				this.mapForm(v, req.Form, nil)
+			}
+		}
+		c.Map(v.Elem().Interface())
+		this.validateMapData(c, args, render)
+	}
 }
 
 func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding XML Args")
 	}
-	return func(c martini.Context, req *http.Request, log *log.Logger) {
+	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
-		if _, ok := v.Interface().(IArgs); !ok {
+		args, ok := v.Interface().(IArgs)
+		if !ok {
 			panic(errors.New(t.Name() + "not imp IArgs"))
 		}
 		data, err := this.QueryHttpRequestData(name, req)
@@ -272,6 +407,7 @@ func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 			log.Println(err)
 		}
 		c.Map(v.Elem().Interface())
+		this.validateMapData(c, args, render)
 	}
 }
 
@@ -360,10 +496,6 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 			//拼接url
 			url = c.GetPrefix() + g.Tag.Get("url") + url
 			in := []martini.Handler{}
-			//group handler
-			if mv := svv.MethodByName(g.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
-				in = append(in, mv.Interface())
-			}
 			//args handler
 			if iv, ok := v.Interface().(IArgs); ok {
 				switch iv.ReqType() {
@@ -379,14 +511,9 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 					panic(errors.New(url + " field reqType not supprt"))
 				}
 			}
-			if mv := svv.MethodByName(f.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
-				//single validate handler
+			//group handler
+			if mv := svv.MethodByName(g.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
-			} else if mv := svv.MethodByName(g.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
-				//group validate handler
-				in = append(in, mv.Interface())
-			} else {
-				//not set validate handler
 			}
 			//before handler
 			if mv := svv.MethodByName(f.Tag.Get("before") + HandlerSuffix); mv.IsValid() {

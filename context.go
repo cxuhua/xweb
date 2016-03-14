@@ -26,10 +26,6 @@ func UseRedis(addr string) {
 	main.UseRedis(addr)
 }
 
-func UseRender(opts ...render.Options) {
-	main.UseRender(opts...)
-}
-
 func SetEnv(env string) {
 	martini.Env = env
 }
@@ -73,11 +69,13 @@ func Validate(v interface{}) error {
 	return main.Validate(v)
 }
 
-func ListenAndServe(addr string) error {
+func ListenAndServe(addr string, opts ...render.Options) error {
+	main.UseRender(opts...)
 	return main.ListenAndServe(addr)
 }
 
-func ListenAndServeTLS(addr string, cert, key string) error {
+func ListenAndServeTLS(addr string, cert, key string, opts ...render.Options) error {
+	main.UseRender(opts...)
 	return main.ListenAndServeTLS(addr, cert, key)
 }
 
@@ -167,13 +165,11 @@ func NewContext() *Context {
 	h := new(Context)
 	r := martini.NewRouter()
 	m := martini.New()
-
 	m.Use(martini.Logger())
 	m.Use(martini.Recovery())
 	m.Use(martini.Static("public"))
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
-
 	h.Martini = m
 	h.Router = r
 	return h
