@@ -1,7 +1,6 @@
 package xweb
 
 import (
-	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -17,9 +16,12 @@ import (
 	"strings"
 )
 
+var (
+	MaxMemory = int64(1024 * 1024 * 10)
+)
+
 const (
-	MaxMemory         = 1024 * 1024 * 10
-	ValidateErrorCode = 10000
+	ValidateErrorCode = 10000     //数据校验失败返回
 	HandlerSuffix     = "Handler" //处理组件必须的后缀
 )
 
@@ -166,35 +168,32 @@ func (this XMLArgs) ReqType() int {
 	return AT_XML
 }
 
-//execute tempate render html
-func (this *Context) Execute(render render.Render, view string, m interface{}) (*bytes.Buffer, error) {
-	buf := bytes.NewBuffer(nil)
-	err := render.Template().ExecuteTemplate(buf, view, m)
-	return buf, err
-}
-
-func (this *Context) QueryHttpRequestData(name string, req *http.Request) ([]byte, error) {
+func (this *Context) queryHttpRequestData(name string, req *http.Request) ([]byte, error) {
 	if req.Method != http.MethodPost {
 		return nil, errors.New("http method error")
 	}
 	if len(name) > 0 {
-		contentType := req.Header.Get("Content-Type")
-		if strings.Contains(contentType, "multipart/form-data") {
+		ct := strings.ToLower(req.Header.Get("Content-Type"))
+		if strings.Contains(ct, "multipart/form-data") {
 			if err := req.ParseMultipartForm(MaxMemory); err != nil {
 				return nil, err
+			}
+			if data, ok := req.MultipartForm.Value[name]; ok && len(data) > 0 {
+				return []byte(data[0]), nil
+			}
+			file, _, err := req.FormFile(name)
+			if err == nil {
+				defer file.Close()
+				return ioutil.ReadAll(file)
 			}
 		} else {
 			if err := req.ParseForm(); err != nil {
 				return nil, err
 			}
-		}
-		data := req.FormValue(name)
-		if len(data) > 0 {
-			return []byte(data), nil
-		}
-		_, file, err := req.FormFile(name)
-		if err == nil {
-			return FormFileBytes(file)
+			data := req.FormValue(name)
+			if len(data) > 0 {
+				return []byte(data), nil
+			}
 		}
 		q := req.URL.Query().Get(name)
 		if len(q) > 0 {
@@ -218,7 +217,7 @@ func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 		if !ok {
 			panic(errors.New(t.Name() + "not imp IArgs"))
 		}
-		data, err := this.QueryHttpRequestData(name, req)
+		data, err := this.queryHttpRequestData(name, req)
 		if err != nil {
 			log.Println(err)
 		}
@@ -399,7 +398,7 @@ func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 		if !ok {
 			panic(errors.New(t.Name() + "not imp IArgs"))
 		}
-		data, err := this.QueryHttpRequestData(name, req)
+		data, err := this.queryHttpRequestData(name, req)
 		if err != nil {
 			log.Println(err)
 		}
