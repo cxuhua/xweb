@@ -40,6 +40,7 @@ type TestDistacher struct {
 	HTTPDispatcher
 	POST struct {
 		P1 TestArgs `url:"/json" handler:"PX" validate:"ToJSON"`
+		P2 IArgs    `url:"/test"`
 	} `url:"/post" handler:"Logger"`
 }
 
@@ -104,12 +105,8 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 func (this *WebSuite) TestQueryArgs(c *C) {
 	var v interface{} = nil
 
-	v = URLArgs{}
-	_, ok := v.(IArgs)
-	c.Assert(ok, Equals, true)
-
 	v = JSONArgs{}
-	_, ok = v.(IArgs)
+	_, ok := v.(IArgs)
 	c.Assert(ok, Equals, true)
 
 	v = FORMArgs{}

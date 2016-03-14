@@ -7,11 +7,6 @@ import (
 	"net/http"
 )
 
-//args
-type URLArgs struct {
-	xweb.URLArgs
-}
-
 //form:"Body",表示JSON数据来自 form=Body字段
 type JsonArgs struct {
 	xweb.JSONArgs `form:"Body" json:"-"`
@@ -25,7 +20,7 @@ type MainDispatcher struct {
 		PostJson JsonArgs `url:"/json" validate:"ToJSON"` //ToJSON ToXML ToNEXT
 	} `url:"/post" handler:"Logger"`
 	GET struct {
-		Index URLArgs `url:"/"`
+		Index xweb.IArgs `url:"/"` //use IArgs not bind args handler
 	} `handler:"Logger"`
 }
 
@@ -40,6 +35,7 @@ func (this *MainDispatcher) IndexHandler(render render.Render) {
 
 func server() {
 	xweb.UseDispatcher(new(MainDispatcher))
+	xweb.UseRender()
 	xweb.ListenAndServe(":8010")
 	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))
 }

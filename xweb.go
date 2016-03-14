@@ -139,7 +139,6 @@ func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 //req type
 const (
 	AT_NONE = iota
-	AT_URL
 	AT_FORM
 	AT_JSON
 	AT_XML
@@ -162,16 +161,8 @@ type IArgs interface {
 	ReqType() int
 }
 
-type URLArgs struct {
-	IArgs
-}
-
-func (this URLArgs) ReqType() int {
-	return AT_URL
-}
-
 type FORMArgs struct {
-	URLArgs
+	IArgs
 }
 
 func (this FORMArgs) ReqType() int {
@@ -179,7 +170,7 @@ func (this FORMArgs) ReqType() int {
 }
 
 type JSONArgs struct {
-	URLArgs
+	IArgs
 }
 
 func (this JSONArgs) ReqType() int {
@@ -187,7 +178,7 @@ func (this JSONArgs) ReqType() int {
 }
 
 type XMLArgs struct {
-	URLArgs
+	IArgs
 }
 
 func (this XMLArgs) ReqType() int {
@@ -256,22 +247,11 @@ func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-func (this *Context) FormHandler(obj interface{}, ifv ...interface{}) martini.Handler {
-	return binding.Bind(obj, ifv...)
-}
-
-func (this *Context) URLHandler(v interface{}) martini.Handler {
+func (this *Context) FormHandler(v interface{}, ifv ...interface{}) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
-		panic("Pointers are not accepted as binding URL Args")
+		panic("Pointers are not accepted as binding FORM Args")
 	}
-	return func(c martini.Context, req *http.Request) {
-		t := reflect.TypeOf(v)
-		v := reflect.New(t)
-		if _, ok := v.Interface().(IArgs); !ok {
-			panic(errors.New(t.Name() + "not imp IArgs"))
-		}
-		c.Map(v.Elem().Interface())
-	}
+	return binding.Bind(v, ifv...)
 }
 
 func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
@@ -377,11 +357,6 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 				log.Println(f.Name, "value not vaild")
 				continue
 			}
-			iv, ok := v.Interface().(IArgs)
-			if !ok {
-				log.Println(f.Name, "error,only support IArgs type")
-				continue
-			}
 			//拼接url
 			url = c.GetPrefix() + g.Tag.Get("url") + url
 			in := []martini.Handler{}
@@ -390,27 +365,28 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 				in = append(in, mv.Interface())
 			}
 			//args handler
-			switch iv.ReqType() {
-			case AT_URL:
-				in = append(in, this.URLHandler(iv))
-			case AT_FORM:
-				in = append(in, this.FormHandler(iv))
-			case AT_JSON:
-				name := this.queryFieldName(iv)
-				in = append(in, this.JsonHandler(iv, name))
-			case AT_XML:
-				name := this.queryFieldName(iv)
-				in = append(in, this.XmlHandler(iv, name))
-			default:
-				panic(errors.New(url + " field reqType not supprt"))
+			if iv, ok := v.Interface().(IArgs); ok {
+				switch iv.ReqType() {
+				case AT_FORM:
+					in = append(in, this.FormHandler(iv))
+				case AT_JSON:
+					name := this.queryFieldName(iv)
+					in = append(in, this.JsonHandler(iv, name))
+				case AT_XML:
+					name := this.queryFieldName(iv)
+					in = append(in, this.XmlHandler(iv, name))
+				default:
+					panic(errors.New(url + " field reqType not supprt"))
+				}
 			}
-			//global validate handler
-			if mv := svv.MethodByName(g.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
-				in = append(in, mv.Interface())
-			}
-			//single validate handler
 			if mv := svv.MethodByName(f.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
+				//single validate handler
 				in = append(in, mv.Interface())
+			} else if mv := svv.MethodByName(g.Tag.Get("validate") + ValidateSuffix); mv.IsValid() {
+				//group validate handler
+				in = append(in, mv.Interface())
+			} else {
+				//not set validate handler
 			}
 			//before handler
 			if mv := svv.MethodByName(f.Tag.Get("before") + HandlerSuffix); mv.IsValid() {
@@ -426,7 +402,7 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 				in = append(in, mv.Interface())
 			} else {
 				mhs += ".(" + f.Name + "|" + f.Tag.Get("handler") + ")" + HandlerSuffix
-				panic(errors.New(mhs + " miss"))
+				panic(errors.New(mhs + " MISS"))
 			}
 			//after handler
 			if mv := svv.MethodByName(f.Tag.Get("after") + HandlerSuffix); mv.IsValid() {
