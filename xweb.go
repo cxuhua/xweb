@@ -146,14 +146,19 @@ const (
 )
 
 type HTTPModel struct {
-	XMLName struct{} `xml:"xml" json:"-"`
-	Code    int      `json:"code" xml:"code"`
-	Error   string   `json:"error" xml:"error"`
+	Code  int    `json:"code" xml:"code"`
+	Error string `json:"error" xml:"error"`
+}
+
+func NewHTTPError(code int, err string) *HTTPModel {
+	return &HTTPModel{Code: code, Error: err}
+}
+
+func NewHTTPSuccess() *HTTPModel {
+	return &HTTPModel{Code: 0, Error: ""}
 }
 
 type IArgs interface {
-	//request parse data type
-	//AT_*
 	ReqType() int
 }
 
@@ -232,19 +237,21 @@ func (this *Context) QueryHttpRequestData(name string, req *http.Request) ([]byt
 
 func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
-		panic("Pointers are not accepted as binding json models")
+		panic("Pointers are not accepted as binding JSON Args")
 	}
-	return func(c martini.Context, req *http.Request) {
-		errors := binding.Errors{}
-		v := reflect.New(reflect.TypeOf(v))
+	return func(c martini.Context, req *http.Request, log *log.Logger) {
+		t := reflect.TypeOf(v)
+		v := reflect.New(t)
+		if _, ok := v.Interface().(IArgs); !ok {
+			panic(errors.New(t.Name() + "not imp IArgs"))
+		}
 		data, err := this.QueryHttpRequestData(name, req)
 		if err != nil {
-			errors.Add([]string{}, binding.RequiredError, "request method must POST")
+			log.Println(err)
 		}
 		if err := json.Unmarshal(data, v.Interface()); err != nil {
-			errors.Add([]string{}, binding.DeserializationError, err.Error())
+			log.Println(err)
 		}
-		c.Map(errors)
 		c.Map(v.Elem().Interface())
 	}
 }
@@ -254,30 +261,36 @@ func (this *Context) FormHandler(obj interface{}, ifv ...interface{}) martini.Ha
 }
 
 func (this *Context) URLHandler(v interface{}) martini.Handler {
+	if reflect.TypeOf(v).Kind() == reflect.Ptr {
+		panic("Pointers are not accepted as binding URL Args")
+	}
 	return func(c martini.Context, req *http.Request) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
-		if args, ok := v.Interface().(IArgs); ok {
-			c.Map(args)
+		if _, ok := v.Interface().(IArgs); !ok {
+			panic(errors.New(t.Name() + "not imp IArgs"))
 		}
+		c.Map(v.Elem().Interface())
 	}
 }
 
 func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
-		panic("Pointers are not accepted as binding xml models")
+		panic("Pointers are not accepted as binding XML Args")
 	}
-	return func(c martini.Context, req *http.Request) {
-		errors := binding.Errors{}
-		v := reflect.New(reflect.TypeOf(v))
+	return func(c martini.Context, req *http.Request, log *log.Logger) {
+		t := reflect.TypeOf(v)
+		v := reflect.New(t)
+		if _, ok := v.Interface().(IArgs); !ok {
+			panic(errors.New(t.Name() + "not imp IArgs"))
+		}
 		data, err := this.QueryHttpRequestData(name, req)
 		if err != nil {
-			errors.Add([]string{}, binding.RequiredError, "request method must POST")
+			log.Println(err)
 		}
 		if err := xml.Unmarshal(data, v.Interface()); err != nil {
-			errors.Add([]string{}, binding.DeserializationError, err.Error())
+			log.Println(err)
 		}
-		c.Map(errors)
 		c.Map(v.Elem().Interface())
 	}
 }
