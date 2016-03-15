@@ -10,8 +10,10 @@ Deps:
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -23,14 +25,23 @@ var (
 	tokenAesBlock cipher.Block = nil
 )
 
+func SHA1String(data, secret string) string {
+	return SHA1Bytes([]byte(data), secret)
+}
+
+func SHA1Bytes(data []byte, secret string) string {
+	mac := hmac.New(sha1.New, []byte(secret))
+	mac.Write(data)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 func MD5String(s string) string {
 	return MD5Bytes([]byte(s))
 }
 
-//
-func MD5Bytes(bytes []byte) string {
+func MD5Bytes(data []byte) string {
 	m := md5.New()
-	m.Write(bytes)
+	m.Write(data)
 	return hex.EncodeToString(m.Sum(nil))
 }
 
