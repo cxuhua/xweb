@@ -54,7 +54,7 @@ type ValidateError struct {
 type ValidateModel struct {
 	XMLName struct{}        `xml:"xml" json:"-"`
 	Code    int             `xml:"code" json:"code"`
-	Errors  []ValidateError `xml:"errors>item" json:"errors"`
+	Errors  []ValidateError `xml:"errors>item,omitempty" json:"errors,omitempty"`
 }
 
 func (this *ValidateModel) Init(e error) {
@@ -116,7 +116,7 @@ const (
 
 type HTTPModel struct {
 	Code  int    `json:"code" xml:"code"`
-	Error string `json:"error" xml:"error"`
+	Error string `json:"error,omitempty" xml:"error,omitempty"`
 }
 
 func NewHTTPError(code int, err string) *HTTPModel {
@@ -129,7 +129,7 @@ func NewHTTPSuccess() *HTTPModel {
 
 type IArgs interface {
 	ValType() int //validate failed out
-	ReqType() int
+	ReqType() int //request type in
 }
 
 type FORMArgs struct {
@@ -330,9 +330,9 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 	}
 }
 
-func (this *Context) validateMapData(c martini.Context, v IArgs, render render.Render) {
+func (this *Context) validateMapData(c martini.Context, v IArgs, render render.Render) bool {
 	if v.ValType() == AT_NONE {
-		return
+		return false
 	}
 	var m *ValidateModel = nil
 	if err := this.Validate(v); err != nil {
@@ -340,16 +340,21 @@ func (this *Context) validateMapData(c martini.Context, v IArgs, render render.R
 	}
 	if m == nil {
 		c.Map(m)
-		return
+		return false
 	}
 	switch v.ValType() {
 	case AT_JSON:
 		render.JSON(http.StatusOK, m)
+		return true
 	case AT_XML:
 		render.XML(http.StatusOK, m)
+		return true
 	case AT_FORM:
 		c.Map(m)
+	default:
+		panic(errors.New("IArgs ValType error"))
 	}
+	return false
 }
 
 func (this *Context) FormHandler(v interface{}, ifv ...interface{}) martini.Handler {

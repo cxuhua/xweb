@@ -10,8 +10,10 @@ Deps:
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"io"
 )
@@ -20,6 +22,17 @@ var (
 	TokenKey      []byte       = []byte("BM9dkmHWcJAqalwiuylIX4HcDElwDd7uauDsdWr646v")
 	tokenAesBlock cipher.Block = nil
 )
+
+func MD5String(s string) string {
+	return MD5Bytes([]byte(s))
+}
+
+//
+func MD5Bytes(bytes []byte) string {
+	m := md5.New()
+	m.Write(bytes)
+	return hex.EncodeToString(m.Sum(nil))
+}
 
 //整理key为 16 24 or 32
 func TrimAESKey(key []byte) ([]byte, error) {
