@@ -135,14 +135,26 @@ func (this HTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 //host http://www.sina.com.cn or https://www.sina.com.cn
-func NewHTTPClient(host string) HTTPClient {
+//crtkey[0] = certFile
+//crtkey[1] = keyFile
+func NewHTTPClient(host string, crtkey ...string) HTTPClient {
 	host = strings.ToLower(host)
 	ret := HTTPClient{}
 	ret.Host = host
 	ret.IsSecure = strings.HasPrefix(host, "https")
 	tr := &http.Transport{}
-	if ret.IsSecure {
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	if len(crtkey) == 2 {
+		config := &tls.Config{InsecureSkipVerify: true}
+		if kp, err := tls.LoadX509KeyPair(crtkey[0], crtkey[1]); err != nil {
+			panic(err)
+		} else {
+			config.Certificates = make([]tls.Certificate, 1)
+			config.Certificates[0] = kp
+			tr.TLSClientConfig = config
+		}
+	} else if ret.IsSecure {
+		config := &tls.Config{InsecureSkipVerify: true}
+		tr.TLSClientConfig = config
 	}
 	ret.Client = http.Client{Transport: tr}
 	return ret

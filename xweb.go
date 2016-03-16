@@ -93,10 +93,24 @@ func (this *HTTPDispatcher) GetContext() *Context {
 	return this.ctx
 }
 
+//获取远程地址
+func (this *HTTPDispatcher) GetRemoteAddr(req *http.Request) string {
+	if x1, ok := req.Header["X-Forwarded-For"]; ok && len(x1) > 0 {
+		return x1[len(x1)-1]
+	}
+	if x2, ok := req.Header["X-Real-IP"]; ok && len(x2) > 0 {
+		return x2[len(x2)-1]
+	}
+	if x3 := strings.Split(req.RemoteAddr, ":"); len(x3) > 0 {
+		return x3[0]
+	}
+	return req.RemoteAddr
+}
+
 //日志打印调试Handler
 func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------Logger---------------------------")
-	log.Println("Remote:", req.RemoteAddr)
+	log.Println("Remote:", this.GetRemoteAddr(req))
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
 	for k, v := range req.Header {
