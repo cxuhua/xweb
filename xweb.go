@@ -68,18 +68,30 @@ func NewValidateModel(err error) *ValidateModel {
 }
 
 type IDispatcher interface {
-	//保存上下文,获得上下文
 	SetContext(*Context)
 	GetContext() *Context
-	//获得或者设置 URL前缀
 	GetPrefix() string
 	SetPrefix(string)
+	GetHandler() martini.Handler
+	SetHandler(martini.Handler)
 }
 
 type HTTPDispatcher struct {
 	IDispatcher
-	prefix string
-	ctx    *Context
+	prefix  string
+	ctx     *Context
+	handler martini.Handler
+}
+
+func (this *HTTPDispatcher) GetHandler() martini.Handler {
+	return this.handler
+}
+
+func (this *HTTPDispatcher) SetHandler(v martini.Handler) {
+	if v == nil {
+		return
+	}
+	this.handler = v
 }
 
 func (this *HTTPDispatcher) SetPrefix(url string) {
@@ -469,7 +481,8 @@ func (this *Context) doMethod(m string) bool {
 	}
 }
 
-func (this *Context) doSubs(url string, v *reflect.Value) bool {
+func (this *Context) doSubs(pv *reflect.Value, f *reflect.StructField, v *reflect.Value) bool {
+	var dispatcher IDispatcher = nil
 	if !v.CanAddr() {
 		return false
 	} else if av := v.Addr(); !av.IsValid() {
@@ -477,20 +490,29 @@ func (this *Context) doSubs(url string, v *reflect.Value) bool {
 	} else if sv, ok := av.Interface().(IDispatcher); !ok {
 		return false
 	} else {
-		sv.SetPrefix(url)
-		this.UseDispatcher(sv)
+		dispatcher = sv
 	}
+	//prefix url
+	if url := f.Tag.Get("url"); url != "" {
+		dispatcher.SetPrefix(url)
+	}
+	//parent handler
+	log.Println(f.Tag.Get("handler") + HandlerSuffix)
+	if mv := pv.MethodByName(f.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
+		dispatcher.SetHandler(mv.Interface())
+	}
+	this.UseDispatcher(dispatcher)
 	return true
 }
 
-func (this *Context) doFields(tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
+func (this *Context) doFields(sv *reflect.Value, tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
 	for i := 0; i < tv.NumField(); i++ {
 		f := tv.Field(i)
 		v := nv.Field(i)
 		if !v.IsValid() || f.Type.Kind() != reflect.Struct {
 			continue
 		}
-		if this.doSubs(f.Tag.Get("url"), &v) {
+		if this.doSubs(sv, &f, &v) {
 			continue
 		}
 		method := f.Tag.Get("method")
@@ -507,13 +529,25 @@ func (this *Context) doFields(tv reflect.Type, nv reflect.Value, list func(strin
 	}
 }
 
+func (this *Context) appendArgsHandler(in []martini.Handler, iv IArgs) []martini.Handler {
+	switch iv.ReqType() {
+	case AT_FORM:
+		return append(in, this.FormHandler(iv))
+	case AT_JSON:
+		return append(in, this.JsonHandler(iv, this.queryFieldName(iv)))
+	case AT_XML:
+		return append(in, this.XmlHandler(iv, this.queryFieldName(iv)))
+	}
+	return in
+}
+
 func (this *Context) UseDispatcher(c IDispatcher) {
 	c.SetContext(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
-	this.doFields(stv, snv, func(method string, fv *reflect.StructField, nv *reflect.Value) {
+	this.doFields(&svv, stv, snv, func(method string, fv *reflect.StructField, nv *reflect.Value) {
 		for i := 0; i < fv.Type.NumField(); i++ {
 			f := fv.Type.Field(i)
 			v := nv.Field(i)
@@ -524,18 +558,12 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 			//merge url
 			url = c.GetPrefix() + fv.Tag.Get("url") + url
 			in := []martini.Handler{}
+			if hv := c.GetHandler(); hv != nil {
+				in = append(in, hv)
+			}
 			//args handler
 			if iv, ok := v.Interface().(IArgs); ok {
-				switch iv.ReqType() {
-				case AT_FORM:
-					in = append(in, this.FormHandler(iv))
-				case AT_JSON:
-					name := this.queryFieldName(iv)
-					in = append(in, this.JsonHandler(iv, name))
-				case AT_XML:
-					name := this.queryFieldName(iv)
-					in = append(in, this.XmlHandler(iv, name))
-				}
+				in = this.appendArgsHandler(in, iv)
 			}
 			//group handler
 			if mv := svv.MethodByName(fv.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {

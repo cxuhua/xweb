@@ -2,7 +2,6 @@ package xweb
 
 import (
 	. "gopkg.in/check.v1"
-	"log"
 )
 
 type ContextSuite struct {

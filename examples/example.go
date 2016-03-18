@@ -39,13 +39,13 @@ func (this *SubDispatcher) IndexHandler(render render.Render) {
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-	SubDispatcher `url:"/sub"`
+	SubDispatcher `url:"/sub" handler:"Logger"`
 	POST          struct {
 		PostJson JsonArgs `url:"/json"`
 		PostForm FormArgs `url:"/form"`
 	} `url:"/post" handler:"Logger"`
 	GET struct {
-		Index xweb.IArgs `url:"/"` //use IArgs not bind args handler
+		Index xweb.IArgs `url:"/"`
 	} `handler:"Logger"`
 }
 
