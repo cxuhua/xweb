@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
 	"gopkg.in/validator.v2"
@@ -72,26 +73,12 @@ type IDispatcher interface {
 	GetContext() *Context
 	GetPrefix() string
 	SetPrefix(string)
-	GetHandler() martini.Handler
-	SetHandler(martini.Handler)
 }
 
 type HTTPDispatcher struct {
 	IDispatcher
-	prefix  string
-	ctx     *Context
-	handler martini.Handler
-}
-
-func (this *HTTPDispatcher) GetHandler() martini.Handler {
-	return this.handler
-}
-
-func (this *HTTPDispatcher) SetHandler(v martini.Handler) {
-	if v == nil {
-		return
-	}
-	this.handler = v
+	prefix string
+	ctx    *Context
 }
 
 func (this *HTTPDispatcher) SetPrefix(url string) {
@@ -297,7 +284,7 @@ func (this *Context) setWithProperType(vk reflect.Kind, val string, sf reflect.V
 			val = "0.0"
 		}
 		floatVal, err := strconv.ParseFloat(val, 32)
-		if err != nil {
+		if err == nil {
 			sf.SetFloat(floatVal)
 		}
 	case reflect.Float64:
@@ -305,7 +292,7 @@ func (this *Context) setWithProperType(vk reflect.Kind, val string, sf reflect.V
 			val = "0.0"
 		}
 		floatVal, err := strconv.ParseFloat(val, 64)
-		if err != nil {
+		if err == nil {
 			sf.SetFloat(floatVal)
 		}
 	case reflect.String:
@@ -481,7 +468,7 @@ func (this *Context) doMethod(m string) bool {
 	}
 }
 
-func (this *Context) doSubs(pv *reflect.Value, f *reflect.StructField, v *reflect.Value) bool {
+func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *reflect.Value) bool {
 	var dispatcher IDispatcher = nil
 	if !v.CanAddr() {
 		return false
@@ -494,25 +481,29 @@ func (this *Context) doSubs(pv *reflect.Value, f *reflect.StructField, v *reflec
 	}
 	//prefix url
 	if url := f.Tag.Get("url"); url != "" {
-		dispatcher.SetPrefix(url)
+		dispatcher.SetPrefix(parent.GetPrefix() + dispatcher.GetPrefix() + url)
 	}
-	//parent handler
-	log.Println(f.Tag.Get("handler") + HandlerSuffix)
-	if mv := pv.MethodByName(f.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
-		dispatcher.SetHandler(mv.Interface())
+	//prefix handler
+	in := []martini.Handler{}
+	if hv := f.Tag.Get("handler"); hv != "" {
+		pv := reflect.ValueOf(parent)
+		if mv := pv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
+			in = append(in, mv.Interface())
+		}
 	}
-	this.UseDispatcher(dispatcher)
+	//use sub dispatcher
+	this.UseDispatcher(dispatcher, in...)
 	return true
 }
 
-func (this *Context) doFields(sv *reflect.Value, tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
+func (this *Context) doFields(parent IDispatcher, tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
 	for i := 0; i < tv.NumField(); i++ {
 		f := tv.Field(i)
 		v := nv.Field(i)
 		if !v.IsValid() || f.Type.Kind() != reflect.Struct {
 			continue
 		}
-		if this.doSubs(sv, &f, &v) {
+		if this.doSubs(parent, &f, &v) {
 			continue
 		}
 		method := f.Tag.Get("method")
@@ -529,25 +520,13 @@ func (this *Context) doFields(sv *reflect.Value, tv reflect.Type, nv reflect.Val
 	}
 }
 
-func (this *Context) appendArgsHandler(in []martini.Handler, iv IArgs) []martini.Handler {
-	switch iv.ReqType() {
-	case AT_FORM:
-		return append(in, this.FormHandler(iv))
-	case AT_JSON:
-		return append(in, this.JsonHandler(iv, this.queryFieldName(iv)))
-	case AT_XML:
-		return append(in, this.XmlHandler(iv, this.queryFieldName(iv)))
-	}
-	return in
-}
-
-func (this *Context) UseDispatcher(c IDispatcher) {
+func (this *Context) UseDispatcher(c IDispatcher, hs ...martini.Handler) {
 	c.SetContext(this)
 	log := this.Logger()
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
-	this.doFields(&svv, stv, snv, func(method string, fv *reflect.StructField, nv *reflect.Value) {
+	this.doFields(c, stv, snv, func(method string, fv *reflect.StructField, nv *reflect.Value) {
 		for i := 0; i < fv.Type.NumField(); i++ {
 			f := fv.Type.Field(i)
 			v := nv.Field(i)
@@ -558,36 +537,53 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 			//merge url
 			url = c.GetPrefix() + fv.Tag.Get("url") + url
 			in := []martini.Handler{}
-			if hv := c.GetHandler(); hv != nil {
-				in = append(in, hv)
+			//prefix handler
+			for _, mv := range hs {
+				if mv != nil {
+					in = append(in, mv)
+				}
 			}
 			//args handler
 			if iv, ok := v.Interface().(IArgs); ok {
-				in = this.appendArgsHandler(in, iv)
+				switch iv.ReqType() {
+				case AT_FORM:
+					in = append(in, this.FormHandler(iv))
+				case AT_JSON:
+					in = append(in, this.JsonHandler(iv, this.queryFieldName(iv)))
+				case AT_XML:
+					in = append(in, this.XmlHandler(iv, this.queryFieldName(iv)))
+				}
 			}
 			//group handler
-			if mv := svv.MethodByName(fv.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
-				in = append(in, mv.Interface())
+			if hv := fv.Tag.Get("handler"); hv != "" {
+				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
+					in = append(in, mv.Interface())
+				}
 			}
 			//before handler
-			if mv := svv.MethodByName(f.Tag.Get("before") + HandlerSuffix); mv.IsValid() {
-				in = append(in, mv.Interface())
+			if hv := f.Tag.Get("before"); hv != "" {
+				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
+					in = append(in, mv.Interface())
+				}
 			}
 			//main handler
-			mhs := stv.PkgPath() + "/" + stv.Name()
-			if mv := svv.MethodByName(f.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
-				mhs += "." + f.Tag.Get("handler") + HandlerSuffix
-				in = append(in, mv.Interface())
-			} else if mv := svv.MethodByName(f.Name + HandlerSuffix); mv.IsValid() {
-				mhs += "." + f.Name + HandlerSuffix
-				in = append(in, mv.Interface())
-			} else {
-				mhs += ".(" + f.Name + "|" + f.Tag.Get("handler") + ")" + HandlerSuffix
-				panic(errors.New(mhs + " MISS"))
+			mhs := ""
+			if hv := f.Tag.Get("handler"); hv != "" {
+				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
+					mhs += hv + HandlerSuffix
+					in = append(in, mv.Interface())
+				}
+			} else if f.Name != "" {
+				if mv := svv.MethodByName(f.Name + HandlerSuffix); mv.IsValid() {
+					mhs += f.Name + HandlerSuffix
+					in = append(in, mv.Interface())
+				}
 			}
 			//after handler
-			if mv := svv.MethodByName(f.Tag.Get("after") + HandlerSuffix); mv.IsValid() {
-				in = append(in, mv.Interface())
+			if hv := f.Tag.Get("after"); hv != "" {
+				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
+					in = append(in, mv.Interface())
+				}
 			}
 			//set method handler
 			switch method {
@@ -606,8 +602,8 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 			case http.MethodPost:
 				this.Post(url, in...)
 			}
-			log.Println("+", method, url, mhs)
+			mhs = fmt.Sprintf("%v.%s", reflect.TypeOf(c).Elem(), mhs)
+			log.Println("+", method, url, "->", mhs)
 		}
 	})
-	this.Map(c)
 }
