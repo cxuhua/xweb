@@ -37,15 +37,6 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
-type IDispatcher interface {
-	//保存上下文
-	SetContext(*Context)
-	//获得上下文
-	GetContext() *Context
-	//获得URL前缀
-	GetPrefix() string
-}
-
 type ValidateError struct {
 	Field string `xml:"field,attr" json:"field"`
 	Error string `xml:",chardata" json:"error"`
@@ -76,16 +67,36 @@ func NewValidateModel(err error) *ValidateModel {
 	return m
 }
 
+type IDispatcher interface {
+	//保存上下文,获得上下文
+	SetContext(*Context)
+	GetContext() *Context
+	//获得或者设置 URL前缀
+	GetPrefix() string
+	SetPrefix(string)
+}
+
 type HTTPDispatcher struct {
 	IDispatcher
-	ctx *Context
+	prefix string
+	ctx    *Context
+}
+
+func (this *HTTPDispatcher) SetPrefix(url string) {
+	if url == "" {
+		return
+	}
+	this.prefix = url
 }
 
 func (this *HTTPDispatcher) GetPrefix() string {
-	return ""
+	return this.prefix
 }
 
 func (this *HTTPDispatcher) SetContext(ctx *Context) {
+	if ctx == nil {
+		return
+	}
 	this.ctx = ctx
 }
 
@@ -387,12 +398,7 @@ func (this *Context) FormHandler(v interface{}, ifv ...interface{}) martini.Hand
 			return
 		}
 		ct := req.Header.Get("Content-Type")
-		if len(ct) == 0 {
-			c.Map(v.Elem().Interface())
-			return
-		}
-		ct = strings.ToLower(ct)
-		if strings.Contains(ct, "multipart/form-data") {
+		if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
 			if err := req.ParseMultipartForm(MaxMemory); err == nil {
 				this.mapForm(v, req.MultipartForm.Value, req.MultipartForm.File)
 			}
@@ -463,18 +469,28 @@ func (this *Context) doMethod(m string) bool {
 	}
 }
 
-func (this *Context) doFields(tv reflect.Type, nv reflect.Value, pv func(string, *reflect.StructField, *reflect.Value)) {
-	if tv.Kind() != reflect.Struct {
-		return
+func (this *Context) doSubs(url string, v *reflect.Value) bool {
+	if !v.CanAddr() {
+		return false
+	} else if av := v.Addr(); !av.IsValid() {
+		return false
+	} else if sv, ok := av.Interface().(IDispatcher); !ok {
+		return false
+	} else {
+		sv.SetPrefix(url)
+		this.UseDispatcher(sv)
 	}
+	return true
+}
+
+func (this *Context) doFields(tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
 	for i := 0; i < tv.NumField(); i++ {
 		f := tv.Field(i)
-		v := nv.FieldByName(f.Name)
-		k := f.Type.Kind()
-		if !v.IsValid() {
+		v := nv.Field(i)
+		if !v.IsValid() || f.Type.Kind() != reflect.Struct {
 			continue
 		}
-		if k != reflect.Struct {
+		if this.doSubs(f.Tag.Get("url"), &v) {
 			continue
 		}
 		method := f.Tag.Get("method")
@@ -484,10 +500,10 @@ func (this *Context) doFields(tv reflect.Type, nv reflect.Value, pv func(string,
 		if len(method) > 0 {
 			method = strings.ToUpper(method)
 		}
-		if this.doMethod(method) {
-			pv(method, &f, &v)
+		if !this.doMethod(method) {
+			continue
 		}
-		this.doFields(f.Type, v, pv)
+		list(method, &f, &v)
 	}
 }
 
@@ -497,22 +513,16 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 	stv := reflect.TypeOf(c).Elem()
 	svv := reflect.ValueOf(c)
 	snv := svv.Elem()
-	this.doFields(stv, snv, func(method string, g *reflect.StructField, nv *reflect.Value) {
-		for i := 0; i < g.Type.NumField(); i++ {
-			f := g.Type.Field(i)
+	this.doFields(stv, snv, func(method string, fv *reflect.StructField, nv *reflect.Value) {
+		for i := 0; i < fv.Type.NumField(); i++ {
+			f := fv.Type.Field(i)
+			v := nv.Field(i)
 			url := f.Tag.Get("url")
-			if len(url) == 0 {
-				log.Println(f.Name, "must set url path")
+			if !v.IsValid() || url == "" {
 				continue
 			}
-			//get field value
-			v := nv.FieldByName(f.Name)
-			if !v.IsValid() {
-				log.Println(f.Name, "value not vaild")
-				continue
-			}
-			//拼接url
-			url = c.GetPrefix() + g.Tag.Get("url") + url
+			//merge url
+			url = c.GetPrefix() + fv.Tag.Get("url") + url
 			in := []martini.Handler{}
 			//args handler
 			if iv, ok := v.Interface().(IArgs); ok {
@@ -525,12 +535,10 @@ func (this *Context) UseDispatcher(c IDispatcher) {
 				case AT_XML:
 					name := this.queryFieldName(iv)
 					in = append(in, this.XmlHandler(iv, name))
-				default:
-					panic(errors.New(url + " field reqType not supprt"))
 				}
 			}
 			//group handler
-			if mv := svv.MethodByName(g.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
+			if mv := svv.MethodByName(fv.Tag.Get("handler") + HandlerSuffix); mv.IsValid() {
 				in = append(in, mv.Interface())
 			}
 			//before handler

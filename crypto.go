@@ -25,14 +25,24 @@ var (
 	tokenAesBlock cipher.Block = nil
 )
 
-func SHA1String(data, secret string) string {
-	return SHA1Bytes([]byte(data), secret)
+func HMACString(data, secret string) string {
+	return HMACBytes([]byte(data), secret)
 }
 
-func SHA1Bytes(data []byte, secret string) string {
+func HMACBytes(data []byte, secret string) string {
 	mac := hmac.New(sha1.New, []byte(secret))
 	mac.Write(data)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func SHA1String(data string) string {
+	return SHA1Bytes([]byte(data))
+}
+
+func SHA1Bytes(data []byte) string {
+	h := sha1.New()
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func MD5String(s string) string {

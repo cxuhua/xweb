@@ -3,6 +3,7 @@ package xweb
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -134,27 +135,54 @@ func (this HTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return this.Client.Do(req)
 }
 
+//not verify config
+func TLSSkipVerifyConfig() *tls.Config {
+	return &tls.Config{InsecureSkipVerify: true}
+}
+
 //host http://www.sina.com.cn or https://www.sina.com.cn
-//crtkey[0] = certFile
-//crtkey[1] = keyFile
-func NewHTTPClient(host string, crtkey ...string) HTTPClient {
+//cakey[0] = certFile
+//certkey[1] = keyFile
+//key[2]
+func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
+	if casFile == "" {
+		panic(errors.New("casFile miss"))
+	}
+	if crtFile == "" {
+		panic(errors.New("crtFile miss"))
+	}
+	if keyFile == "" {
+		panic(errors.New("keyFile miss"))
+	}
+	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
+	if err != nil {
+		panic(err)
+	}
+	pem, err := ioutil.ReadFile(casFile)
+	if err != nil {
+		panic(err)
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(pem) {
+		panic("Failed appending certs")
+	}
+	config := &tls.Config{}
+	config.Certificates = make([]tls.Certificate, 1)
+	config.Certificates[0] = cert
+	config.RootCAs = certPool
+	return config
+}
+
+func NewHTTPClient(host string, config ...*tls.Config) HTTPClient {
 	host = strings.ToLower(host)
 	ret := HTTPClient{}
 	ret.Host = host
 	ret.IsSecure = strings.HasPrefix(host, "https")
 	tr := &http.Transport{}
-	if len(crtkey) == 2 {
-		config := &tls.Config{InsecureSkipVerify: true}
-		if kp, err := tls.LoadX509KeyPair(crtkey[0], crtkey[1]); err != nil {
-			panic(err)
-		} else {
-			config.Certificates = make([]tls.Certificate, 1)
-			config.Certificates[0] = kp
-			tr.TLSClientConfig = config
-		}
+	if len(config) > 0 {
+		tr.TLSClientConfig = config[0]
 	} else if ret.IsSecure {
-		config := &tls.Config{InsecureSkipVerify: true}
-		tr.TLSClientConfig = config
+		tr.TLSClientConfig = TLSSkipVerifyConfig()
 	}
 	ret.Client = http.Client{Transport: tr}
 	return ret

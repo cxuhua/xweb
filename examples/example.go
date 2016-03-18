@@ -26,9 +26,21 @@ type FormArgs struct {
 	File *multipart.FileHeader `form:"file"`
 }
 
+type SubDispatcher struct {
+	xweb.HTTPDispatcher
+	GET struct {
+		Index xweb.IArgs `url:"/"`
+	}
+}
+
+func (this *SubDispatcher) IndexHandler(render render.Render) {
+	render.Text(http.StatusOK, "SubDispatcher.IndexHandler")
+}
+
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-	POST struct {
+	SubDispatcher `url:"/sub"`
+	POST          struct {
 		PostJson JsonArgs `url:"/json"`
 		PostForm FormArgs `url:"/form"`
 	} `url:"/post" handler:"Logger"`
