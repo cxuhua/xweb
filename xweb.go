@@ -316,18 +316,17 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 			}
 		} else if tf.Type.Kind() == reflect.Struct {
 			this.mapForm(sf, form, files)
-		} else if inputFieldName := tf.Tag.Get("form"); inputFieldName != "" {
+		} else if name := tf.Tag.Get("form"); name != "" {
 			if !sf.CanSet() {
 				continue
 			}
-			inputValue, exists := form[inputFieldName]
-			if exists {
-				numElems := len(inputValue)
-				if sf.Kind() == reflect.Slice && numElems > 0 {
-					sliceOf := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), numElems, numElems)
-					for i := 0; i < numElems; i++ {
-						this.setWithProperType(sliceOf, inputValue[i], slice.Index(i))
+			if inputValue, exists := form[name]; exists {
+				num := len(inputValue)
+				if sf.Kind() == reflect.Slice && num > 0 {
+					skind := sf.Type().Elem().Kind()
+					slice := reflect.MakeSlice(sf.Type(), num, num)
+					for i := 0; i < num; i++ {
+						this.setWithProperType(skind, inputValue[i], slice.Index(i))
 					}
 					value.Field(i).Set(slice)
 				} else {
@@ -335,20 +334,19 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 				}
 				continue
 			}
-			inputFile, exists := files[inputFieldName]
-			if !exists {
-				continue
-			}
-			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
-			numElems := len(inputFile)
-			if sf.Kind() == reflect.Slice && numElems > 0 && sf.Type().Elem() == fileType {
-				slice := reflect.MakeSlice(sf.Type(), numElems, numElems)
-				for i := 0; i < numElems; i++ {
-					slice.Index(i).Set(reflect.ValueOf(inputFile[i]))
+			if inputFile, exists := files[name]; exists {
+				fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
+				num := len(inputFile)
+				if sf.Kind() == reflect.Slice && num > 0 && sf.Type().Elem() == fileType {
+					slice := reflect.MakeSlice(sf.Type(), num, num)
+					for i := 0; i < num; i++ {
+						slice.Index(i).Set(reflect.ValueOf(inputFile[i]))
+					}
+					sf.Set(slice)
+				} else if sf.Type() == fileType {
+					sf.Set(reflect.ValueOf(inputFile[0]))
 				}
-				sf.Set(slice)
-			} else if sf.Type() == fileType {
-				sf.Set(reflect.ValueOf(inputFile[0]))
+				continue
 			}
 		}
 	}
