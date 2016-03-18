@@ -18,13 +18,6 @@ type HTTPValues struct {
 	url.Values
 }
 
-type KeyValue struct {
-	Key   string
-	Value interface{}
-}
-
-type KV []KeyValue
-
 func (this HTTPValues) MD5Sign(key string) string {
 	s := this.RawEncode()
 	if len(s) > 0 {
