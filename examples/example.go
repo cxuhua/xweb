@@ -64,12 +64,8 @@ func (this *MainDispatcher) IndexHandler(render render.Render) {
 	render.HTML(http.StatusOK, "test", nil)
 }
 
-func server() {
+func main() {
 	xweb.UseDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")
 	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))
-}
-
-func main() {
-	xweb.Daemon(server, "./", "server.pid", "server.log")
 }

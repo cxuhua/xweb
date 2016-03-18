@@ -469,7 +469,7 @@ func (this *Context) doMethod(m string) bool {
 }
 
 func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *reflect.Value) bool {
-	var dispatcher IDispatcher = nil
+	var dv IDispatcher = nil
 	if !v.CanAddr() {
 		return false
 	} else if av := v.Addr(); !av.IsValid() {
@@ -477,11 +477,11 @@ func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *refle
 	} else if sv, ok := av.Interface().(IDispatcher); !ok {
 		return false
 	} else {
-		dispatcher = sv
+		dv = sv
 	}
 	//prefix url
 	if url := f.Tag.Get("url"); url != "" {
-		dispatcher.SetPrefix(parent.GetPrefix() + dispatcher.GetPrefix() + url)
+		dv.SetPrefix(parent.GetPrefix() + dv.GetPrefix() + url)
 	}
 	//prefix handler
 	in := []martini.Handler{}
@@ -492,7 +492,7 @@ func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *refle
 		}
 	}
 	//use sub dispatcher
-	this.UseDispatcher(dispatcher, in...)
+	this.UseDispatcher(dv, in...)
 	return true
 }
 
@@ -584,6 +584,9 @@ func (this *Context) UseDispatcher(c IDispatcher, hs ...martini.Handler) {
 				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
 					in = append(in, mv.Interface())
 				}
+			}
+			if len(in) < 2 {
+				continue
 			}
 			//set method handler
 			switch method {
