@@ -20,9 +20,13 @@ func (this JsonArgs) ValType() int {
 	return xweb.AT_NONE
 }
 
+type XX struct {
+	Body string `form:"Body"`
+}
+
 type FormArgs struct {
 	xweb.FORMArgs
-	Body string                `form:"Body"`
+	XX
 	File *multipart.FileHeader `form:"file"`
 }
 

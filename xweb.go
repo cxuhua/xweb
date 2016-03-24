@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
-	"gopkg.in/validator.v2"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
@@ -52,7 +51,7 @@ type ValidateModel struct {
 func (this *ValidateModel) Init(e error) {
 	this.Errors = []ValidateError{}
 	this.Code = ValidateErrorCode
-	err, ok := e.(validator.ErrorMap)
+	err, ok := e.(ErrorMap)
 	if !ok {
 		return
 	}
@@ -316,37 +315,31 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 			}
 		} else if tf.Type.Kind() == reflect.Struct {
 			this.mapForm(sf, form, files)
-		} else if name := tf.Tag.Get("form"); name != "" {
-			if !sf.CanSet() {
-				continue
-			}
-			if inputValue, exists := form[name]; exists {
-				num := len(inputValue)
-				if sf.Kind() == reflect.Slice && num > 0 {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for i := 0; i < num; i++ {
-						this.setWithProperType(skind, inputValue[i], slice.Index(i))
-					}
-					value.Field(i).Set(slice)
-				} else {
-					this.setWithProperType(tf.Type.Kind(), inputValue[0], sf)
+		} else if name := tf.Tag.Get("form"); name == "" || !sf.CanSet() {
+			continue
+		} else if input, ok := form[name]; ok {
+			num := len(input)
+			if sf.Kind() == reflect.Slice && num > 0 {
+				skind := sf.Type().Elem().Kind()
+				slice := reflect.MakeSlice(sf.Type(), num, num)
+				for i := 0; i < num; i++ {
+					this.setWithProperType(skind, input[i], slice.Index(i))
 				}
-				continue
+				value.Field(i).Set(slice)
+			} else {
+				this.setWithProperType(tf.Type.Kind(), input[0], sf)
 			}
-			if inputFile, exists := files[name]; exists {
-				fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
-				num := len(inputFile)
-				if sf.Kind() == reflect.Slice && num > 0 && sf.Type().Elem() == fileType {
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for i := 0; i < num; i++ {
-						slice.Index(i).Set(reflect.ValueOf(inputFile[i]))
-					}
-					sf.Set(slice)
-				} else if sf.Type() == fileType {
-					sf.Set(reflect.ValueOf(inputFile[0]))
+		} else if input, ok := files[name]; ok {
+			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
+			num := len(input)
+			if sf.Kind() == reflect.Slice && num > 0 && sf.Type().Elem() == fileType {
+				slice := reflect.MakeSlice(sf.Type(), num, num)
+				for i := 0; i < num; i++ {
+					slice.Index(i).Set(reflect.ValueOf(input[i]))
 				}
-				continue
+				sf.Set(slice)
+			} else if sf.Type() == fileType {
+				sf.Set(reflect.ValueOf(input[0]))
 			}
 		}
 	}
@@ -445,6 +438,7 @@ func (this *Context) queryFieldName(v interface{}) string {
 	return ""
 }
 
+//
 func (this *Context) doMethod(m string) bool {
 	switch m {
 	case http.MethodHead:
@@ -466,6 +460,7 @@ func (this *Context) doMethod(m string) bool {
 	}
 }
 
+//
 func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *reflect.Value) bool {
 	var dv IDispatcher = nil
 	if !v.CanAddr() {
@@ -494,6 +489,7 @@ func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *refle
 	return true
 }
 
+//
 func (this *Context) doFields(parent IDispatcher, tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
 	for i := 0; i < tv.NumField(); i++ {
 		f := tv.Field(i)
@@ -518,6 +514,7 @@ func (this *Context) doFields(parent IDispatcher, tv reflect.Type, nv reflect.Va
 	}
 }
 
+//
 func (this *Context) UseDispatcher(c IDispatcher, hs ...martini.Handler) {
 	c.SetContext(this)
 	log := this.Logger()
@@ -568,12 +565,12 @@ func (this *Context) UseDispatcher(c IDispatcher, hs ...martini.Handler) {
 			mhs := ""
 			if hv := f.Tag.Get("handler"); hv != "" {
 				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
-					mhs += hv + HandlerSuffix
+					mhs = hv + HandlerSuffix
 					in = append(in, mv.Interface())
 				}
-			} else if f.Name != "" {
+			} else {
 				if mv := svv.MethodByName(f.Name + HandlerSuffix); mv.IsValid() {
-					mhs += f.Name + HandlerSuffix
+					mhs = f.Name + HandlerSuffix
 					in = append(in, mv.Interface())
 				}
 			}
@@ -582,9 +579,6 @@ func (this *Context) UseDispatcher(c IDispatcher, hs ...martini.Handler) {
 				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
 					in = append(in, mv.Interface())
 				}
-			}
-			if len(in) < 2 {
-				continue
 			}
 			//set method handler
 			switch method {

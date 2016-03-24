@@ -2,7 +2,6 @@ package xweb
 
 import (
 	. "gopkg.in/check.v1"
-	"log"
 	"net/http"
 )
 
@@ -31,14 +30,14 @@ func (this *HttpSuite) TestHttpRequest(c *C) {
 	c.Assert(len(data) > 0, Equals, true)
 }
 
-func (this *HttpSuite) TestTLSWithPEM(c *C) {
-	config := MustLoadTLSFileConfig("rootca.pem", "apiclient_cert.pem", "apiclient_key.pem")
-	http := NewHTTPClient("https://api.mch.weixin.qq.com", config)
-	log.Println(http)
-	data, err := http.Post("/secapi/pay/refund", "application/xml", nil)
-	c.Assert(err, IsNil)
-	log.Println(string(data), err)
-}
+// func (this *HttpSuite) TestTLSWithPEM(c *C) {
+// 	config := MustLoadTLSFileConfig("rootca.pem", "apiclient_cert.pem", "apiclient_key.pem")
+// 	http := NewHTTPClient("https://api.mch.weixin.qq.com", config)
+// 	log.Println(http)
+// 	data, err := http.Post("/secapi/pay/refund", "application/xml", nil)
+// 	c.Assert(err, IsNil)
+// 	log.Println(string(data), err)
+// }
 
 func (this *HttpSuite) TestHTTPS(c *C) {
 	http := NewHTTPClient("https://www.baidu.com")

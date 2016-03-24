@@ -5,14 +5,13 @@ import (
 	"errors"
 	"github.com/martini-contrib/render"
 	. "gopkg.in/check.v1"
-	"gopkg.in/validator.v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 )
 
 var (
-	ErrUserExists = validator.TextErr{errors.New("user exists")}
+	ErrUserExists = TextErr{errors.New("user exists")}
 )
 
 func userExists(v interface{}, param string) error {

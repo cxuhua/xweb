@@ -55,13 +55,11 @@ func (this HTTPValues) RawEncode() string {
 }
 
 func (this HTTPValues) Add(key string, value interface{}) {
-	vv := fmt.Sprintf("%v", value)
-	this.Values.Add(key, vv)
+	this.Values.Add(key, fmt.Sprintf("%v", value))
 }
 
 func (this HTTPValues) Set(key string, value interface{}) {
-	vv := fmt.Sprintf("%v", value)
-	this.Values.Set(key, vv)
+	this.Values.Set(key, fmt.Sprintf("%v", value))
 }
 
 func (this HTTPValues) IsEmpty() bool {
@@ -69,9 +67,7 @@ func (this HTTPValues) IsEmpty() bool {
 }
 
 func NewHTTPValues() HTTPValues {
-	ret := HTTPValues{}
-	ret.Values = url.Values{}
-	return ret
+	return HTTPValues{Values: url.Values{}}
 }
 
 type HTTPClient struct {
@@ -133,10 +129,6 @@ func TLSSkipVerifyConfig() *tls.Config {
 	return &tls.Config{InsecureSkipVerify: true}
 }
 
-//host http://www.sina.com.cn or https://www.sina.com.cn
-//cakey[0] = certFile
-//certkey[1] = keyFile
-//key[2]
 func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 	if casFile == "" {
 		panic(errors.New("casFile miss"))

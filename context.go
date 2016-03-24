@@ -5,7 +5,6 @@ import (
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
 	"github.com/martini-contrib/sessions"
-	"gopkg.in/validator.v2"
 	"log"
 	"net/http"
 	"reflect"
@@ -59,14 +58,6 @@ func GetDispatcher(t interface{}) IDispatcher {
 		return i
 	}
 	return nil
-}
-
-func SetValidationFunc(name string, vf validator.ValidationFunc) error {
-	return main.SetValidationFunc(name, vf)
-}
-
-func Validate(v interface{}) error {
-	return main.Validate(v)
 }
 
 func ListenAndServe(addr string, opts ...render.Options) error {
@@ -128,12 +119,12 @@ func (this *Context) UseRender(opts ...render.Options) {
 	this.Use(render.Renderer(opts...))
 }
 
-func (this *Context) SetValidationFunc(name string, vf validator.ValidationFunc) error {
-	return validator.SetValidationFunc(name, vf)
+func (this *Context) SetValidationFunc(name string, vf ValidationFunc) error {
+	return SetValidationFunc(name, vf)
 }
 
 func (this *Context) Validate(v interface{}) error {
-	return validator.Validate(v)
+	return Validate(v)
 }
 
 func (this *Context) Logger() *log.Logger {
