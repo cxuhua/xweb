@@ -44,13 +44,17 @@ func (this *SubDispatcher) IndexHandler(render render.Render) {
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	SubDispatcher `url:"/sub" handler:"Logger"`
-	POST          struct {
-		PostJson JsonArgs `url:"/json"`
-		PostForm FormArgs `url:"/form"`
+	G1            struct {
+		PostJson JsonArgs `url:"/json" method:"POST"`
+		PostForm FormArgs `url:"/form" method:"POST"`
 	} `url:"/post" handler:"Logger"`
-	GET struct {
+	G2 struct {
 		Index xweb.IArgs `url:"/"`
 	} `handler:"Logger"`
+
+	Test FormArgs `url:"/test" method:"POST"`
+
+	List xweb.IArgs `url:"/list"`
 }
 
 func (this *MainDispatcher) PostJsonHandler(args JsonArgs, render render.Render) {
@@ -65,6 +69,14 @@ func (this *MainDispatcher) PostFormHandler(args FormArgs, render render.Render)
 }
 
 func (this *MainDispatcher) IndexHandler(render render.Render) {
+	render.HTML(http.StatusOK, "test", nil)
+}
+
+func (this *MainDispatcher) TestHandler(render render.Render) {
+	render.HTML(http.StatusOK, "test", nil)
+}
+
+func (this *MainDispatcher) ListHandler(render render.Render) {
 	render.HTML(http.StatusOK, "test", nil)
 }
 

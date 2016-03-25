@@ -17,6 +17,14 @@ var (
 	main = NewContext()
 )
 
+func SetValidationFunc(name string, vf ValidationFunc) error {
+	return main.Validator.SetValidationFunc(name, vf)
+}
+
+func Validate(v interface{}) error {
+	return main.Validator.Validate(v)
+}
+
 func UseCookie(key string, name string, opts sessions.Options) {
 	main.UseCookie(key, name, opts)
 }
@@ -103,6 +111,7 @@ func InitRedis(addr string) martini.Handler {
 
 type Context struct {
 	martini.ClassicMartini
+	Validator *Validator
 }
 
 func (this *Context) UseCookie(key string, name string, opts sessions.Options) {
@@ -120,11 +129,11 @@ func (this *Context) UseRender(opts ...render.Options) {
 }
 
 func (this *Context) SetValidationFunc(name string, vf ValidationFunc) error {
-	return SetValidationFunc(name, vf)
+	return this.Validator.SetValidationFunc(name, vf)
 }
 
 func (this *Context) Validate(v interface{}) error {
-	return Validate(v)
+	return this.Validator.Validate(v)
 }
 
 func (this *Context) Logger() *log.Logger {
@@ -161,6 +170,7 @@ func NewContext() *Context {
 	m.Use(martini.Static("public"))
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
+	h.Validator = NewValidator()
 	h.Martini = m
 	h.Router = r
 	return h

@@ -21,7 +21,9 @@ import (
 	"reflect"
 )
 
-type MySuite struct{}
+type MySuite struct {
+	validate *Validator
+}
 
 var _ = Suite(&MySuite{})
 
@@ -41,6 +43,14 @@ type TestStruct struct {
 	D *Simple `validate:"nonzero"`
 }
 
+func (this *MySuite) SetUpSuite(c *C) {
+	this.validate = NewValidator()
+}
+
+func (this *MySuite) TearDownSuite(c *C) {
+
+}
+
 func (ms *MySuite) TestValidate(c *C) {
 	t := TestStruct{
 		A: 0,
@@ -51,7 +61,7 @@ func (ms *MySuite) TestValidate(c *C) {
 	t.Sub.C = 0.0
 	t.D = &Simple{10}
 
-	err := Validate(t)
+	err := ms.validate.Validate(t)
 	c.Assert(err, NotNil)
 
 	errs, ok := err.(ErrorMap)
@@ -68,7 +78,7 @@ func (ms *MySuite) TestValidate(c *C) {
 
 func (ms *MySuite) TestValidSlice(c *C) {
 	s := make([]int, 0, 10)
-	err := Valid(s, "nonzero")
+	err := ms.validate.Valid(s, "nonzero")
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorArray)
 	c.Assert(ok, Equals, true)
@@ -78,7 +88,7 @@ func (ms *MySuite) TestValidSlice(c *C) {
 		s = append(s, i)
 	}
 
-	err = Valid(s, "min=11,max=5,len=9,nonzero")
+	err = ms.validate.Valid(s, "min=11,max=5,len=9,nonzero")
 	c.Assert(err, NotNil)
 	errs, ok = err.(ErrorArray)
 	c.Assert(ok, Equals, true)
@@ -90,26 +100,26 @@ func (ms *MySuite) TestValidSlice(c *C) {
 
 func (ms *MySuite) TestValidMap(c *C) {
 	m := make(map[string]string)
-	err := Valid(m, "nonzero")
+	err := ms.validate.Valid(m, "nonzero")
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorArray)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs, HasError, ErrZeroValue)
 
-	err = Valid(m, "min=1")
+	err = ms.validate.Valid(m, "min=1")
 	c.Assert(err, NotNil)
 	errs, ok = err.(ErrorArray)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs, HasError, ErrMin)
 
 	m = map[string]string{"A": "a", "B": "a"}
-	err = Valid(m, "max=1")
+	err = ms.validate.Valid(m, "max=1")
 	c.Assert(err, NotNil)
 	errs, ok = err.(ErrorArray)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs, HasError, ErrMax)
 
-	err = Valid(m, "min=2, max=5")
+	err = ms.validate.Valid(m, "min=2, max=5")
 	c.Assert(err, IsNil)
 
 	m = map[string]string{
@@ -119,7 +129,7 @@ func (ms *MySuite) TestValidMap(c *C) {
 		"4": "d",
 		"5": "e",
 	}
-	err = Valid(m, "len=4,min=6,max=1,nonzero")
+	err = ms.validate.Valid(m, "len=4,min=6,max=1,nonzero")
 	c.Assert(err, NotNil)
 	errs, ok = err.(ErrorArray)
 	c.Assert(ok, Equals, true)
@@ -131,10 +141,10 @@ func (ms *MySuite) TestValidMap(c *C) {
 }
 
 func (ms *MySuite) TestValidFloat(c *C) {
-	err := Valid(12.34, "nonzero")
+	err := ms.validate.Valid(12.34, "nonzero")
 	c.Assert(err, IsNil)
 
-	err = Valid(0.0, "nonzero")
+	err = ms.validate.Valid(0.0, "nonzero")
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorArray)
 	c.Assert(ok, Equals, true)
@@ -143,20 +153,20 @@ func (ms *MySuite) TestValidFloat(c *C) {
 
 func (ms *MySuite) TestValidInt(c *C) {
 	i := 123
-	err := Valid(i, "nonzero")
+	err := ms.validate.Valid(i, "nonzero")
 	c.Assert(err, IsNil)
 
-	err = Valid(i, "min=1")
+	err = ms.validate.Valid(i, "min=1")
 	c.Assert(err, IsNil)
 
-	err = Valid(i, "min=124, max=122")
+	err = ms.validate.Valid(i, "min=124, max=122")
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorArray)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs, HasError, ErrMin)
 	c.Assert(errs, HasError, ErrMax)
 
-	err = Valid(i, "max=10")
+	err = ms.validate.Valid(i, "max=10")
 	c.Assert(err, NotNil)
 	errs, ok = err.(ErrorArray)
 	c.Assert(ok, Equals, true)
@@ -165,22 +175,22 @@ func (ms *MySuite) TestValidInt(c *C) {
 
 func (ms *MySuite) TestValidString(c *C) {
 	s := "test1234"
-	err := Valid(s, "len=8")
+	err := ms.validate.Valid(s, "len=8")
 	c.Assert(err, IsNil)
 
-	err = Valid(s, "len=0")
+	err = ms.validate.Valid(s, "len=0")
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorArray)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs, HasError, ErrLen)
 
-	err = Valid(s, "regexp=^[tes]{4}.*")
+	err = ms.validate.Valid(s, "regexp=^[tes]{4}.*")
 	c.Assert(err, IsNil)
 
-	err = Valid(s, "regexp=^.*[0-9]{5}$")
+	err = ms.validate.Valid(s, "regexp=^.*[0-9]{5}$")
 	c.Assert(errs, NotNil)
 
-	err = Valid("", "nonzero,len=3,max=1")
+	err = ms.validate.Valid("", "nonzero,len=3,max=1")
 	c.Assert(err, NotNil)
 	errs, ok = err.(ErrorArray)
 	c.Assert(ok, Equals, true)
@@ -192,7 +202,7 @@ func (ms *MySuite) TestValidString(c *C) {
 
 func (ms *MySuite) TestValidateStructVar(c *C) {
 	// just verifies that a the given val is a struct
-	SetValidationFunc("struct", func(val interface{}, _ string) error {
+	ms.validate.SetValidationFunc("struct", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
 		if v.Kind() == reflect.Struct {
 			return nil
@@ -203,7 +213,7 @@ func (ms *MySuite) TestValidateStructVar(c *C) {
 	type test struct {
 		A int
 	}
-	err := Valid(test{}, "struct")
+	err := ms.validate.Valid(test{}, "struct")
 	c.Assert(err, IsNil)
 
 	type test2 struct {
@@ -213,7 +223,7 @@ func (ms *MySuite) TestValidateStructVar(c *C) {
 		A test2 `validate:"struct"`
 	}
 
-	err = Validate(test1{})
+	err = ms.validate.Validate(test1{})
 	c.Assert(err, IsNil)
 
 	type test4 struct {
@@ -222,7 +232,7 @@ func (ms *MySuite) TestValidateStructVar(c *C) {
 	type test3 struct {
 		A test4
 	}
-	err = Validate(test3{})
+	err = ms.validate.Validate(test3{})
 	errs, ok := err.(ErrorMap)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs["A.B"], HasError, ErrUnknownTag)
@@ -230,14 +240,14 @@ func (ms *MySuite) TestValidateStructVar(c *C) {
 
 func (ms *MySuite) TestValidatePointerVar(c *C) {
 	// just verifies that a the given val is a struct
-	SetValidationFunc("struct", func(val interface{}, _ string) error {
+	ms.validate.SetValidationFunc("struct", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
 		if v.Kind() == reflect.Struct {
 			return nil
 		}
 		return ErrUnsupported
 	})
-	SetValidationFunc("nil", func(val interface{}, _ string) error {
+	ms.validate.SetValidationFunc("nil", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
 		if v.IsNil() {
 			return nil
@@ -248,7 +258,7 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 	type test struct {
 		A int
 	}
-	err := Valid(&test{}, "struct")
+	err := ms.validate.Valid(&test{}, "struct")
 	c.Assert(err, IsNil)
 
 	type test2 struct {
@@ -258,7 +268,7 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 		A *test2 `validate:"struct"`
 	}
 
-	err = Validate(&test1{&test2{}})
+	err = ms.validate.Validate(&test1{&test2{}})
 	c.Assert(err, IsNil)
 
 	type test4 struct {
@@ -267,29 +277,29 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 	type test3 struct {
 		A test4
 	}
-	err = Validate(&test3{})
+	err = ms.validate.Validate(&test3{})
 	errs, ok := err.(ErrorMap)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs["A.B"], HasError, ErrUnknownTag)
 
-	err = Valid((*test)(nil), "nil")
+	err = ms.validate.Valid((*test)(nil), "nil")
 	c.Assert(err, IsNil)
 
 	type test5 struct {
 		A *test2 `validate:"nil"`
 	}
-	err = Validate(&test5{})
+	err = ms.validate.Validate(&test5{})
 	c.Assert(err, IsNil)
 
 	type test6 struct {
 		A *test2 `validate:"nonzero"`
 	}
-	err = Validate(&test6{})
+	err = ms.validate.Validate(&test6{})
 	errs, ok = err.(ErrorMap)
 	c.Assert(ok, Equals, true)
 	c.Assert(errs["A"], HasError, ErrZeroValue)
 
-	err = Validate(&test6{&test2{}})
+	err = ms.validate.Validate(&test6{&test2{}})
 	c.Assert(err, IsNil)
 }
 
@@ -302,10 +312,10 @@ func (ms *MySuite) TestValidateOmittedStructVar(c *C) {
 	}
 
 	t := test1{}
-	err := Validate(t)
+	err := ms.validate.Validate(t)
 	c.Assert(err, IsNil)
 
-	errs := Valid(test2{}, "-")
+	errs := ms.validate.Valid(test2{}, "-")
 	c.Assert(errs, IsNil)
 }
 
@@ -314,7 +324,7 @@ func (ms *MySuite) TestUnknownTag(c *C) {
 		A int `validate:"foo"`
 	}
 	t := test{}
-	err := Validate(t)
+	err := ms.validate.Validate(t)
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorMap)
 	c.Assert(ok, Equals, true)
@@ -328,7 +338,7 @@ func (ms *MySuite) TestUnsupported(c *C) {
 		B float64 `validate:"regexp=.*"`
 	}
 	t := test{}
-	err := Validate(t)
+	err := ms.validate.Validate(t)
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorMap)
 	c.Assert(ok, Equals, true)
@@ -344,7 +354,7 @@ func (ms *MySuite) TestBadParameter(c *C) {
 		C string `validate:"max=foo"`
 	}
 	t := test{}
-	err := Validate(t)
+	err := ms.validate.Validate(t)
 	c.Assert(err, NotNil)
 	errs, ok := err.(ErrorMap)
 	c.Assert(ok, Equals, true)

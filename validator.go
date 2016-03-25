@@ -335,10 +335,6 @@ type Validator struct {
 	validationFuncs map[string]ValidationFunc
 }
 
-// Helper validator so users can use the
-// functions directly from the package
-var defaultValidator = NewValidator()
-
 // NewValidator creates a new Validator
 func NewValidator() *Validator {
 	return &Validator{
@@ -354,20 +350,8 @@ func NewValidator() *Validator {
 }
 
 // SetTag allows you to change the tag name used in structs
-func SetTag(tag string) {
-	defaultValidator.SetTag(tag)
-}
-
-// SetTag allows you to change the tag name used in structs
 func (mv *Validator) SetTag(tag string) {
 	mv.tagName = tag
-}
-
-// WithTag creates a new Validator with the new tag name. It is
-// useful to chain-call with Validate so we don't change the tag
-// name permanently: validator.WithTag("foo").Validate(t)
-func WithTag(tag string) *Validator {
-	return defaultValidator.WithTag(tag)
 }
 
 // WithTag creates a new Validator with the new tag name. It is
@@ -390,13 +374,6 @@ func (mv *Validator) copy() *Validator {
 // SetValidationFunc sets the function to be used for a given
 // validation constraint. Calling this function with nil vf
 // is the same as removing the constraint function from the list.
-func SetValidationFunc(name string, vf ValidationFunc) error {
-	return defaultValidator.SetValidationFunc(name, vf)
-}
-
-// SetValidationFunc sets the function to be used for a given
-// validation constraint. Calling this function with nil vf
-// is the same as removing the constraint function from the list.
 func (mv *Validator) SetValidationFunc(name string, vf ValidationFunc) error {
 	if name == "" {
 		return errors.New("name cannot be empty")
@@ -407,13 +384,6 @@ func (mv *Validator) SetValidationFunc(name string, vf ValidationFunc) error {
 	}
 	mv.validationFuncs[name] = vf
 	return nil
-}
-
-// Validate validates the fields of a struct based
-// on 'validator' tags and returns errors found indexed
-// by the field name.
-func Validate(v interface{}) error {
-	return defaultValidator.Validate(v)
 }
 
 // Validate validates the fields of a struct based
@@ -473,12 +443,6 @@ func (mv *Validator) Validate(v interface{}) error {
 		return m
 	}
 	return nil
-}
-
-// Valid validates a value based on the provided
-// tags and returns errors found or nil.
-func Valid(val interface{}, tags string) error {
-	return defaultValidator.Valid(val, tags)
 }
 
 // Valid validates a value based on the provided

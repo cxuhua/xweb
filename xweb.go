@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
+	// "fmt"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -68,38 +69,15 @@ func NewValidateModel(err error) *ValidateModel {
 }
 
 type IDispatcher interface {
-	SetContext(*Context)
-	GetContext() *Context
-	GetPrefix() string
-	SetPrefix(string)
+	FilterURL(string) string
 }
 
 type HTTPDispatcher struct {
 	IDispatcher
-	prefix string
-	ctx    *Context
 }
 
-func (this *HTTPDispatcher) SetPrefix(url string) {
-	if url == "" {
-		return
-	}
-	this.prefix = url
-}
-
-func (this *HTTPDispatcher) GetPrefix() string {
-	return this.prefix
-}
-
-func (this *HTTPDispatcher) SetContext(ctx *Context) {
-	if ctx == nil {
-		return
-	}
-	this.ctx = ctx
-}
-
-func (this *HTTPDispatcher) GetContext() *Context {
-	return this.ctx
+func (this *HTTPDispatcher) FilterURL(url string) string {
+	return url
 }
 
 //获取远程地址
@@ -135,6 +113,7 @@ const (
 	AT_FORM
 	AT_JSON
 	AT_XML
+	AT_QUERY //body use Query type parse
 )
 
 type HTTPModel struct {
@@ -153,6 +132,23 @@ func NewHTTPSuccess() *HTTPModel {
 type IArgs interface {
 	ValType() int //validate failed out
 	ReqType() int //request type in
+	Method() string
+}
+
+type QUERYArgs struct {
+	IArgs
+}
+
+func (this QUERYArgs) ValType() int {
+	return AT_JSON
+}
+
+func (this QUERYArgs) ReqType() int {
+	return AT_QUERY
+}
+
+func (this QUERYArgs) Method() string {
+	return http.MethodPost
 }
 
 type FORMArgs struct {
@@ -160,11 +156,15 @@ type FORMArgs struct {
 }
 
 func (this FORMArgs) ValType() int {
-	return AT_FORM
+	return AT_JSON
 }
 
 func (this FORMArgs) ReqType() int {
 	return AT_FORM
+}
+
+func (this FORMArgs) Method() string {
+	return http.MethodPost
 }
 
 type JSONArgs struct {
@@ -179,6 +179,10 @@ func (this JSONArgs) ReqType() int {
 	return AT_JSON
 }
 
+func (this JSONArgs) Method() string {
+	return http.MethodPost
+}
+
 type XMLArgs struct {
 	IArgs
 }
@@ -189,6 +193,10 @@ func (this XMLArgs) ValType() int {
 
 func (this XMLArgs) ReqType() int {
 	return AT_XML
+}
+
+func (this XMLArgs) Method() string {
+	return http.MethodPost
 }
 
 func (this *Context) queryHttpRequestData(name string, req *http.Request) ([]byte, error) {
@@ -299,7 +307,7 @@ func (this *Context) setWithProperType(vk reflect.Kind, val string, sf reflect.V
 	}
 }
 
-func (this *Context) mapForm(value reflect.Value, form map[string][]string, files map[string][]*multipart.FileHeader) {
+func (this *Context) MapForm(value reflect.Value, form map[string][]string, files map[string][]*multipart.FileHeader) {
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
 	}
@@ -309,12 +317,12 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 		sf := value.Field(i)
 		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
 			sf.Set(reflect.New(tf.Type.Elem()))
-			this.mapForm(sf.Elem(), form, files)
+			this.MapForm(sf.Elem(), form, files)
 			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
 				sf.Set(reflect.Zero(sf.Type()))
 			}
 		} else if tf.Type.Kind() == reflect.Struct {
-			this.mapForm(sf, form, files)
+			this.MapForm(sf, form, files)
 		} else if name := tf.Tag.Get("form"); name == "" || !sf.CanSet() {
 			continue
 		} else if input, ok := form[name]; ok {
@@ -372,6 +380,37 @@ func (this *Context) validateMapData(c martini.Context, v IArgs, render render.R
 	return false
 }
 
+func (this *Context) QueryHandler(v interface{}, ifv ...interface{}) martini.Handler {
+	if reflect.TypeOf(v).Kind() == reflect.Ptr {
+		panic("Pointers are not accepted as binding QUERY Args")
+	}
+	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
+		t := reflect.TypeOf(v)
+		v := reflect.New(t)
+		args, ok := v.Interface().(IArgs)
+		if !ok {
+			panic(errors.New(t.Name() + "not imp IArgs"))
+		}
+		av := url.Values{}
+		for ik, iv := range req.URL.Query() {
+			for _, vv := range iv {
+				av.Add(ik, vv)
+			}
+		}
+		bc, _ := ioutil.ReadAll(req.Body)
+		form, _ := url.ParseQuery(string(bc))
+		for ik, iv := range form {
+			for _, vv := range iv {
+				av.Add(ik, vv)
+			}
+		}
+		req.PostForm = av
+		this.MapForm(v, av, nil)
+		c.Map(v.Elem().Interface())
+		this.validateMapData(c, args, render)
+	}
+}
+
 func (this *Context) FormHandler(v interface{}, ifv ...interface{}) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding FORM Args")
@@ -390,11 +429,15 @@ func (this *Context) FormHandler(v interface{}, ifv ...interface{}) martini.Hand
 		ct := req.Header.Get("Content-Type")
 		if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
 			if err := req.ParseMultipartForm(MaxMemory); err == nil {
-				this.mapForm(v, req.MultipartForm.Value, req.MultipartForm.File)
+				this.MapForm(v, req.MultipartForm.Value, req.MultipartForm.File)
+			} else {
+				log.Println(err)
 			}
 		} else {
 			if err := req.ParseForm(); err == nil {
-				this.mapForm(v, req.Form, nil)
+				this.MapForm(v, req.Form, nil)
+			} else {
+				log.Println(err)
 			}
 		}
 		c.Map(v.Elem().Interface())
@@ -426,7 +469,7 @@ func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 }
 
 //from name get data source,use AT_JSON AT_XML
-func (this *Context) queryFieldName(v interface{}) string {
+func (this *Context) QueryFieldName(v interface{}) string {
 	t := reflect.TypeOf(v)
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -438,167 +481,124 @@ func (this *Context) queryFieldName(v interface{}) string {
 	return ""
 }
 
-//
-func (this *Context) doMethod(m string) bool {
-	switch m {
-	case http.MethodHead:
-		return true
-	case http.MethodOptions:
-		return true
-	case http.MethodPatch:
-		return true
-	case http.MethodDelete:
-		return true
-	case http.MethodPut:
-		return true
-	case http.MethodGet:
-		return true
-	case http.MethodPost:
-		return true
-	default:
-		return false
+func (this *Context) IsIArgs(v reflect.Value) (IArgs, bool) {
+	if !v.IsValid() {
+		return nil, false
 	}
-}
-
-//
-func (this *Context) doSubs(parent IDispatcher, f *reflect.StructField, v *reflect.Value) bool {
-	var dv IDispatcher = nil
-	if !v.CanAddr() {
-		return false
-	} else if av := v.Addr(); !av.IsValid() {
-		return false
-	} else if sv, ok := av.Interface().(IDispatcher); !ok {
-		return false
+	if a, ok := v.Interface().(IArgs); !ok {
+		return nil, false
 	} else {
-		dv = sv
-	}
-	//prefix url
-	if url := f.Tag.Get("url"); url != "" {
-		dv.SetPrefix(parent.GetPrefix() + dv.GetPrefix() + url)
-	}
-	//prefix handler
-	in := []martini.Handler{}
-	if hv := f.Tag.Get("handler"); hv != "" {
-		pv := reflect.ValueOf(parent)
-		if mv := pv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
-			in = append(in, mv.Interface())
-		}
-	}
-	//use sub dispatcher
-	this.UseDispatcher(dv, in...)
-	return true
-}
-
-//
-func (this *Context) doFields(parent IDispatcher, tv reflect.Type, nv reflect.Value, list func(string, *reflect.StructField, *reflect.Value)) {
-	for i := 0; i < tv.NumField(); i++ {
-		f := tv.Field(i)
-		v := nv.Field(i)
-		if !v.IsValid() || f.Type.Kind() != reflect.Struct {
-			continue
-		}
-		if this.doSubs(parent, &f, &v) {
-			continue
-		}
-		method := f.Tag.Get("method")
-		if len(method) == 0 {
-			method = f.Name
-		}
-		if len(method) > 0 {
-			method = strings.ToUpper(method)
-		}
-		if !this.doMethod(method) {
-			continue
-		}
-		list(method, &f, &v)
+		return a, true
 	}
 }
 
-//
-func (this *Context) UseDispatcher(c IDispatcher, hs ...martini.Handler) {
-	c.SetContext(this)
+func (this *Context) IsHandler(v reflect.Value) (martini.Handler, bool) {
+	if !v.IsValid() {
+		return nil, false
+	}
+	if a, ok := v.Interface().(martini.Handler); !ok {
+		return nil, false
+	} else {
+		return a, true
+	}
+}
+
+func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
+	if !v.IsValid() {
+		return nil, false
+	}
+	if !v.CanAddr() {
+		return nil, false
+	}
+	v = v.Addr()
+	if !v.IsValid() {
+		return nil, false
+	}
+	if a, ok := v.Interface().(IDispatcher); !ok {
+		return nil, false
+	} else {
+		return a, true
+	}
+}
+
+func (this *Context) UseHandler(r martini.Router, url, method string, in ...martini.Handler) {
 	log := this.Logger()
-	stv := reflect.TypeOf(c).Elem()
-	svv := reflect.ValueOf(c)
-	snv := svv.Elem()
-	this.doFields(c, stv, snv, func(method string, fv *reflect.StructField, nv *reflect.Value) {
-		for i := 0; i < fv.Type.NumField(); i++ {
-			f := fv.Type.Field(i)
-			v := nv.Field(i)
-			url := f.Tag.Get("url")
-			if !v.IsValid() || url == "" {
-				continue
-			}
-			//merge url
-			url = c.GetPrefix() + fv.Tag.Get("url") + url
-			in := []martini.Handler{}
-			//prefix handler
-			for _, mv := range hs {
-				if mv != nil {
-					in = append(in, mv)
-				}
-			}
-			//args handler
-			if iv, ok := v.Interface().(IArgs); ok {
-				switch iv.ReqType() {
-				case AT_FORM:
-					in = append(in, this.FormHandler(iv))
-				case AT_JSON:
-					in = append(in, this.JsonHandler(iv, this.queryFieldName(iv)))
-				case AT_XML:
-					in = append(in, this.XmlHandler(iv, this.queryFieldName(iv)))
-				}
-			}
-			//group handler
-			if hv := fv.Tag.Get("handler"); hv != "" {
-				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
-					in = append(in, mv.Interface())
-				}
-			}
-			//before handler
-			if hv := f.Tag.Get("before"); hv != "" {
-				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
-					in = append(in, mv.Interface())
-				}
-			}
-			//main handler
-			mhs := ""
-			if hv := f.Tag.Get("handler"); hv != "" {
-				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
-					mhs = hv + HandlerSuffix
-					in = append(in, mv.Interface())
-				}
-			} else {
-				if mv := svv.MethodByName(f.Name + HandlerSuffix); mv.IsValid() {
-					mhs = f.Name + HandlerSuffix
-					in = append(in, mv.Interface())
-				}
-			}
-			//after handler
-			if hv := f.Tag.Get("after"); hv != "" {
-				if mv := svv.MethodByName(hv + HandlerSuffix); mv.IsValid() {
-					in = append(in, mv.Interface())
-				}
-			}
-			//set method handler
-			switch method {
-			case http.MethodHead:
-				this.Head(url, in...)
-			case http.MethodOptions:
-				this.Options(url, in...)
-			case http.MethodPatch:
-				this.Patch(url, in...)
-			case http.MethodDelete:
-				this.Delete(url, in...)
-			case http.MethodPut:
-				this.Put(url, in...)
-			case http.MethodGet:
-				this.Get(url, in...)
-			case http.MethodPost:
-				this.Post(url, in...)
-			}
-			mhs = fmt.Sprintf("%v.%s", reflect.TypeOf(c).Elem(), mhs)
-			log.Println("+", method, url, "->", mhs)
+	var rv martini.Route = nil
+	switch method {
+	case http.MethodHead:
+		rv = r.Head(url, in...)
+	case http.MethodOptions:
+		rv = r.Options(url, in...)
+	case http.MethodPatch:
+		rv = r.Patch(url, in...)
+	case http.MethodDelete:
+		rv = r.Delete(url, in...)
+	case http.MethodPut:
+		rv = r.Put(url, in...)
+	case http.MethodGet:
+		rv = r.Get(url, in...)
+	case http.MethodPost:
+		rv = r.Post(url, in...)
+	}
+	log.Println("+", rv.Method(), rv.Pattern())
+}
+
+func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value) {
+	vt := vv.Type()
+	sv := reflect.ValueOf(c)
+	for i := 0; i < vt.NumField(); i++ {
+		f := vt.Field(i)
+		v := vv.Field(i)
+		url := f.Tag.Get("url")
+		handler := f.Tag.Get("handler")
+		if handler == "" {
+			handler = f.Name + HandlerSuffix
+		} else {
+			handler += HandlerSuffix
 		}
-	})
+		method := strings.ToUpper(f.Tag.Get("method"))
+		in := []martini.Handler{}
+		if iv, b := this.IsIArgs(v); b && url != "" {
+			switch iv.ReqType() {
+			case AT_FORM:
+				in = append(in, this.FormHandler(iv))
+			case AT_JSON:
+				in = append(in, this.JsonHandler(iv, this.QueryFieldName(iv)))
+			case AT_XML:
+				in = append(in, this.XmlHandler(iv, this.QueryFieldName(iv)))
+			case AT_QUERY:
+				in = append(in, this.QueryHandler(iv))
+			}
+			if method == "" {
+				method = strings.ToUpper(iv.Method())
+			}
+		}
+		if method == "" {
+			method = http.MethodGet
+		}
+		if m := sv.MethodByName(handler); m.IsValid() {
+			in = append(in, m.Interface())
+		}
+		if d, b := this.IsIDispatcher(v); b {
+			this.Group(c.FilterURL(url), func(g martini.Router) {
+				this.UseRouter(g, d)
+			}, in...)
+		} else if _, b := this.IsIArgs(v); b && url != "" {
+			this.UseHandler(r, c.FilterURL(url), method, in...)
+		} else if v.Kind() == reflect.Struct {
+			this.Group(c.FilterURL(url), func(g martini.Router) {
+				this.UseValue(g, c, v)
+			}, in...)
+		} else if url != "" {
+			this.UseHandler(r, c.FilterURL(url), method, in...)
+		}
+	}
+}
+
+func (this *Context) UseRouter(r martini.Router, c IDispatcher) {
+	this.UseValue(r, c, reflect.ValueOf(c).Elem())
+}
+
+func (this *Context) UseDispatcher(c IDispatcher) {
+	this.UseRouter(this, c)
 }
