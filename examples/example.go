@@ -48,9 +48,10 @@ type MainDispatcher struct {
 		PostJson JsonArgs `url:"/json" method:"POST"`
 		PostForm FormArgs `url:"/form" method:"POST"`
 	} `url:"/post" handler:"Logger"`
-	G2 struct {
+
+	Logger2 struct {
 		Index xweb.IArgs `url:"/"`
-	} `handler:"Logger"`
+	}
 
 	Test FormArgs `url:"/test" method:"POST"`
 
@@ -69,6 +70,7 @@ func (this *MainDispatcher) PostFormHandler(args FormArgs, render render.Render)
 }
 
 func (this *MainDispatcher) IndexHandler(render render.Render) {
+	log.Println("MainDispatcher.IndexHandler")
 	render.HTML(http.StatusOK, "test", nil)
 }
 

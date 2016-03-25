@@ -558,6 +558,7 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 		}
 		method := strings.ToUpper(f.Tag.Get("method"))
 		in := []martini.Handler{}
+		useArgs := false
 		if iv, b := this.IsIArgs(v); b && url != "" {
 			switch iv.ReqType() {
 			case AT_FORM:
@@ -572,6 +573,7 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			if method == "" {
 				method = strings.ToUpper(iv.Method())
 			}
+			useArgs = true
 		}
 		if method == "" {
 			method = http.MethodGet
@@ -580,17 +582,24 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			in = append(in, m.Interface())
 		}
 		if d, b := this.IsIDispatcher(v); b {
-			this.Group(c.FilterURL(url), func(g martini.Router) {
-				this.UseRouter(g, d)
+			this.Group(c.FilterURL(url), func(r martini.Router) {
+				this.UseRouter(r, d)
 			}, in...)
-		} else if _, b := this.IsIArgs(v); b && url != "" {
+			continue
+		}
+		if useArgs && len(in) > 0 {
 			this.UseHandler(r, c.FilterURL(url), method, in...)
-		} else if v.Kind() == reflect.Struct {
-			this.Group(c.FilterURL(url), func(g martini.Router) {
-				this.UseValue(g, c, v)
+			continue
+		}
+		if v.Kind() == reflect.Struct {
+			this.Group(c.FilterURL(url), func(r martini.Router) {
+				this.UseValue(r, c, v)
 			}, in...)
-		} else if url != "" {
+			continue
+		}
+		if url != "" && len(in) > 0 {
 			this.UseHandler(r, c.FilterURL(url), method, in...)
+			continue
 		}
 	}
 }
