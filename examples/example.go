@@ -44,18 +44,15 @@ func (this *SubDispatcher) IndexHandler(render render.Render) {
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	SubDispatcher `url:"/sub" handler:"Logger"`
-	G1            struct {
-		PostJson JsonArgs `url:"/json" method:"POST"`
-		PostForm FormArgs `url:"/form" method:"POST"`
+	Group         struct {
+		PostJson JsonArgs `url:"/json" method:"POST"` //LoggerHandler,PostJsonHandler
+		PostForm FormArgs `url:"/form" method:"POST"` //LoggerHandler,PostFormHandler
 	} `url:"/post" handler:"Logger"`
-
-	Logger2 struct {
-		Index xweb.IArgs `url:"/"`
+	Logger struct {
+		Index xweb.IArgs `url:"/"` //LoggerHandler,IndexHandler
 	}
-
-	Test FormArgs `url:"/test" method:"POST"`
-
-	List xweb.IArgs `url:"/list"`
+	Test FormArgs   `url:"/test" method:"POST"` //->TestHandler
+	List xweb.IArgs `url:"/list"`               //->ListHandler
 }
 
 func (this *MainDispatcher) PostJsonHandler(args JsonArgs, render render.Render) {

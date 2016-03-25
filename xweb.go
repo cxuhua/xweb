@@ -69,15 +69,15 @@ func NewValidateModel(err error) *ValidateModel {
 }
 
 type IDispatcher interface {
-	FilterURL(string) string
+	URL() string
 }
 
 type HTTPDispatcher struct {
 	IDispatcher
 }
 
-func (this *HTTPDispatcher) FilterURL(url string) string {
-	return url
+func (this *HTTPDispatcher) URL() string {
+	return ""
 }
 
 //获取远程地址
@@ -582,23 +582,23 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			in = append(in, m.Interface())
 		}
 		if d, b := this.IsIDispatcher(v); b {
-			this.Group(c.FilterURL(url), func(r martini.Router) {
+			this.Group(url, func(r martini.Router) {
 				this.UseRouter(r, d)
 			}, in...)
 			continue
 		}
 		if useArgs && len(in) > 0 {
-			this.UseHandler(r, c.FilterURL(url), method, in...)
+			this.UseHandler(r, url, method, in...)
 			continue
 		}
 		if v.Kind() == reflect.Struct {
-			this.Group(c.FilterURL(url), func(r martini.Router) {
+			this.Group(url, func(r martini.Router) {
 				this.UseValue(r, c, v)
 			}, in...)
 			continue
 		}
 		if url != "" && len(in) > 0 {
-			this.UseHandler(r, c.FilterURL(url), method, in...)
+			this.UseHandler(r, url, method, in...)
 			continue
 		}
 	}
@@ -608,6 +608,8 @@ func (this *Context) UseRouter(r martini.Router, c IDispatcher) {
 	this.UseValue(r, c, reflect.ValueOf(c).Elem())
 }
 
-func (this *Context) UseDispatcher(c IDispatcher) {
-	this.UseRouter(this, c)
+func (this *Context) UseDispatcher(c IDispatcher, in ...martini.Handler) {
+	this.Group(c.URL(), func(r martini.Router) {
+		this.UseRouter(r, c)
+	}, in...)
 }

@@ -45,12 +45,8 @@ func MapTo(v interface{}, t interface{}) {
 	main.MapTo(v, t)
 }
 
-func UseDispatcher(c IDispatcher) {
-	main.UseDispatcher(c)
-}
-
-func Group(url string, rf func(martini.Router), hs ...martini.Handler) {
-	main.Group(url, rf, hs...)
+func UseDispatcher(c IDispatcher, in ...martini.Handler) {
+	main.UseDispatcher(c, in)
 }
 
 func Use(h martini.Handler) {
