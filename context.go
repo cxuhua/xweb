@@ -46,7 +46,7 @@ func MapTo(v interface{}, t interface{}) {
 }
 
 func UseDispatcher(c IDispatcher, in ...martini.Handler) {
-	main.UseDispatcher(c, in)
+	main.UseDispatcher(c, in...)
 }
 
 func Use(h martini.Handler) {

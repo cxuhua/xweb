@@ -260,7 +260,7 @@ func (this *Context) JsonHandler(v interface{}, name string) martini.Handler {
 	}
 }
 
-func (this *Context) setWithProperType(vk reflect.Kind, val string, sf reflect.Value) {
+func (this *Context) setValue(vk reflect.Kind, val string, sf reflect.Value) {
 	switch vk {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if val == "" {
@@ -331,11 +331,11 @@ func (this *Context) MapForm(value reflect.Value, form map[string][]string, file
 				skind := sf.Type().Elem().Kind()
 				slice := reflect.MakeSlice(sf.Type(), num, num)
 				for i := 0; i < num; i++ {
-					this.setWithProperType(skind, input[i], slice.Index(i))
+					this.setValue(skind, input[i], slice.Index(i))
 				}
 				value.Field(i).Set(slice)
 			} else {
-				this.setWithProperType(tf.Type.Kind(), input[0], sf)
+				this.setValue(tf.Type.Kind(), input[0], sf)
 			}
 		} else if input, ok := files[name]; ok {
 			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
@@ -492,17 +492,6 @@ func (this *Context) IsIArgs(v reflect.Value) (IArgs, bool) {
 	}
 }
 
-func (this *Context) IsHandler(v reflect.Value) (martini.Handler, bool) {
-	if !v.IsValid() {
-		return nil, false
-	}
-	if a, ok := v.Interface().(martini.Handler); !ok {
-		return nil, false
-	} else {
-		return a, true
-	}
-}
-
 func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
 	if !v.IsValid() {
 		return nil, false
@@ -522,7 +511,9 @@ func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
 }
 
 func (this *Context) UseHandler(r martini.Router, url, method string, in ...martini.Handler) {
-	log := this.Logger()
+	if len(in) == 0 || url == "" {
+		return
+	}
 	var rv martini.Route = nil
 	switch method {
 	case http.MethodHead:
@@ -540,7 +531,7 @@ func (this *Context) UseHandler(r martini.Router, url, method string, in ...mart
 	case http.MethodPost:
 		rv = r.Post(url, in...)
 	}
-	log.Println("+", rv.Method(), rv.Pattern())
+	this.Logger().Println("+", rv.Method(), rv.Pattern())
 }
 
 func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value) {
@@ -558,7 +549,6 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 		}
 		method := strings.ToUpper(f.Tag.Get("method"))
 		in := []martini.Handler{}
-		useArgs := false
 		if iv, b := this.IsIArgs(v); b && url != "" {
 			switch iv.ReqType() {
 			case AT_FORM:
@@ -573,7 +563,6 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			if method == "" {
 				method = strings.ToUpper(iv.Method())
 			}
-			useArgs = true
 		}
 		if method == "" {
 			method = http.MethodGet
@@ -585,22 +574,16 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			this.Group(url, func(r martini.Router) {
 				this.UseRouter(r, d)
 			}, in...)
-			continue
-		}
-		if useArgs && len(in) > 0 {
+		} else if _, b := this.IsIArgs(v); b {
 			this.UseHandler(r, url, method, in...)
-			continue
-		}
-		if v.Kind() == reflect.Struct {
+		} else if v.Kind() == reflect.Struct {
 			this.Group(url, func(r martini.Router) {
 				this.UseValue(r, c, v)
 			}, in...)
-			continue
-		}
-		if url != "" && len(in) > 0 {
+		} else {
 			this.UseHandler(r, url, method, in...)
-			continue
 		}
+
 	}
 }
 
