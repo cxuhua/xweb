@@ -30,10 +30,15 @@ type FormArgs struct {
 	File *multipart.FileHeader `form:"file"`
 }
 
+type XModel struct {
+	xweb.HTTPModel
+	Title string
+}
+
 type SubDispatcher struct {
 	xweb.HTTPDispatcher
 	GET struct {
-		Index xweb.IArgs `url:"/"`
+		Index xweb.IArgs `url:"/" view:"test" render:"HTML"`
 	}
 }
 
@@ -67,8 +72,9 @@ func (this *MainDispatcher) PostFormHandler(args FormArgs, render render.Render)
 }
 
 func (this *MainDispatcher) IndexHandler(render render.Render) {
-	log.Println("MainDispatcher.IndexHandler")
-	render.HTML(http.StatusOK, "test", nil)
+	m := XModel{}
+	m.Title = "这是个测试"
+	render.HTML(http.StatusOK, "test", m)
 }
 
 func (this *MainDispatcher) TestHandler(render render.Render) {

@@ -525,6 +525,8 @@ func (this *Context) UseHandler(r martini.Router, url, method string, in ...mart
 		rv = r.Get(url, in...)
 	case http.MethodPost:
 		rv = r.Post(url, in...)
+	default:
+		panic(errors.New(method + " do not support"))
 	}
 	this.Logger().Println("+", rv.Method(), rv.Pattern())
 }
