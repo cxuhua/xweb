@@ -1,6 +1,7 @@
 package xweb
 
 import (
+	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"reflect"
+	"sort"
 	"time"
 )
 
@@ -105,9 +107,33 @@ func InitRedis(addr string) martini.Handler {
 	}
 }
 
+type URLS struct {
+	Method  string
+	Pattern string
+	View    string
+	Render  string
+	Handler string
+}
+
+type URLSlice []URLS
+
+func (p URLSlice) Len() int {
+	return len(p)
+}
+func (p URLSlice) Less(i, j int) bool {
+	return p[i].Pattern < p[j].Pattern
+}
+func (p URLSlice) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+func (p URLSlice) Sort() {
+	sort.Sort(p)
+}
+
 type Context struct {
 	martini.ClassicMartini
 	Validator *Validator
+	urls      URLSlice
 }
 
 func (this *Context) UseCookie(key string, name string, opts sessions.Options) {
@@ -145,6 +171,7 @@ func (this *Context) Logger() *log.Logger {
 
 func (this *Context) ListenAndServe(addr string) error {
 	if log := this.Logger(); log != nil {
+		this.printURLS(log)
 		log.Printf("http listening on %s (%s)\n", addr, martini.Env)
 	}
 	return http.ListenAndServe(addr, this)
@@ -152,9 +179,36 @@ func (this *Context) ListenAndServe(addr string) error {
 
 func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
 	if log := this.Logger(); log != nil {
+		this.printURLS(log)
 		log.Printf("https listening on %s (%s)\n", addr, martini.Env)
 	}
 	return http.ListenAndServeTLS(addr, cert, key, this)
+}
+
+func (this *Context) printURLS(log *log.Logger) {
+	this.urls.Sort()
+	mc, pc, hc, vc, rc := 0, 0, 0, 0, 0
+	for _, u := range this.urls {
+		if len(u.Method) > mc {
+			mc = len(u.Method)
+		}
+		if len(u.Pattern) > pc {
+			pc = len(u.Pattern)
+		}
+		if len(u.Handler) > hc {
+			hc = len(u.Handler)
+		}
+		if len(u.View) > vc {
+			vc = len(u.View)
+		}
+		if len(u.Render) > rc {
+			rc = len(u.Render)
+		}
+	}
+	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, hc, vc, rc)
+	for _, u := range this.urls {
+		log.Printf(fs, u.Method, u.Pattern, u.Handler, u.View, u.Render)
+	}
 }
 
 func NewContext() *Context {
@@ -167,6 +221,7 @@ func NewContext() *Context {
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	h.Validator = NewValidator()
+	h.urls = []URLS{}
 	h.Martini = m
 	h.Router = r
 	return h

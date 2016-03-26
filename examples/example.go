@@ -35,10 +35,14 @@ type XModel struct {
 	Title string
 }
 
+func (this *XModel) GetString() string {
+	return this.Title
+}
+
 type SubDispatcher struct {
 	xweb.HTTPDispatcher
 	GET struct {
-		Index xweb.IArgs `url:"/" view:"test" render:"HTML"`
+		Index xweb.IArgs `url:"/"`
 	}
 }
 
@@ -54,7 +58,7 @@ type MainDispatcher struct {
 		PostForm FormArgs `url:"/form" method:"POST"` //LoggerHandler,PostFormHandler
 	} `url:"/post" handler:"Logger"`
 	Logger struct {
-		Index xweb.IArgs `url:"/"` //LoggerHandler,IndexHandler
+		Index xweb.IArgs `url:"/" view:"test" render:"HTML"` //LoggerHandler,IndexHandler
 	}
 	Test FormArgs   `url:"/test" method:"POST"` //->TestHandler
 	List xweb.IArgs `url:"/list"`               //->ListHandler
@@ -71,10 +75,13 @@ func (this *MainDispatcher) PostFormHandler(args FormArgs, render render.Render)
 	render.JSON(http.StatusOK, args)
 }
 
-func (this *MainDispatcher) IndexHandler(render render.Render) {
-	m := XModel{}
+func (this *MainDispatcher) IndexHandler(c xweb.IMVC) {
+	m := &XModel{}
 	m.Title = "这是个测试"
-	render.HTML(http.StatusOK, "test", m)
+	// mvc.SetView("list")
+	// mvc.SetRender()
+	// mvc.SetStatus()
+	c.SetModel(m)
 }
 
 func (this *MainDispatcher) TestHandler(render render.Render) {
