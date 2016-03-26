@@ -266,40 +266,35 @@ func (this *Context) setValue(vk reflect.Kind, val string, sf reflect.Value) {
 		if val == "" {
 			val = "0"
 		}
-		intVal, err := strconv.ParseInt(val, 10, 64)
-		if err == nil {
+		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
 			sf.SetInt(intVal)
 		}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if val == "" {
 			val = "0"
 		}
-		uintVal, err := strconv.ParseUint(val, 10, 64)
-		if err == nil {
+		if uintVal, err := strconv.ParseUint(val, 10, 64); err == nil {
 			sf.SetUint(uintVal)
 		}
 	case reflect.Bool:
 		if val == "" {
 			val = "false"
 		}
-		boolVal, err := strconv.ParseBool(val)
-		if err == nil {
+		if boolVal, err := strconv.ParseBool(val); err == nil {
 			sf.SetBool(boolVal)
 		}
 	case reflect.Float32:
 		if val == "" {
 			val = "0.0"
 		}
-		floatVal, err := strconv.ParseFloat(val, 32)
-		if err == nil {
+		if floatVal, err := strconv.ParseFloat(val, 32); err == nil {
 			sf.SetFloat(floatVal)
 		}
 	case reflect.Float64:
 		if val == "" {
 			val = "0.0"
 		}
-		floatVal, err := strconv.ParseFloat(val, 64)
-		if err == nil {
+		if floatVal, err := strconv.ParseFloat(val, 64); err == nil {
 			sf.SetFloat(floatVal)
 		}
 	case reflect.String:
@@ -469,11 +464,11 @@ func (this *Context) XmlHandler(v interface{}, name string) martini.Handler {
 }
 
 //from name get data source,use AT_JSON AT_XML
-func (this *Context) QueryFieldName(v interface{}) string {
+func (this *Context) QueryFieldName(v interface{}, n string) string {
 	t := reflect.TypeOf(v)
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
-		name := f.Tag.Get("form")
+		name := f.Tag.Get(n)
 		if len(name) > 0 {
 			return name
 		}
@@ -540,23 +535,23 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 	for i := 0; i < vt.NumField(); i++ {
 		f := vt.Field(i)
 		v := vv.Field(i)
-		url := f.Tag.Get("url")
-		handler := f.Tag.Get("handler")
-		if handler == "" {
-			handler = f.Name + HandlerSuffix
+		nv := f.Tag.Get("handler")
+		hv := reflect.Value{}
+		if nv == "" {
+			hv = sv.MethodByName(f.Name + HandlerSuffix)
 		} else {
-			handler += HandlerSuffix
+			hv = sv.MethodByName(nv + HandlerSuffix)
 		}
 		method := strings.ToUpper(f.Tag.Get("method"))
 		in := []martini.Handler{}
-		if iv, b := this.IsIArgs(v); b && url != "" {
+		if iv, b := this.IsIArgs(v); b && hv.IsValid() {
 			switch iv.ReqType() {
 			case AT_FORM:
 				in = append(in, this.FormHandler(iv))
 			case AT_JSON:
-				in = append(in, this.JsonHandler(iv, this.QueryFieldName(iv)))
+				in = append(in, this.JsonHandler(iv, this.QueryFieldName(iv, "source")))
 			case AT_XML:
-				in = append(in, this.XmlHandler(iv, this.QueryFieldName(iv)))
+				in = append(in, this.XmlHandler(iv, this.QueryFieldName(iv, "source")))
 			case AT_QUERY:
 				in = append(in, this.QueryHandler(iv))
 			}
@@ -564,12 +559,13 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 				method = strings.ToUpper(iv.Method())
 			}
 		}
+		if hv.IsValid() {
+			in = append(in, hv.Interface())
+		}
 		if method == "" {
 			method = http.MethodGet
 		}
-		if m := sv.MethodByName(handler); m.IsValid() {
-			in = append(in, m.Interface())
-		}
+		url := f.Tag.Get("url")
 		if d, b := this.IsIDispatcher(v); b {
 			this.Group(url, func(r martini.Router) {
 				this.UseRouter(r, d)
@@ -583,7 +579,6 @@ func (this *Context) UseValue(r martini.Router, c IDispatcher, vv reflect.Value)
 		} else {
 			this.UseHandler(r, url, method, in...)
 		}
-
 	}
 }
 

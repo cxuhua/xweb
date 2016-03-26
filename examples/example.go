@@ -8,9 +8,9 @@ import (
 	"net/http"
 )
 
-//form:"Body",表示JSON数据来自 form=Body字段
+//source:"Body",表示JSON数据来自 form表单的Body字段
 type JsonArgs struct {
-	xweb.JSONArgs `form:"Body" json:"-"`
+	xweb.JSONArgs `source:"Body" json:"-"`
 	A             string `json:"a" validate:"regexp=^b.*$"`
 	B             int    `json:"b" validate:"min=1,max=50"`
 }
