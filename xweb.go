@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"github.com/go-martini/martini"
-	"github.com/martini-contrib/render"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -32,6 +32,8 @@ const (
 	XML_RENDER  = "XML"
 	TEXT_RENDER = "TEXT"
 	DATA_RENDER = "DATA"
+	FILE_RENDER = "FILE"
+	TEMP_RENDER = "TEMP"
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -78,6 +80,7 @@ func NewValidateModel(err error) *ValidateModel {
 
 //获得可用的render
 func getRender(render string) string {
+	render = strings.ToUpper(render)
 	switch render {
 	case HTML_RENDER:
 		return render
@@ -89,6 +92,10 @@ func getRender(render string) string {
 		return render
 	case DATA_RENDER:
 		return render
+	case FILE_RENDER:
+		return render
+	case TEMP_RENDER:
+		return render
 	default:
 		return HTML_RENDER
 	}
@@ -97,26 +104,24 @@ func getRender(render string) string {
 type IDispatcher interface {
 	//url 前缀
 	URL() string
-	//mvc创建方法
-	MVCMake() IMVC
-	//mvc渲染方法
-	MVCRender(IMVC, render.Render)
+	//渲染输出
+	MVCRender(IMVC, Render, http.ResponseWriter, *http.Request)
 }
 
 type HTTPDispatcher struct {
 	IDispatcher
 }
 
+func (this *HTTPDispatcher) Render() string {
+	return ""
+}
+
 func (this *HTTPDispatcher) URL() string {
 	return ""
 }
 
-func (this *HTTPDispatcher) MVCMake() IMVC {
-	return &MVC{}
-}
-
 //输出html结束
-func (this *HTTPDispatcher) MVCRender(mvc IMVC, render render.Render) {
+func MVCRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
 	s := mvc.GetStatus()
 	v := mvc.GetView()
@@ -128,10 +133,39 @@ func (this *HTTPDispatcher) MVCRender(mvc IMVC, render render.Render) {
 	case XML_RENDER:
 		render.XML(s, m)
 	case TEXT_RENDER:
-		render.Text(s, m.GetString())
+		v, b := m.(*StringModel)
+		if !b {
+			panic("RENDER Model error:must set StringModel")
+		}
+		render.Text(s, v.Text)
 	case DATA_RENDER:
-		render.Data(s, m.GetData())
+		v, b := m.(*BinaryModel)
+		if !b {
+			panic("RENDER Model error:must set BinaryModel")
+		}
+		render.Data(s, v.Data)
+	case FILE_RENDER:
+		v, b := m.(*FileModal)
+		if !b {
+			panic("RENDER Model error:must set FileModal")
+		}
+		for ik, iv := range v.Header {
+			for _, vv := range iv {
+				req.Header.Add(ik, vv)
+			}
+		}
+		http.ServeContent(rw, req, v.Name, v.ModTime, v.Reader)
+	case TEMP_RENDER:
+		v, b := m.(*TempModal)
+		if !b {
+			panic("RENDER Model error:must set TempModal")
+		}
+		render.TEMP(s, v.Template, v.Modal)
 	}
+}
+
+func (this *HTTPDispatcher) MVCRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
+	MVCRender(mvc, render, rw, req)
 }
 
 //获取远程地址
@@ -170,46 +204,9 @@ const (
 	AT_QUERY //body use Query type parse
 )
 
-//数据模型
-type DataModel struct {
-	IModel `bson:"-" json:"-" xml:"-"`
-}
-
-func (this *DataModel) GetString() string {
-	return reflect.TypeOf(this).Elem().Name()
-}
-
-func (this *DataModel) GetData() []byte {
-	return []byte(this.GetString())
-}
-
-//渲染模型
-type HTTPModel struct {
-	IModel `bson:"-" json:"-" xml:"-"`
-	Code   int    `json:"code" xml:"code"`
-	Error  string `json:"error,omitempty" xml:"error,omitempty"`
-}
-
-func (this *HTTPModel) GetString() string {
-	return fmt.Sprintf("%v", this)
-}
-
-func (this *HTTPModel) GetData() []byte {
-	return []byte(this.GetString())
-}
-
-func NewHTTPError(code int, err string) *HTTPModel {
-	return &HTTPModel{Code: code, Error: err}
-}
-
-func NewHTTPSuccess() *HTTPModel {
-	return &HTTPModel{Code: 0, Error: ""}
-}
-
 type IArgs interface {
 	ValType() int //validate failed out
 	ReqType() int //request type in
-	Method() string
 }
 
 type QUERYArgs struct {
@@ -224,10 +221,6 @@ func (this QUERYArgs) ReqType() int {
 	return AT_QUERY
 }
 
-func (this QUERYArgs) Method() string {
-	return http.MethodPost
-}
-
 type FORMArgs struct {
 	IArgs
 }
@@ -238,10 +231,6 @@ func (this FORMArgs) ValType() int {
 
 func (this FORMArgs) ReqType() int {
 	return AT_FORM
-}
-
-func (this FORMArgs) Method() string {
-	return http.MethodPost
 }
 
 type JSONArgs struct {
@@ -256,10 +245,6 @@ func (this JSONArgs) ReqType() int {
 	return AT_JSON
 }
 
-func (this JSONArgs) Method() string {
-	return http.MethodPost
-}
-
 type XMLArgs struct {
 	IArgs
 }
@@ -272,17 +257,25 @@ func (this XMLArgs) ReqType() int {
 	return AT_XML
 }
 
-func (this XMLArgs) Method() string {
-	return http.MethodPost
-}
-
 func (this *Context) queryHttpRequestData(name string, req *http.Request) ([]byte, error) {
 	if req.Method != http.MethodPost {
 		return nil, errors.New("http method error")
 	}
 	if len(name) > 0 {
-		ct := strings.ToLower(req.Header.Get("Content-Type"))
-		if strings.Contains(ct, "multipart/form-data") {
+		ct, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+		if err != nil {
+			return nil, err
+		}
+		switch ct {
+		case "application/x-www-form-urlencoded":
+			if err := req.ParseForm(); err != nil {
+				return nil, err
+			}
+			data := req.FormValue(name)
+			if len(data) > 0 {
+				return []byte(data), nil
+			}
+		case "multipart/form-data":
 			if err := req.ParseMultipartForm(MaxMemory); err != nil {
 				return nil, err
 			}
@@ -294,22 +287,15 @@ func (this *Context) queryHttpRequestData(name string, req *http.Request) ([]byt
 				defer file.Close()
 				return ioutil.ReadAll(file)
 			}
-		} else {
-			if err := req.ParseForm(); err != nil {
-				return nil, err
+		default:
+			q := req.URL.Query().Get(name)
+			if len(q) > 0 {
+				return []byte(q), nil
 			}
-			data := req.FormValue(name)
-			if len(data) > 0 {
-				return []byte(data), nil
-			}
-		}
-		q := req.URL.Query().Get(name)
-		if len(q) > 0 {
-			return []byte(q), nil
 		}
 	} else if req.Body != nil {
-		defer req.Body.Close()
-		return ioutil.ReadAll(req.Body)
+		var reader io.Reader = req.Body
+		return ioutil.ReadAll(reader)
 	}
 	return nil, errors.New("form data miss")
 }
@@ -318,7 +304,7 @@ func (this *Context) jsonHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding JSON Args")
 	}
-	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
+	return func(c martini.Context, req *http.Request, log *log.Logger, render Render) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
 		args, ok := v.Interface().(IArgs)
@@ -425,7 +411,7 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 	}
 }
 
-func (this *Context) validateMapData(c martini.Context, v IArgs, render render.Render) bool {
+func (this *Context) validateMapData(c martini.Context, v IArgs, render Render) bool {
 	if v.ValType() == AT_NONE {
 		return false
 	}
@@ -456,7 +442,7 @@ func (this *Context) queryHandler(v interface{}, ifv ...interface{}) martini.Han
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding QUERY Args")
 	}
-	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
+	return func(c martini.Context, req *http.Request, log *log.Logger, render Render) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
 		args, ok := v.Interface().(IArgs)
@@ -487,7 +473,7 @@ func (this *Context) formHandler(v interface{}, ifv ...interface{}) martini.Hand
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding FORM Args")
 	}
-	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
+	return func(c martini.Context, req *http.Request, log *log.Logger, render Render) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
 		args, ok := v.Interface().(IArgs)
@@ -521,7 +507,7 @@ func (this *Context) xmlHandler(v interface{}, name string) martini.Handler {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		panic("Pointers are not accepted as binding XML Args")
 	}
-	return func(c martini.Context, req *http.Request, log *log.Logger, render render.Render) {
+	return func(c martini.Context, req *http.Request, log *log.Logger, render Render) {
 		t := reflect.TypeOf(v)
 		v := reflect.New(t)
 		args, ok := v.Interface().(IArgs)
@@ -582,7 +568,7 @@ func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
 	}
 }
 
-func (this *Context) useHandler(r martini.Router, url, method, nv, view, render string, in ...martini.Handler) {
+func (this *Context) useHandler(r martini.Router, url, method, nv, view, render string, atype reflect.Type, in ...martini.Handler) {
 	if len(in) == 0 || url == "" {
 		return
 	}
@@ -612,13 +598,15 @@ func (this *Context) useHandler(r martini.Router, url, method, nv, view, render 
 	urls.View = view
 	urls.Render = render
 	urls.Handler = nv
-	this.urls = append(this.urls, urls)
+	urls.Args = atype.PkgPath() + "/" + atype.Name()
+	this.URLS = append(this.URLS, urls)
 }
 
 //mvc模式预处理
-func (this *Context) mvcPrepare(view string, render string, d IDispatcher) martini.Handler {
+func (this *Context) MVCPrepare(view string, render string) martini.Handler {
+	render = strings.ToUpper(render)
 	return func(c martini.Context) {
-		mvc := d.MVCMake()
+		mvc := &mvc{}
 		mvc.SetView(view)
 		mvc.SetRender(render)
 		mvc.SetStatus(http.StatusOK)
@@ -636,24 +624,26 @@ func (this *Context) useValue(r martini.Router, c IDispatcher, vv reflect.Value)
 		nv := f.Tag.Get("handler")
 		url := f.Tag.Get("url")
 		view := f.Tag.Get("view")
-		render := strings.ToUpper(f.Tag.Get("render"))
-		method := strings.ToUpper(f.Tag.Get("method"))
+		render := f.Tag.Get("render")
+		method := f.Tag.Get("method")
 		in := []martini.Handler{}
 		hv := reflect.Value{}
 		if nv == "" {
 			nv = f.Name + HandlerSuffix
-			hv = sv.MethodByName(f.Name + HandlerSuffix)
+			hv = sv.MethodByName(nv)
 		} else {
 			nv = nv + HandlerSuffix
-			hv = sv.MethodByName(nv + HandlerSuffix)
+			hv = sv.MethodByName(nv)
 		}
-		nv = sv.Type().Elem().PkgPath() + "/" + sv.Type().Elem().Name() + "." + nv
-		//启用MVC参数
-		if view != "" || render != "" {
+		if render == "" {
+			render = HTML_RENDER
+		}
+		path := sv.Type().Elem().PkgPath() + "/" + sv.Type().Elem().Name() + "." + nv
+		if url != "" {
 			render = getRender(render)
-			in = append(in, this.mvcPrepare(view, render, c))
+			in = append(in, this.MVCPrepare(view, render))
 		}
-		//自动分析参数
+		//获得参数
 		if iv, b := this.IsIArgs(v); b && hv.IsValid() {
 			switch iv.ReqType() {
 			case AT_FORM:
@@ -665,35 +655,32 @@ func (this *Context) useValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			case AT_QUERY:
 				in = append(in, this.queryHandler(iv))
 			}
-			if method == "" {
-				method = strings.ToUpper(iv.Method())
-			}
 		}
-		//控制函数
+		//处理参数
 		if hv.IsValid() {
 			in = append(in, hv.Interface())
+			log.Println(this.Invoke(hv.Interface()))
 		}
-		//启用MVC输出
-		if view != "" || render != "" {
+		//输出
+		if url != "" {
 			in = append(in, c.MVCRender)
 		}
 		//设置默认GET
 		if method == "" {
 			method = http.MethodGet
 		}
-		//挂接请求类型
 		if d, b := this.IsIDispatcher(v); b {
-			this.Group(url, func(r martini.Router) {
+			this.Group(d.URL()+url, func(r martini.Router) {
 				this.useRouter(r, d)
 			}, in...)
 		} else if _, b := this.IsIArgs(v); b {
-			this.useHandler(r, url, method, nv, view, render, in...)
+			this.useHandler(r, url, method, path, view, render, v.Type(), in...)
 		} else if v.Kind() == reflect.Struct {
 			this.Group(url, func(r martini.Router) {
 				this.useValue(r, c, v)
 			}, in...)
 		} else {
-			this.useHandler(r, url, method, nv, view, render, in...)
+			this.useHandler(r, url, method, path, view, render, v.Type(), in...)
 		}
 	}
 }

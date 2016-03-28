@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/go-martini/martini"
-	"github.com/martini-contrib/render"
 	"github.com/martini-contrib/sessions"
 	"log"
 	"net/http"
@@ -16,23 +15,23 @@ import (
 //default context
 
 var (
-	main = NewContext()
+	Main = NewContext()
 )
 
 func SetValidationFunc(name string, vf ValidationFunc) error {
-	return main.Validator.SetValidationFunc(name, vf)
+	return Main.Validator.SetValidationFunc(name, vf)
 }
 
 func Validate(v interface{}) error {
-	return main.Validator.Validate(v)
+	return Main.Validator.Validate(v)
 }
 
 func UseCookie(key string, name string, opts sessions.Options) {
-	main.UseCookie(key, name, opts)
+	Main.UseCookie(key, name, opts)
 }
 
 func UseRedis(addr string) {
-	main.UseRedis(addr)
+	Main.UseRedis(addr)
 }
 
 func SetEnv(env string) {
@@ -40,23 +39,23 @@ func SetEnv(env string) {
 }
 
 func Map(v interface{}) {
-	main.Map(v)
+	Main.Map(v)
 }
 
 func MapTo(v interface{}, t interface{}) {
-	main.MapTo(v, t)
+	Main.MapTo(v, t)
 }
 
 func UseDispatcher(c IDispatcher, in ...martini.Handler) {
-	main.UseDispatcher(c, in...)
+	Main.UseDispatcher(c, in...)
 }
 
 func Use(h martini.Handler) {
-	main.Use(h)
+	Main.Use(h)
 }
 
 func GetDispatcher(t interface{}) IDispatcher {
-	v := main.Injector.Get(reflect.TypeOf(t))
+	v := Main.Injector.Get(reflect.TypeOf(t))
 	if !v.IsValid() {
 		return nil
 	}
@@ -66,14 +65,14 @@ func GetDispatcher(t interface{}) IDispatcher {
 	return nil
 }
 
-func ListenAndServe(addr string, opts ...render.Options) error {
-	main.UseRender(opts...)
-	return main.ListenAndServe(addr)
+func ListenAndServe(addr string, opts ...RenderOptions) error {
+	Main.UseRender(opts...)
+	return Main.ListenAndServe(addr)
 }
 
-func ListenAndServeTLS(addr string, cert, key string, opts ...render.Options) error {
-	main.UseRender(opts...)
-	return main.ListenAndServeTLS(addr, cert, key)
+func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) error {
+	Main.UseRender(opts...)
+	return Main.ListenAndServeTLS(addr, cert, key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +112,8 @@ type URLS struct {
 	View    string
 	Render  string
 	Handler string
+	Args    string
+	Modal   string
 }
 
 type URLSlice []URLS
@@ -133,7 +134,7 @@ func (p URLSlice) Sort() {
 type Context struct {
 	martini.ClassicMartini
 	Validator *Validator
-	urls      URLSlice
+	URLS      URLSlice
 }
 
 func (this *Context) UseCookie(key string, name string, opts sessions.Options) {
@@ -146,8 +147,8 @@ func (this *Context) UseRedis(addr string) {
 	this.Use(InitRedis(addr))
 }
 
-func (this *Context) UseRender(opts ...render.Options) {
-	this.Use(render.Renderer(opts...))
+func (this *Context) UseRender(opts ...RenderOptions) {
+	this.Use(Renderer(opts...))
 }
 
 func (this *Context) SetValidationFunc(name string, vf ValidationFunc) error {
@@ -186,9 +187,9 @@ func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
 }
 
 func (this *Context) printURLS(log *log.Logger) {
-	this.urls.Sort()
-	mc, pc, hc, vc, rc := 0, 0, 0, 0, 0
-	for _, u := range this.urls {
+	this.URLS.Sort()
+	mc, pc, hc, vc, rc, ac := 0, 0, 0, 0, 0, 0
+	for _, u := range this.URLS {
 		if len(u.Method) > mc {
 			mc = len(u.Method)
 		}
@@ -204,10 +205,13 @@ func (this *Context) printURLS(log *log.Logger) {
 		if len(u.Render) > rc {
 			rc = len(u.Render)
 		}
+		if len(u.Args) > ac {
+			ac = len(u.Args)
+		}
 	}
-	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, hc, vc, rc)
-	for _, u := range this.urls {
-		log.Printf(fs, u.Method, u.Pattern, u.Handler, u.View, u.Render)
+	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, ac, hc, vc, rc)
+	for _, u := range this.URLS {
+		log.Printf(fs, u.Method, u.Pattern, u.Args, u.Handler, u.View, u.Render)
 	}
 }
 
@@ -221,7 +225,7 @@ func NewContext() *Context {
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	h.Validator = NewValidator()
-	h.urls = []URLS{}
+	h.URLS = []URLS{}
 	h.Martini = m
 	h.Router = r
 	return h

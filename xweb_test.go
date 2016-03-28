@@ -3,8 +3,8 @@ package xweb
 import (
 	"encoding/json"
 	"errors"
-	"github.com/martini-contrib/render"
 	. "gopkg.in/check.v1"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,6 +30,7 @@ type TestArgs struct {
 
 //定义输出模型
 type TestModel struct {
+	HTTPModel
 	C string `json:"a"`
 	D int    `json:"b"`
 }
@@ -37,21 +38,19 @@ type TestModel struct {
 //定义url分发器
 type TestDistacher struct {
 	HTTPDispatcher
-	POST struct {
-		P1 TestArgs `url:"/json" handler:"PX"`
-		P2 IArgs    `url:"/test"`
-	} `url:"/post" handler:"Logger"`
+	PX TestArgs `url:"/post/json" method:"POST" handler:"P1" render:"JSON"`
+	P2 IArgs    `url:"/post/test" method:"POST"`
 }
 
 func (this *TestDistacher) P2Handler() {
 
 }
 
-func (this *TestDistacher) PXHandler(args TestArgs, render render.Render) {
-	m := TestModel{}
+func (this *TestDistacher) P1Handler(args TestArgs, c IMVC) {
+	m := &TestModel{}
+	c.SetModel(m)
 	m.C = args.A + "54321"
 	m.D = args.B + 10
-	render.JSON(http.StatusOK, m)
 }
 
 type BDistacher struct {
@@ -65,9 +64,10 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (this *WebSuite) SetUpSuite(c *C) {
-	main.SetValidationFunc("exists", userExists)
-	main.UseRender()
-	main.UseDispatcher(new(TestDistacher))
+	Main.SetValidationFunc("exists", userExists)
+	Main.UseRender()
+	Main.UseDispatcher(new(TestDistacher))
+	log.Println(Main.URLS)
 }
 
 func (this *WebSuite) TearDownSuite(c *C) {
@@ -78,7 +78,7 @@ func (this *WebSuite) TestHttpPostJsonValidateSuccess(c *C) {
 	res := httptest.NewRecorder()
 	body := strings.NewReader(`{"a":"12345","b":3}`)
 	req, _ := http.NewRequest(http.MethodPost, "/post/json", body)
-	main.ServeHTTP(res, req)
+	Main.ServeHTTP(res, req)
 	m := &TestModel{}
 	c.Assert(res.Body, NotNil)
 	d := res.Body.Bytes()
@@ -92,7 +92,7 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 	res := httptest.NewRecorder()
 	body := strings.NewReader(`{"a":"123456","b":300}`)
 	req, _ := http.NewRequest(http.MethodPost, "/post/json", body)
-	main.ServeHTTP(res, req)
+	Main.ServeHTTP(res, req)
 	m := &ValidateModel{}
 	c.Assert(res.Body, NotNil)
 	d := res.Body.Bytes()
