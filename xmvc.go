@@ -65,7 +65,6 @@ func (this *FileModel) Render() string {
 func (this *FileModel) Finished() {
 	if this.File != nil {
 		this.File.Close()
-		this.File = nil
 	}
 }
 

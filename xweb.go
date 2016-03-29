@@ -345,6 +345,7 @@ func (this *Context) GetArgsHandler(args IArgs) interface{} {
 //输出html结束
 func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
+	defer m.Finished()
 	s := mvc.GetStatus()
 	v := mvc.GetView()
 	switch mvc.GetRender() {
@@ -394,7 +395,6 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 	default:
 		panic(errors.New(mvc.GetRender() + " not process"))
 	}
-	m.Finished()
 }
 
 func (this *Context) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
