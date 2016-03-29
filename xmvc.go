@@ -1,30 +1,41 @@
 package xweb
 
 import (
-	"fmt"
+	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type IModel interface {
-	String() string
+	Render() string //输出模式
+}
+
+//html model
+type HtmlModel struct {
+	IModel
+}
+
+func (this *HtmlModel) Render() string {
+	return HTML_RENDER
 }
 
 //内存模版输出
 
-type TempModal struct {
+type TempModel struct {
 	IModel
 	Template string
-	Modal    interface{}
+	Model    interface{}
 }
 
-func (this *TempModal) String() string {
-	return this.Template
+func (this *TempModel) Render() string {
+	return TEMP_RENDER
 }
 
 //文件输出
-type FileModal struct {
+type FileModel struct {
 	IModel
 	http.Header
 	Name    string        //名称
@@ -32,12 +43,12 @@ type FileModal struct {
 	Reader  io.ReadSeeker //读取接口
 }
 
-func (this *FileModal) String() string {
-	return this.Name
+func (this *FileModel) Render() string {
+	return FILE_RENDER
 }
 
-func NewFileModal() *FileModal {
-	return &FileModal{Header: http.Header{}, ModTime: time.Now()}
+func NewFileModel() *FileModel {
+	return &FileModel{Header: http.Header{}, ModTime: time.Now()}
 }
 
 //用于TEXT输出
@@ -46,38 +57,43 @@ type StringModel struct {
 	Text string
 }
 
-func (this *StringModel) String() string {
-	return this.Text
+func (this *StringModel) Render() string {
+	return TEXT_RENDER
 }
 
-//用于DATA输出
+//data render model
 type BinaryModel struct {
 	IModel
 	Data []byte
 }
 
-func (this *BinaryModel) String() string {
-	return string(this.Data)
+func (this *BinaryModel) Render() string {
+	return DATA_RENDER
 }
 
-//数据模型
-type DataModel struct {
+//json render model
+type JSONModel struct {
 	IModel `bson:"-" json:"-" xml:"-"`
 }
 
-func (this *DataModel) String() string {
-	return "DataModel"
+func (this *JSONModel) Render() string {
+	return JSON_RENDER
+}
+
+//xml render model
+type XMLModel struct {
+	IModel `bson:"-" json:"-" xml:"-"`
+}
+
+func (this *XMLModel) Render() string {
+	return XML_RENDER
 }
 
 //渲染模型
 type HTTPModel struct {
-	IModel `bson:"-" json:"-" xml:"-"`
-	Code   int    `json:"code" xml:"code"`
-	Error  string `json:"error,omitempty" xml:"error,omitempty"`
-}
-
-func (this *HTTPModel) String() string {
-	return fmt.Sprintf("%d:%s", this.Code, this.Error)
+	JSONModel `bson:"-" json:"-" xml:"-"`
+	Code      int    `json:"code" xml:"code"`
+	Error     string `json:"error,omitempty" xml:"error,omitempty"`
 }
 
 func NewHTTPError(code int, err string) *HTTPModel {
@@ -86,6 +102,63 @@ func NewHTTPError(code int, err string) *HTTPModel {
 
 func NewHTTPSuccess() *HTTPModel {
 	return &HTTPModel{Code: 0, Error: ""}
+}
+
+//数据参数校验器是吧输出
+
+type ValidateError struct {
+	Field string `xml:"field,attr" json:"field"`
+	Error string `xml:",chardata" json:"error"`
+}
+
+type ValidateModel struct {
+	JSONModel
+	XMLName struct{}        `xml:"xml" json:"-"`
+	Code    int             `xml:"code" json:"code"`
+	Errors  []ValidateError `xml:"errors>item,omitempty" json:"errors,omitempty"`
+}
+
+func (this *ValidateModel) ToJSON() string {
+	d, err := json.Marshal(this)
+	if err != nil {
+		return ""
+	}
+	return string(d)
+}
+
+func (this *ValidateModel) ToXML() string {
+	d, err := xml.Marshal(this)
+	if err != nil {
+		return ""
+	}
+	return string(d)
+}
+
+func (this *ValidateModel) ToTEXT() string {
+	s := []string{}
+	for _, i := range this.Errors {
+		s = append(s, i.Field)
+	}
+	return strings.Join(s, ",")
+}
+
+func (this *ValidateModel) Init(e error) {
+	this.Errors = []ValidateError{}
+	this.Code = ValidateErrorCode
+	err, ok := e.(ErrorMap)
+	if !ok {
+		return
+	}
+	for k, v := range err {
+		e := ValidateError{Field: k, Error: v.Error()}
+		this.Errors = append(this.Errors, e)
+	}
+}
+
+func NewValidateModel(err error) *ValidateModel {
+	m := &ValidateModel{}
+	m.Init(err)
+	return m
 }
 
 type IMVC interface {

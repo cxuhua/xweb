@@ -104,15 +104,23 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 func (this *WebSuite) TestQueryArgs(c *C) {
 	var v interface{} = nil
 
-	v = JSONArgs{}
+	v = &Args{}
 	_, ok := v.(IArgs)
 	c.Assert(ok, Equals, true)
 
-	v = FORMArgs{}
+	v = &JSONArgs{}
 	_, ok = v.(IArgs)
 	c.Assert(ok, Equals, true)
 
-	v = XMLArgs{}
+	v = &FORMArgs{}
+	_, ok = v.(IArgs)
+	c.Assert(ok, Equals, true)
+
+	v = &XMLArgs{}
+	_, ok = v.(IArgs)
+	c.Assert(ok, Equals, true)
+
+	v = &QUERYArgs{}
 	_, ok = v.(IArgs)
 	c.Assert(ok, Equals, true)
 }

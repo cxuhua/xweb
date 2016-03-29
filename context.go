@@ -15,23 +15,23 @@ import (
 //default context
 
 var (
-	Main = NewContext()
+	m = NewContext()
 )
 
 func SetValidationFunc(name string, vf ValidationFunc) error {
-	return Main.Validator.SetValidationFunc(name, vf)
+	return m.Validator.SetValidationFunc(name, vf)
 }
 
-func Validate(v interface{}) error {
-	return Main.Validator.Validate(v)
+func Validate(v IArgs) error {
+	return m.Validator.Validate(v)
 }
 
 func UseCookie(key string, name string, opts sessions.Options) {
-	Main.UseCookie(key, name, opts)
+	m.UseCookie(key, name, opts)
 }
 
 func UseRedis(addr string) {
-	Main.UseRedis(addr)
+	m.UseRedis(addr)
 }
 
 func SetEnv(env string) {
@@ -39,23 +39,23 @@ func SetEnv(env string) {
 }
 
 func Map(v interface{}) {
-	Main.Map(v)
+	m.Map(v)
 }
 
 func MapTo(v interface{}, t interface{}) {
-	Main.MapTo(v, t)
+	m.MapTo(v, t)
 }
 
 func UseDispatcher(c IDispatcher, in ...martini.Handler) {
-	Main.UseDispatcher(c, in...)
+	m.UseDispatcher(c, in...)
 }
 
 func Use(h martini.Handler) {
-	Main.Use(h)
+	m.Use(h)
 }
 
 func GetDispatcher(t interface{}) IDispatcher {
-	v := Main.Injector.Get(reflect.TypeOf(t))
+	v := m.Injector.Get(reflect.TypeOf(t))
 	if !v.IsValid() {
 		return nil
 	}
@@ -66,13 +66,13 @@ func GetDispatcher(t interface{}) IDispatcher {
 }
 
 func ListenAndServe(addr string, opts ...RenderOptions) error {
-	Main.UseRender(opts...)
-	return Main.ListenAndServe(addr)
+	m.UseRender(opts...)
+	return m.ListenAndServe(addr)
 }
 
 func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) error {
-	Main.UseRender(opts...)
-	return Main.ListenAndServeTLS(addr, cert, key)
+	m.UseRender(opts...)
+	return m.ListenAndServeTLS(addr, cert, key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -111,9 +111,8 @@ type URLS struct {
 	Pattern string
 	View    string
 	Render  string
-	Handler string
-	Args    string
-	Modal   string
+	Args    IArgs
+	Modal   IModel
 }
 
 type URLSlice []URLS
@@ -155,7 +154,10 @@ func (this *Context) SetValidationFunc(name string, vf ValidationFunc) error {
 	return this.Validator.SetValidationFunc(name, vf)
 }
 
-func (this *Context) Validate(v interface{}) error {
+func (this *Context) Validate(v IArgs) error {
+	if !v.IsValidate() {
+		return nil
+	}
 	return this.Validator.Validate(v)
 }
 
@@ -188,7 +190,7 @@ func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
 
 func (this *Context) printURLS(log *log.Logger) {
 	this.URLS.Sort()
-	mc, pc, hc, vc, rc, ac := 0, 0, 0, 0, 0, 0
+	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
 		if len(u.Method) > mc {
 			mc = len(u.Method)
@@ -196,22 +198,18 @@ func (this *Context) printURLS(log *log.Logger) {
 		if len(u.Pattern) > pc {
 			pc = len(u.Pattern)
 		}
-		if len(u.Handler) > hc {
-			hc = len(u.Handler)
-		}
 		if len(u.View) > vc {
 			vc = len(u.View)
 		}
 		if len(u.Render) > rc {
 			rc = len(u.Render)
 		}
-		if len(u.Args) > ac {
-			ac = len(u.Args)
-		}
 	}
-	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, ac, hc, vc, rc)
+	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds %%v %%v\n", mc, pc, vc, rc)
 	for _, u := range this.URLS {
-		log.Printf(fs, u.Method, u.Pattern, u.Args, u.Handler, u.View, u.Render)
+		as := reflect.TypeOf(u.Args)
+		ms := reflect.TypeOf(u.Args.Model()).Elem().Name()
+		log.Printf(fs, u.Method, u.Pattern, u.View, u.Render, as, ms)
 	}
 }
 

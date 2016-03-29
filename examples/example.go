@@ -1,102 +1,50 @@
 package main
 
 import (
+	"fmt"
 	"github.com/cxuhua/xweb"
-	"log"
-	"mime/multipart"
-	"net/http"
+	// "log"
 )
 
-//source:"Body",表示JSON数据来自 form表单的Body字段
-type JsonArgs struct {
-	xweb.JSONArgs `source:"Body" json:"-"`
-	A             string `json:"a" validate:"regexp=^b.*$"`
-	B             int    `json:"b" validate:"min=1,max=50"`
-}
-
-func (this JsonArgs) Modal() xweb.IModel {
-	return &xweb.HTTPModel{}
-}
-
-func (this JsonArgs) Run(m *xweb.HTTPModel) {
-	m.Error = "Run in test"
-	m.Code = 100
-}
-
-//是否校验参数 返回校验错误输出类型
-func (this JsonArgs) ValType() int {
-	return xweb.AT_NONE
-}
-
-type XX struct {
-	Body string `form:"Body"`
-}
-
-type FormArgs struct {
-	xweb.FORMArgs
-	XX
-	File *multipart.FileHeader `form:"file"`
-}
-
-type XModel struct {
+type FormModel struct {
 	xweb.HTTPModel
-	Title string
+	A string
+	B string
 }
 
-func (this *XModel) GetString() string {
-	return this.Title
+//source:"Body",表示JSON数据来自 form表单的Body字段
+type FormArgs struct {
+	xweb.FORMArgs `form:"-"`
+	A             string `form:"a" validate:"regexp=^b.*$"`
+	B             int    `form:"b" validate:"min=1,max=50"`
 }
 
-type SubDispatcher struct {
-	xweb.HTTPDispatcher
-	GET struct {
-		Index xweb.IArgs `url:"/"`
-	}
+//创建model时
+func (this *FormArgs) Model() xweb.IModel {
+	return &FormModel{}
 }
 
-func (this *SubDispatcher) IndexHandler(render xweb.Render) {
-	render.Text(http.StatusOK, "SubDispatcher.IndexHandler")
+//当校验失败时触发
+// func (this *FormArgs) Error(m *xweb.ValidateModel, c xweb.IMVC) {
+// 	log.Println(m)
+// }
+
+//当未定义处理函数时时触发用来处理函数
+func (this *FormArgs) Handler(m *FormModel) {
+	m.Error = "Run in test"
+	m.Code = 1001
+	m.A = this.A
+	m.B = fmt.Sprintf("%d", this.B)
 }
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-	// SubDispatcher `url:"/sub" handler:"Logger"`
 	Group struct {
-		PostJson JsonArgs `url:"/json" method:"POST" render:"JSON"` //LoggerHandler,PostJsonHandler
-		// PostForm FormArgs `url:"/form" method:"POST" render:"JSON"` //LoggerHandler,PostFormHandler
+		PostForm FormArgs `url:"/form" method:"POST"`
 	} `url:"/post" handler:"Logger"`
-	// Logger struct {
-	// 	Index xweb.IArgs `url:"/" view:"test" render:"HTML"` //LoggerHandler,IndexHandler
-	// }
-	// Test FormArgs   `url:"/test" method:"POST"` //->TestHandler
-	// List xweb.IArgs `url:"/list"`               //->ListHandler
-}
-
-func (this *MainDispatcher) PostJsonHandler(args JsonArgs, c xweb.IMVC) {
-	c.SetModel(xweb.NewHTTPSuccess())
-}
-
-func (this *MainDispatcher) PostFormHandler(args FormArgs, render xweb.Render) {
-	log.Println(args)
-	log.Println(xweb.FormFileBytes(args.File))
-	render.JSON(http.StatusOK, args)
-}
-
-func (this *MainDispatcher) IndexHandler(c xweb.IMVC) {
-	m := &XModel{}
-	m.Title = "这是个测试"
-	// mvc.SetView("list")
-	// mvc.SetRender()
-	// mvc.SetStatus()
-	c.SetModel(m)
-}
-
-func (this *MainDispatcher) TestHandler(render xweb.Render) {
-	render.HTML(http.StatusOK, "test", nil)
-}
-
-func (this *MainDispatcher) ListHandler(render xweb.Render) {
-	render.HTML(http.StatusOK, "test", nil)
+	Logger struct {
+		Index xweb.URLArgs `url:"/" view:"test"`
+	}
 }
 
 func main() {

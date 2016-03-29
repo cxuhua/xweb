@@ -1,38 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>{{.Title}}</title>
+<title></title>
 </head>
 <body>
-<form action="/post/form" method="post" enctype="application/x-www-form-urlencoded">
-	<input name="Body" type="text" value="112233" />
+<form action="/post/form" method="post">
+	<input name="a" type="text" value="bc" />
+	<input name="b" type="text" value="23" />
    <button type="submit" class="btn btn-default">提交FORM</button>
-</form>
-<br/>
-<br/>
-
-<form action="/post/file" method="post" enctype="multipart/form-data">
-	<input name="file" type="file" /><br/>
-   <button type="submit" class="btn btn-default">提交FILE</button>
-</form>
-<br/>
-<br/>
-<form action="/post/json" method="post">
-	<textarea name="Body" rows="5" style="width: 300px;">{"a":"aaa","b":123}</textarea><br/>
-   <button type="submit" class="btn btn-default">提交JSON</button>
-</form>
-<br/>
-<br/>
-<form action="/post/body" method="post" id="stream">
-	<textarea name="args" id="streamBody" rows="5" style="width: 300px;">sdfmsdf9829323324jndsf</textarea><br/>
-   <button type="submit" class="btn btn-default">提交BODY</button>
-</form>
-<br/>
-<br/>
-<form action="/post/form" method="post" enctype="multipart/form-data">
-	<textarea name="Body" rows="5" style="width: 300px;"><xml><a>aaaa</a><b>123</b></xml></textarea><br/>
-	<input name="file" type="file" /><br/>
-   <button type="submit" class="btn btn-default">提交XML</button>
 </form>
 </body>
 </html>

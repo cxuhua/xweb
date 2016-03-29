@@ -386,6 +386,18 @@ func (mv *Validator) SetValidationFunc(name string, vf ValidationFunc) error {
 	return nil
 }
 
+func (mv *Validator) getFieldName(f reflect.StructField) string {
+	if js := f.Tag.Get("json"); js != "" {
+		return strings.Split(js, ",")[0]
+	} else if xs := f.Tag.Get("xml"); xs != "" {
+		return strings.Split(xs, ",")[0]
+	} else if fs := f.Tag.Get("form"); fs != "" {
+		return strings.Split(fs, ",")[0]
+	} else {
+		return f.Name
+	}
+}
+
 // Validate validates the fields of a struct based
 // on 'validator' tags and returns errors found indexed
 // by the field name.
@@ -398,7 +410,6 @@ func (mv *Validator) Validate(v interface{}) error {
 	if sv.Kind() != reflect.Struct {
 		return ErrUnsupported
 	}
-
 	nfields := sv.NumField()
 	m := make(ErrorMap)
 	for i := 0; i < nfields; i++ {
@@ -411,17 +422,14 @@ func (mv *Validator) Validate(v interface{}) error {
 		if tag == "-" {
 			continue
 		}
-		fname := st.Field(i).Name
+		fname := mv.getFieldName(st.Field(i))
 		var errs ErrorArray
-
 		if tag != "" {
 			err := mv.Valid(f.Interface(), tag)
 			if errors, ok := err.(ErrorArray); ok {
 				errs = errors
-			} else {
-				if err != nil {
-					errs = ErrorArray{err}
-				}
+			} else if err != nil {
+				errs = ErrorArray{err}
 			}
 		}
 		if f.Kind() == reflect.Struct {
@@ -436,7 +444,7 @@ func (mv *Validator) Validate(v interface{}) error {
 			}
 		}
 		if len(errs) > 0 {
-			m[st.Field(i).Name] = errs
+			m[fname] = errs
 		}
 	}
 	if len(m) > 0 {
