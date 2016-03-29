@@ -10,12 +10,17 @@ import (
 )
 
 type IModel interface {
+	Finished()      //处理完成
 	Render() string //输出模式
 }
 
 //html model
 type HtmlModel struct {
 	IModel
+}
+
+func (this *HtmlModel) Finished() {
+
 }
 
 func (this *HtmlModel) Render() string {
@@ -30,31 +35,66 @@ type TempModel struct {
 	Model    interface{}
 }
 
+func (this *TempModel) Finished() {
+
+}
+
 func (this *TempModel) Render() string {
 	return TEMP_RENDER
+}
+
+type IHttpFile interface {
+	io.Reader
+	io.Seeker
+	io.Closer
 }
 
 //文件输出
 type FileModel struct {
 	IModel
 	http.Header
-	Name    string        //名称
-	ModTime time.Time     //修改时间
-	Reader  io.ReadSeeker //读取接口
+	Name    string    //名称
+	ModTime time.Time //修改时间
+	File    IHttpFile //读取接口
 }
 
 func (this *FileModel) Render() string {
 	return FILE_RENDER
 }
 
+func (this *FileModel) Finished() {
+	if this.File != nil {
+		this.File.Close()
+		this.File = nil
+	}
+}
+
 func NewFileModel() *FileModel {
 	return &FileModel{Header: http.Header{}, ModTime: time.Now()}
+}
+
+//脚本输出
+type ScriptModel struct {
+	IModel
+	Script string
+}
+
+func (this *ScriptModel) Render() string {
+	return SCRIPT_RENDER
+}
+
+func (this *ScriptModel) Finished() {
+
 }
 
 //用于TEXT输出
 type StringModel struct {
 	IModel
 	Text string
+}
+
+func (this *StringModel) Finished() {
+
 }
 
 func (this *StringModel) Render() string {
@@ -67,6 +107,10 @@ type BinaryModel struct {
 	Data []byte
 }
 
+func (this *BinaryModel) Finished() {
+
+}
+
 func (this *BinaryModel) Render() string {
 	return DATA_RENDER
 }
@@ -74,6 +118,10 @@ func (this *BinaryModel) Render() string {
 //json render model
 type JSONModel struct {
 	IModel `bson:"-" json:"-" xml:"-"`
+}
+
+func (this *JSONModel) Finished() {
+
 }
 
 func (this *JSONModel) Render() string {
@@ -85,6 +133,10 @@ type XMLModel struct {
 	IModel `bson:"-" json:"-" xml:"-"`
 }
 
+func (this *XMLModel) Finished() {
+
+}
+
 func (this *XMLModel) Render() string {
 	return XML_RENDER
 }
@@ -94,6 +146,10 @@ type HTTPModel struct {
 	JSONModel `bson:"-" json:"-" xml:"-"`
 	Code      int    `json:"code" xml:"code"`
 	Error     string `json:"error,omitempty" xml:"error,omitempty"`
+}
+
+func (this *HTTPModel) Finished() {
+
 }
 
 func NewHTTPError(code int, err string) *HTTPModel {

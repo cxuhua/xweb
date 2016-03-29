@@ -47,6 +47,12 @@ type MainDispatcher struct {
 	}
 }
 
+func (this *MainDispatcher) IndexHandler(args *xweb.URLArgs, c xweb.IMVC) {
+	m := &FormModel{}
+	m.A = args.RemoteAddr()
+	c.SetModel(m)
+}
+
 func main() {
 	xweb.UseDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")

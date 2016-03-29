@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	. "gopkg.in/check.v1"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,7 +63,6 @@ func (this *WebSuite) SetUpSuite(c *C) {
 	m.SetValidationFunc("exists", userExists)
 	m.UseRender()
 	m.UseDispatcher(new(TestDistacher))
-	log.Println(m.URLS)
 }
 
 func (this *WebSuite) TearDownSuite(c *C) {

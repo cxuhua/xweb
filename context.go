@@ -112,7 +112,6 @@ type URLS struct {
 	View    string
 	Render  string
 	Args    IArgs
-	Modal   IModel
 }
 
 type URLSlice []URLS
@@ -188,6 +187,17 @@ func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
+//分析参数文档
+func (this *Context) DumpDoc(v interface{}) {
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	for i := 0; i < t.NumField(); i++ {
+		log.Println(t.Field(i))
+	}
+}
+
 func (this *Context) printURLS(log *log.Logger) {
 	this.URLS.Sort()
 	mc, pc, vc, rc := 0, 0, 0, 0
@@ -205,11 +215,13 @@ func (this *Context) printURLS(log *log.Logger) {
 			rc = len(u.Render)
 		}
 	}
-	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds %%v %%v\n", mc, pc, vc, rc)
+	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, vc, rc)
 	for _, u := range this.URLS {
-		as := reflect.TypeOf(u.Args)
-		ms := reflect.TypeOf(u.Args.Model()).Elem().Name()
-		log.Printf(fs, u.Method, u.Pattern, u.View, u.Render, as, ms)
+		// at := reflect.TypeOf(u.Args).Elem()
+		// mt := reflect.TypeOf(u.Args.Model()).Elem()
+		// as := at.PkgPath() + "/#" + at.Name()
+		// ms := mt.PkgPath() + "/#" + mt.Name()
+		log.Printf(fs, u.Method, u.Pattern, u.View, u.Render)
 	}
 }
 

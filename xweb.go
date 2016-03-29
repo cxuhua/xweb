@@ -9,6 +9,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,13 +25,14 @@ const (
 )
 
 const (
-	HTML_RENDER = "HTML"
-	JSON_RENDER = "JSON"
-	XML_RENDER  = "XML"
-	TEXT_RENDER = "TEXT"
-	DATA_RENDER = "DATA"
-	FILE_RENDER = "FILE"
-	TEMP_RENDER = "TEMP"
+	HTML_RENDER   = "HTML"
+	JSON_RENDER   = "JSON"
+	XML_RENDER    = "XML"
+	TEXT_RENDER   = "TEXT"
+	SCRIPT_RENDER = "SCRIPT"
+	DATA_RENDER   = "DATA"
+	FILE_RENDER   = "FILE"
+	TEMP_RENDER   = "TEMP"
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -63,7 +65,7 @@ func (this *HTTPDispatcher) URL() string {
 }
 
 //获取远程地址
-func (this *HTTPDispatcher) GetRemoteAddr(req *http.Request) string {
+func GetRemoteAddr(req *http.Request) string {
 	if x1, ok := req.Header["X-Forwarded-For"]; ok && len(x1) > 0 {
 		return x1[len(x1)-1]
 	}
@@ -79,7 +81,7 @@ func (this *HTTPDispatcher) GetRemoteAddr(req *http.Request) string {
 //日志打印调试Handler
 func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 	log.Println("----------------------------Logger---------------------------")
-	log.Println("Remote:", this.GetRemoteAddr(req))
+	log.Println("Remote:", GetRemoteAddr(req))
 	log.Println("Method:", req.Method)
 	log.Println("URL:", req.URL.String())
 	for k, v := range req.Header {
@@ -89,7 +91,7 @@ func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func (this *Context) setValue(vk reflect.Kind, val string, sf reflect.Value) {
+func formSetValue(vk reflect.Kind, val string, sf reflect.Value) {
 	switch vk {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if val == "" {
@@ -131,7 +133,7 @@ func (this *Context) setValue(vk reflect.Kind, val string, sf reflect.Value) {
 	}
 }
 
-func (this *Context) mapForm(value reflect.Value, form map[string][]string, files map[string][]*multipart.FileHeader) {
+func MapFormValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader) {
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
 	}
@@ -141,12 +143,12 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 		sf := value.Field(i)
 		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
 			sf.Set(reflect.New(tf.Type.Elem()))
-			this.mapForm(sf.Elem(), form, files)
+			MapFormValue(sf.Elem(), form, files)
 			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
 				sf.Set(reflect.Zero(sf.Type()))
 			}
 		} else if tf.Type.Kind() == reflect.Struct {
-			this.mapForm(sf, form, files)
+			MapFormValue(sf, form, files)
 		} else if name := tf.Tag.Get("form"); name == "-" || name == "" || !sf.CanSet() {
 			continue
 		} else if input, ok := form[name]; ok {
@@ -155,11 +157,11 @@ func (this *Context) mapForm(value reflect.Value, form map[string][]string, file
 				skind := sf.Type().Elem().Kind()
 				slice := reflect.MakeSlice(sf.Type(), num, num)
 				for i := 0; i < num; i++ {
-					this.setValue(skind, input[i], slice.Index(i))
+					formSetValue(skind, input[i], slice.Index(i))
 				}
 				value.Field(i).Set(slice)
 			} else {
-				this.setValue(tf.Type.Kind(), input[0], sf)
+				formSetValue(tf.Type.Kind(), input[0], sf)
 			}
 		} else if input, ok := files[name]; ok {
 			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
@@ -196,6 +198,24 @@ func (this *Context) newURLArgs(iv IArgs, req *http.Request, log *log.Logger) IA
 	return args
 }
 
+func unmarshalForm(iv IArgs, req *http.Request) error {
+	iv.SetRequest(req)
+	v := reflect.ValueOf(iv)
+	ct := req.Header.Get("Content-Type")
+	if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
+		if err := req.ParseMultipartForm(MaxMemory); err != nil {
+			return err
+		}
+		MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File)
+	} else {
+		if err := req.ParseForm(); err != nil {
+			return err
+		}
+		MapFormValue(v, req.Form, nil)
+	}
+	return nil
+}
+
 func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
@@ -203,20 +223,8 @@ func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	if !ok {
 		panic(errors.New(t.Name() + "not imp FORMArgs"))
 	}
-	args.SetRequest(req)
-	ct := req.Header.Get("Content-Type")
-	if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
-		if err := req.ParseMultipartForm(MaxMemory); err == nil {
-			this.mapForm(v, req.MultipartForm.Value, req.MultipartForm.File)
-		} else {
-			log.Println(err)
-		}
-	} else {
-		if err := req.ParseForm(); err == nil {
-			this.mapForm(v, req.Form, nil)
-		} else {
-			log.Println(err)
-		}
+	if err := unmarshalForm(args, req); err != nil {
+		log.Println(err)
 	}
 	return args
 }
@@ -312,6 +320,9 @@ func (this *Context) useHandler(r martini.Router, url, method, view, render stri
 	default:
 		panic(errors.New(method + " do not support"))
 	}
+	if render == "" {
+		render = args.Model().Render()
+	}
 	//保存记录打印
 	urls := URLS{}
 	urls.Method = rv.Method()
@@ -343,6 +354,14 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 		render.JSON(s, m)
 	case XML_RENDER:
 		render.XML(s, m)
+	case SCRIPT_RENDER:
+		v, b := m.(*ScriptModel)
+		if !b {
+			panic("RENDER Model error:must set ScriptModel")
+		}
+		rw.WriteHeader(s)
+		rw.Header().Set(ContentType, ContentJSON)
+		rw.Write([]byte(v.Script))
 	case TEXT_RENDER:
 		v, b := m.(*StringModel)
 		if !b {
@@ -365,7 +384,7 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 				req.Header.Add(ik, vv)
 			}
 		}
-		http.ServeContent(rw, req, v.Name, v.ModTime, v.Reader)
+		http.ServeContent(rw, req, v.Name, v.ModTime, v.File)
 	case TEMP_RENDER:
 		v, b := m.(*TempModel)
 		if !b {
@@ -375,10 +394,7 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 	default:
 		panic(errors.New(mvc.GetRender() + " not process"))
 	}
-}
-
-func (this *Context) mvcResults(out []reflect.Value, mvc IMVC) {
-	//
+	m.Finished()
 }
 
 func (this *Context) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
@@ -397,37 +413,45 @@ func (this *Context) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs
 }
 
 //mvc模式预处理
-func (this *Context) mvcHandler(iv IArgs, view string, render string) martini.Handler {
+func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render string) martini.Handler {
 	return func(c martini.Context, rv Render, rw http.ResponseWriter, req *http.Request, log *log.Logger) {
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
 		c.MapTo(mvc, (*IMVC)(nil))
-		//获得参数
 		args := this.newArgs(iv, req, log)
+		if args == nil {
+			panic(errors.New("args nil"))
+		}
 		c.Map(args)
-		//创建模型
 		model := args.Model()
+		if model == nil {
+			panic(errors.New("model nil"))
+		}
 		c.Map(model)
-		//获得默认值
 		if render == "" {
 			render = model.Render()
 		}
-		fm := this.GetArgsHandler(args)
-		if fm == nil {
-			panic(errors.New("args Handler miss"))
-		}
 		mvc.SetModel(model)
 		mvc.SetRender(render)
-		//参数校验
 		if err := this.Validate(args); err != nil {
 			args.Error(NewValidateModel(err), mvc)
-		} else if out, err := c.Invoke(fm); err != nil {
-			panic(err)
 		} else {
-			this.mvcResults(out, mvc)
+			fm := this.GetArgsHandler(args)
+			var err error = nil
+			var out []reflect.Value = nil
+			if fm != nil {
+				out, err = c.Invoke(fm)
+			} else if hv.IsValid() {
+				out, err = c.Invoke(hv.Interface())
+			}
+			if err != nil {
+				panic(err)
+			}
+			if len(out) > 0 {
+				log.Println(out)
+			}
 		}
-		//输出
 		this.mvcRender(mvc, rv, rw, req)
 	}
 }
@@ -455,7 +479,7 @@ func (this *Context) useValue(r martini.Router, c IDispatcher, vv reflect.Value)
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
 			render = strings.ToUpper(render)
-			in = append(in, this.mvcHandler(iv, view, render))
+			in = append(in, this.mvcHandler(iv, hv, view, render))
 		}
 		if d, b := this.IsIDispatcher(v); b {
 			if hv.IsValid() {

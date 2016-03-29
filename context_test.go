@@ -17,6 +17,6 @@ func (this *ContextSuite) TearDownSuite(c *C) {
 
 }
 
-func (this *ContextSuite) TestFor(c *C) {
+func (this *ContextSuite) TestDumps(c *C) {
 
 }
