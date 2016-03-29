@@ -23,9 +23,18 @@ func userExists(v interface{}, param string) error {
 
 //定义输入参数
 type TestArgs struct {
-	JSONArgs        // `form:"Body"`
-	A        string `json:"a" validate:"len=5,exists=false"`
-	B        int    `json:"b" validate:"min=2,max=6"`
+	JSONArgs
+	A string `json:"a" validate:"len=5,exists=false"`
+	B int    `json:"b" validate:"min=2,max=6"`
+}
+
+func (this *TestArgs) Model() IModel {
+	return &TestModel{}
+}
+
+func (this *TestArgs) Handler(m *TestModel) {
+	m.C = this.A + "54321"
+	m.D = this.B + 10
 }
 
 //定义输出模型
@@ -38,19 +47,7 @@ type TestModel struct {
 //定义url分发器
 type TestDistacher struct {
 	HTTPDispatcher
-	PX TestArgs `url:"/post/json" method:"POST" handler:"P1" render:"JSON"`
-	P2 IArgs    `url:"/post/test" method:"POST"`
-}
-
-func (this *TestDistacher) P2Handler() {
-
-}
-
-func (this *TestDistacher) P1Handler(args TestArgs, c IMVC) {
-	m := &TestModel{}
-	c.SetModel(m)
-	m.C = args.A + "54321"
-	m.D = args.B + 10
+	Test TestArgs `url:"/post/json" method:"POST"`
 }
 
 type BDistacher struct {
@@ -64,10 +61,10 @@ type WebSuite struct {
 var _ = Suite(&WebSuite{})
 
 func (this *WebSuite) SetUpSuite(c *C) {
-	Main.SetValidationFunc("exists", userExists)
-	Main.UseRender()
-	Main.UseDispatcher(new(TestDistacher))
-	log.Println(Main.URLS)
+	m.SetValidationFunc("exists", userExists)
+	m.UseRender()
+	m.UseDispatcher(new(TestDistacher))
+	log.Println(m.URLS)
 }
 
 func (this *WebSuite) TearDownSuite(c *C) {
@@ -78,7 +75,7 @@ func (this *WebSuite) TestHttpPostJsonValidateSuccess(c *C) {
 	res := httptest.NewRecorder()
 	body := strings.NewReader(`{"a":"12345","b":3}`)
 	req, _ := http.NewRequest(http.MethodPost, "/post/json", body)
-	Main.ServeHTTP(res, req)
+	m.ServeHTTP(res, req)
 	m := &TestModel{}
 	c.Assert(res.Body, NotNil)
 	d := res.Body.Bytes()
@@ -92,7 +89,7 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 	res := httptest.NewRecorder()
 	body := strings.NewReader(`{"a":"123456","b":300}`)
 	req, _ := http.NewRequest(http.MethodPost, "/post/json", body)
-	Main.ServeHTTP(res, req)
+	m.ServeHTTP(res, req)
 	m := &ValidateModel{}
 	c.Assert(res.Body, NotNil)
 	d := res.Body.Bytes()
@@ -104,7 +101,7 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 func (this *WebSuite) TestQueryArgs(c *C) {
 	var v interface{} = nil
 
-	v = &Args{}
+	v = &URLArgs{}
 	_, ok := v.(IArgs)
 	c.Assert(ok, Equals, true)
 
@@ -117,10 +114,6 @@ func (this *WebSuite) TestQueryArgs(c *C) {
 	c.Assert(ok, Equals, true)
 
 	v = &XMLArgs{}
-	_, ok = v.(IArgs)
-	c.Assert(ok, Equals, true)
-
-	v = &QUERYArgs{}
 	_, ok = v.(IArgs)
 	c.Assert(ok, Equals, true)
 }
