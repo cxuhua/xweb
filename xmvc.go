@@ -3,8 +3,10 @@ package xweb
 import (
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -238,6 +240,10 @@ type mvc struct {
 	model  IModel
 }
 
+func (this *mvc) String() string {
+	return fmt.Sprintf("Status:%d View:%s,Render:%s,Model:%v", this.status, this.view, this.render, reflect.TypeOf(this.model).Elem())
+}
+
 func (this *mvc) GetView() string {
 	return this.view
 }
@@ -255,6 +261,9 @@ func (this *mvc) SetModel(v IModel) {
 }
 
 func (this *mvc) GetRender() string {
+	if this.render == "" {
+		return this.model.Render()
+	}
 	return this.render
 }
 

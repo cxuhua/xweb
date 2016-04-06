@@ -198,7 +198,7 @@ func (this *Context) newURLArgs(iv IArgs, req *http.Request, log *log.Logger) IA
 	return args
 }
 
-func unmarshalForm(iv IArgs, req *http.Request) error {
+func UnmarshalForm(iv IArgs, req *http.Request) error {
 	iv.SetRequest(req)
 	v := reflect.ValueOf(iv)
 	ct := req.Header.Get("Content-Type")
@@ -223,7 +223,7 @@ func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	if !ok {
 		panic(errors.New(t.Name() + "not imp FORMArgs"))
 	}
-	if err := unmarshalForm(args, req); err != nil {
+	if err := UnmarshalForm(args, req); err != nil {
 		log.Println(err)
 	}
 	return args
@@ -418,6 +418,7 @@ func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render 
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
+		mvc.SetRender(render)
 		c.MapTo(mvc, (*IMVC)(nil))
 		args := this.newArgs(iv, req, log)
 		if args == nil {
@@ -429,11 +430,7 @@ func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render 
 			panic(errors.New("model nil"))
 		}
 		c.Map(model)
-		if render == "" {
-			render = model.Render()
-		}
 		mvc.SetModel(model)
-		mvc.SetRender(render)
 		if err := this.Validate(args); err != nil {
 			args.Error(NewValidateModel(err), mvc)
 		} else {

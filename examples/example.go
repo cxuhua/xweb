@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/cxuhua/xweb"
-	// "log"
+	"log"
 )
 
 type FormModel struct {
@@ -37,20 +37,37 @@ func (this *FormArgs) Handler(m *FormModel) {
 	m.B = fmt.Sprintf("%d", this.B)
 }
 
+type IndexArgs struct {
+	xweb.URLArgs
+}
+
+func (this *IndexArgs) Handler(c xweb.IMVC) {
+	m := &FormModel{}
+	m.A = this.RemoteAddr()
+	c.SetModel(m)
+}
+
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	Group struct {
-		PostForm FormArgs `url:"/form" method:"POST"`
+		PostForm  FormArgs     `url:"/form" method:"POST"`
+		PostForm2 xweb.URLArgs `url:"/get" method:"GET"`
 	} `url:"/post" handler:"Logger"`
 	Logger struct {
-		Index xweb.URLArgs `url:"/" view:"test"`
+		Index IndexArgs    `url:"/" view:"test"`
+		WX    xweb.URLArgs `url:"/list"`
 	}
 }
 
-func (this *MainDispatcher) IndexHandler(args *xweb.URLArgs, c xweb.IMVC) {
-	m := &FormModel{}
-	m.A = args.RemoteAddr()
+func (this *MainDispatcher) PostForm2Handler(args *xweb.URLArgs, c xweb.IMVC) {
+	log.Println(args, "a")
+}
+
+func (this *MainDispatcher) WXHandler(args *xweb.URLArgs, c xweb.IMVC) {
+	log.Println("WXHandler")
+	m := &xweb.StringModel{}
 	c.SetModel(m)
+	m.Text = "a"
 }
 
 func main() {
