@@ -39,9 +39,12 @@ func (this *FormArgs) Handler(m *FormModel) {
 
 type IndexArgs struct {
 	xweb.URLArgs
+	Q string `url:"q"` //?q=121&
+	B string `url:"b"` //b=2323
 }
 
 func (this *IndexArgs) Handler(c xweb.IMVC) {
+	log.Println(this.Q, this.B)
 	m := &FormModel{}
 	m.A = this.RemoteAddr()
 	c.SetModel(m)

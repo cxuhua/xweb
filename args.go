@@ -16,12 +16,13 @@ const (
 type IArgs interface {
 	//是否校验参数
 	IsValidate() bool
+	//参数校验失败
+	Error(*ValidateModel, IMVC)
+
 	//参数解析类型
 	ReqType() int
 	//返回默认的输出模型
 	Model() IModel
-	//参数校验失败
-	Error(*ValidateModel, IMVC)
 	//设置Request
 	SetRequest(*http.Request)
 	//获得远程Ip地址
@@ -37,16 +38,16 @@ func (this *Args) RemoteAddr() string {
 	return GetRemoteAddr(this.Request)
 }
 
+func (this *Args) IsValidate() bool {
+	return true
+}
+
 func (this *Args) SetRequest(req *http.Request) {
 	this.Request = req
 }
 
 type URLArgs struct {
 	Args
-}
-
-func (this *URLArgs) IsValidate() bool {
-	return false
 }
 
 func (this *URLArgs) Error(m *ValidateModel, c IMVC) {
@@ -67,10 +68,6 @@ type FORMArgs struct {
 	Args
 }
 
-func (this *FORMArgs) IsValidate() bool {
-	return true
-}
-
 func (this *FORMArgs) Error(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
@@ -88,10 +85,6 @@ type JSONArgs struct {
 	Args
 }
 
-func (this *JSONArgs) IsValidate() bool {
-	return true
-}
-
 func (this *JSONArgs) Error(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
@@ -107,10 +100,6 @@ func (this *JSONArgs) Model() IModel {
 
 type XMLArgs struct {
 	Args
-}
-
-func (this *XMLArgs) IsValidate() bool {
-	return true
 }
 
 func (this *XMLArgs) Error(m *ValidateModel, c IMVC) {

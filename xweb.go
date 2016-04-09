@@ -133,6 +133,40 @@ func formSetValue(vk reflect.Kind, val string, sf reflect.Value) {
 	}
 }
 
+func MapURLValue(value reflect.Value, values url.Values) {
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	typ := value.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		tf := typ.Field(i)
+		sf := value.Field(i)
+		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
+			sf.Set(reflect.New(tf.Type.Elem()))
+			MapURLValue(sf.Elem(), values)
+			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
+				sf.Set(reflect.Zero(sf.Type()))
+			}
+		} else if tf.Type.Kind() == reflect.Struct {
+			MapURLValue(sf, values)
+		} else if name := tf.Tag.Get("url"); name == "-" || name == "" || !sf.CanSet() {
+			continue
+		} else if input, ok := values[name]; ok {
+			num := len(input)
+			if sf.Kind() == reflect.Slice && num > 0 {
+				skind := sf.Type().Elem().Kind()
+				slice := reflect.MakeSlice(sf.Type(), num, num)
+				for i := 0; i < num; i++ {
+					formSetValue(skind, input[i], slice.Index(i))
+				}
+				value.Field(i).Set(slice)
+			} else {
+				formSetValue(tf.Type.Kind(), input[0], sf)
+			}
+		}
+	}
+}
+
 func MapFormValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader) {
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
@@ -194,26 +228,24 @@ func (this *Context) newURLArgs(iv IArgs, req *http.Request, log *log.Logger) IA
 	if !ok {
 		panic(errors.New(t.Name() + "not imp URLArgs"))
 	}
+	MapURLValue(v, req.URL.Query())
 	args.SetRequest(req)
 	return args
 }
 
-func UnmarshalForm(iv IArgs, req *http.Request) error {
-	iv.SetRequest(req)
+func UnmarshalForm(iv IArgs, req *http.Request) {
 	v := reflect.ValueOf(iv)
 	ct := req.Header.Get("Content-Type")
 	if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
-		if err := req.ParseMultipartForm(MaxMemory); err != nil {
-			return err
+		if err := req.ParseMultipartForm(MaxMemory); err == nil {
+			MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File)
 		}
-		MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File)
 	} else {
-		if err := req.ParseForm(); err != nil {
-			return err
+		if err := req.ParseForm(); err == nil {
+			MapFormValue(v, req.Form, nil)
 		}
-		MapFormValue(v, req.Form, nil)
 	}
-	return nil
+	iv.SetRequest(req)
 }
 
 func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
@@ -223,9 +255,7 @@ func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	if !ok {
 		panic(errors.New(t.Name() + "not imp FORMArgs"))
 	}
-	if err := UnmarshalForm(args, req); err != nil {
-		log.Println(err)
-	}
+	UnmarshalForm(args, req)
 	return args
 }
 
@@ -236,7 +266,6 @@ func (this *Context) newJSONArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	if !ok {
 		panic(errors.New(t.Name() + "not imp JSONArgs"))
 	}
-	args.SetRequest(req)
 	data, err := this.GetBody(req)
 	if err != nil {
 		log.Println(err)
@@ -244,6 +273,7 @@ func (this *Context) newJSONArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	if err := json.Unmarshal(data, args); err != nil {
 		log.Println(err)
 	}
+	args.SetRequest(req)
 	return args
 }
 
@@ -254,7 +284,6 @@ func (this *Context) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger) IA
 	if !ok {
 		panic(errors.New(t.Name() + "not imp XMLArgs"))
 	}
-	args.SetRequest(req)
 	data, err := this.GetBody(req)
 	if err != nil {
 		log.Println(err)
@@ -262,6 +291,7 @@ func (this *Context) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger) IA
 	if err := xml.Unmarshal(data, args); err != nil {
 		log.Println(err)
 	}
+	args.SetRequest(req)
 	return args
 }
 
