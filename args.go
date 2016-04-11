@@ -18,7 +18,6 @@ type IArgs interface {
 	IsValidate() bool
 	//参数校验失败
 	Error(*ValidateModel, IMVC)
-
 	//参数解析类型
 	ReqType() int
 	//返回默认的输出模型

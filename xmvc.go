@@ -14,11 +14,29 @@ import (
 type IModel interface {
 	Finished()      //处理完成
 	Render() string //输出模式
+	GetHeader() http.Header
+}
+
+type HeaderModel struct {
+	IModel
+	http.Header
+}
+
+func (this *HeaderModel) GetHeader() http.Header {
+	return this.Header
+}
+
+func (this *HeaderModel) Finished() {
+
+}
+
+func (this *HeaderModel) Render() string {
+	return HTML_RENDER
 }
 
 //html model
 type HtmlModel struct {
-	IModel
+	HeaderModel
 }
 
 func (this *HtmlModel) Finished() {
@@ -32,7 +50,7 @@ func (this *HtmlModel) Render() string {
 //内存模版输出
 
 type TempModel struct {
-	IModel
+	HeaderModel
 	Template string
 	Model    interface{}
 }
@@ -53,11 +71,11 @@ type IHttpFile interface {
 
 //文件输出
 type FileModel struct {
-	IModel
-	http.Header
+	HeaderModel
 	Name    string    //名称
 	ModTime time.Time //修改时间
 	File    IHttpFile //读取接口
+	Data    []byte    //二进制数据存在只处理此数据
 }
 
 func (this *FileModel) Render() string {
@@ -71,12 +89,14 @@ func (this *FileModel) Finished() {
 }
 
 func NewFileModel() *FileModel {
-	return &FileModel{Header: http.Header{}, ModTime: time.Now()}
+	m := &FileModel{ModTime: time.Now()}
+	m.Header = http.Header{}
+	return m
 }
 
 //脚本输出
 type ScriptModel struct {
-	IModel
+	HeaderModel
 	Script string
 }
 
@@ -90,7 +110,7 @@ func (this *ScriptModel) Finished() {
 
 //用于TEXT输出
 type StringModel struct {
-	IModel
+	HeaderModel
 	Text string
 }
 
@@ -104,7 +124,7 @@ func (this *StringModel) Render() string {
 
 //data render model
 type BinaryModel struct {
-	IModel
+	HeaderModel
 	Data []byte
 }
 
@@ -118,7 +138,7 @@ func (this *BinaryModel) Render() string {
 
 //json render model
 type JSONModel struct {
-	IModel `bson:"-" json:"-" xml:"-"`
+	HeaderModel `bson:"-" json:"-" xml:"-"`
 }
 
 func (this *JSONModel) Finished() {
@@ -131,7 +151,7 @@ func (this *JSONModel) Render() string {
 
 //xml render model
 type XMLModel struct {
-	IModel `bson:"-" json:"-" xml:"-"`
+	HeaderModel `bson:"-" json:"-" xml:"-"`
 }
 
 func (this *XMLModel) Finished() {

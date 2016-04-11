@@ -376,6 +376,11 @@ func (this *Context) GetArgsHandler(args IArgs) interface{} {
 func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
 	defer m.Finished()
+	for ik, iv := range m.GetHeader() {
+		for _, vv := range iv {
+			rw.Header().Add(ik, vv)
+		}
+	}
 	s := mvc.GetStatus()
 	v := mvc.GetView()
 	switch mvc.GetRender() {
@@ -410,12 +415,11 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 		if !b {
 			panic("RENDER Model error:must set FileModel")
 		}
-		for ik, iv := range v.Header {
-			for _, vv := range iv {
-				req.Header.Add(ik, vv)
-			}
+		if len(v.Data) > 0 {
+			rw.Write(v.Data)
+		} else {
+			http.ServeContent(rw, req, v.Name, v.ModTime, v.File)
 		}
-		http.ServeContent(rw, req, v.Name, v.ModTime, v.File)
 	case TEMP_RENDER:
 		v, b := m.(*TempModel)
 		if !b {
