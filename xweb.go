@@ -388,7 +388,7 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 	case HTML_RENDER:
 		if v == "" {
 			mvc.SetStatus(http.StatusNotFound)
-			panic(errors.New(fmt.Sprintf("%v,View miss", mvc)))
+			panic(errors.New(fmt.Sprintf("%v,Template miss", mvc)))
 		} else {
 			render.HTML(s, v, m)
 		}
