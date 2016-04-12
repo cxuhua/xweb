@@ -138,7 +138,7 @@ func (this *BinaryModel) Render() string {
 
 //json render model
 type JSONModel struct {
-	HeaderModel `bson:"-" json:"-" xml:"-"`
+	HeaderModel
 }
 
 func (this *JSONModel) Finished() {
@@ -151,7 +151,7 @@ func (this *JSONModel) Render() string {
 
 //xml render model
 type XMLModel struct {
-	HeaderModel `bson:"-" json:"-" xml:"-"`
+	HeaderModel
 }
 
 func (this *XMLModel) Finished() {
