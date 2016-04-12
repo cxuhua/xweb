@@ -261,7 +261,7 @@ type mvc struct {
 }
 
 func (this *mvc) String() string {
-	return fmt.Sprintf("Status:%d View:%s,Render:%s,Model:%v", this.status, this.view, this.render, reflect.TypeOf(this.model).Elem())
+	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v", this.status, this.view, this.render, reflect.TypeOf(this.model).Elem())
 }
 
 func (this *mvc) GetView() string {
@@ -282,7 +282,7 @@ func (this *mvc) SetModel(v IModel) {
 
 func (this *mvc) GetRender() string {
 	if this.render == "" {
-		return this.model.Render()
+		this.render = this.model.Render()
 	}
 	return this.render
 }

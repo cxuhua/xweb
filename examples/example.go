@@ -7,7 +7,7 @@ import (
 )
 
 type FormModel struct {
-	xweb.HTTPModel
+	xweb.HtmlModel
 	A string
 	B string
 }
@@ -31,8 +31,6 @@ func (this *FormArgs) Model() xweb.IModel {
 
 //当未定义处理函数时时触发用来处理函数
 func (this *FormArgs) Handler(m *FormModel) {
-	m.Error = "Run in test"
-	m.Code = 1001
 	m.A = this.A
 	m.B = fmt.Sprintf("%d", this.B)
 }

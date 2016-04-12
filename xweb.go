@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"github.com/go-martini/martini"
 	"io/ioutil"
 	"log"
@@ -385,7 +386,12 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 	v := mvc.GetView()
 	switch mvc.GetRender() {
 	case HTML_RENDER:
-		render.HTML(s, v, m)
+		if v == "" {
+			mvc.SetStatus(http.StatusNotFound)
+			panic(errors.New(fmt.Sprintf("%v,View miss", mvc)))
+		} else {
+			render.HTML(s, v, m)
+		}
 	case JSON_RENDER:
 		render.JSON(s, m)
 	case XML_RENDER:
@@ -475,6 +481,8 @@ func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render 
 				out, err = c.Invoke(fm)
 			} else if hv.IsValid() {
 				out, err = c.Invoke(hv.Interface())
+			} else {
+				log.Println(reflect.TypeOf(args).Elem().Name(), "not set Handler")
 			}
 			if err != nil {
 				panic(err)
