@@ -2,14 +2,12 @@ package xweb
 
 import (
 	"fmt"
-	"github.com/garyburd/redigo/redis"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/sessions"
 	"log"
 	"net/http"
 	"reflect"
 	"sort"
-	"time"
 )
 
 //default context
@@ -28,10 +26,6 @@ func Validate(v IArgs) error {
 
 func UseCookie(key string, name string, opts sessions.Options) {
 	m.UseCookie(key, name, opts)
-}
-
-func UseRedis(addr string) {
-	m.UseRedis(addr)
 }
 
 func SetEnv(env string) {
@@ -75,37 +69,6 @@ func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) err
 	return m.ListenAndServeTLS(addr, cert, key)
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-func newRedisPool(server string) *redis.Pool {
-	return &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp4", server)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
-	}
-}
-
-//初始化Redis
-func InitRedis(addr string) martini.Handler {
-	pool := newRedisPool(addr)
-	return func(c martini.Context) {
-		conn := pool.Get()
-		defer conn.Close()
-		c.Map(conn)
-		c.Next()
-	}
-}
-
 type URLS struct {
 	Method  string
 	Pattern string
@@ -139,10 +102,6 @@ func (this *Context) UseCookie(key string, name string, opts sessions.Options) {
 	store := sessions.NewCookieStore([]byte(key))
 	store.Options(opts)
 	this.Use(sessions.Sessions(name, store))
-}
-
-func (this *Context) UseRedis(addr string) {
-	this.Use(InitRedis(addr))
 }
 
 func (this *Context) UseRender(opts ...RenderOptions) {
@@ -211,16 +170,15 @@ func (this *Context) printURLS(log *log.Logger) {
 		if len(u.View) > vc {
 			vc = len(u.View)
 		}
+		if u.Render == "" {
+			u.Render = u.Args.Model().Render()
+		}
 		if len(u.Render) > rc {
 			rc = len(u.Render)
 		}
 	}
 	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, vc, rc)
 	for _, u := range this.URLS {
-		// at := reflect.TypeOf(u.Args).Elem()
-		// mt := reflect.TypeOf(u.Args.Model()).Elem()
-		// as := at.PkgPath() + "/#" + at.Name()
-		// ms := mt.PkgPath() + "/#" + mt.Name()
 		log.Printf(fs, u.Method, u.Pattern, u.View, u.Render)
 	}
 }
