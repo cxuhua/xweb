@@ -13,7 +13,7 @@ import (
 //default context
 
 var (
-	m = NewContext()
+	m = NewHttpContext()
 )
 
 func SetValidationFunc(name string, vf ValidationFunc) error {
@@ -92,34 +92,34 @@ func (p URLSlice) Sort() {
 	sort.Sort(p)
 }
 
-type Context struct {
+type HttpContext struct {
 	martini.ClassicMartini
 	Validator *Validator
 	URLS      URLSlice
 }
 
-func (this *Context) UseCookie(key string, name string, opts sessions.Options) {
+func (this *HttpContext) UseCookie(key string, name string, opts sessions.Options) {
 	store := sessions.NewCookieStore([]byte(key))
 	store.Options(opts)
 	this.Use(sessions.Sessions(name, store))
 }
 
-func (this *Context) UseRender(opts ...RenderOptions) {
+func (this *HttpContext) UseRender(opts ...RenderOptions) {
 	this.Use(Renderer(opts...))
 }
 
-func (this *Context) SetValidationFunc(name string, vf ValidationFunc) error {
+func (this *HttpContext) SetValidationFunc(name string, vf ValidationFunc) error {
 	return this.Validator.SetValidationFunc(name, vf)
 }
 
-func (this *Context) Validate(v IArgs) error {
+func (this *HttpContext) Validate(v IArgs) error {
 	if !v.IsValidate() {
 		return nil
 	}
 	return this.Validator.Validate(v)
 }
 
-func (this *Context) Logger() *log.Logger {
+func (this *HttpContext) Logger() *log.Logger {
 	t := reflect.TypeOf((*log.Logger)(nil))
 	if v := this.Injector.Get(t); !v.IsValid() {
 		return nil
@@ -130,7 +130,7 @@ func (this *Context) Logger() *log.Logger {
 	}
 }
 
-func (this *Context) ListenAndServe(addr string) error {
+func (this *HttpContext) ListenAndServe(addr string) error {
 	if log := this.Logger(); log != nil {
 		this.printURLS(log)
 		log.Printf("http listening on %s (%s)\n", addr, martini.Env)
@@ -138,7 +138,7 @@ func (this *Context) ListenAndServe(addr string) error {
 	return http.ListenAndServe(addr, this)
 }
 
-func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
+func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
 	if log := this.Logger(); log != nil {
 		this.printURLS(log)
 		log.Printf("https listening on %s (%s)\n", addr, martini.Env)
@@ -147,7 +147,7 @@ func (this *Context) ListenAndServeTLS(addr string, cert, key string) error {
 }
 
 //分析参数文档
-func (this *Context) DumpDoc(v interface{}) {
+func (this *HttpContext) DumpDoc(v interface{}) {
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -157,7 +157,7 @@ func (this *Context) DumpDoc(v interface{}) {
 	}
 }
 
-func (this *Context) printURLS(log *log.Logger) {
+func (this *HttpContext) printURLS(log *log.Logger) {
 	this.URLS.Sort()
 	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
@@ -183,8 +183,8 @@ func (this *Context) printURLS(log *log.Logger) {
 	}
 }
 
-func NewContext() *Context {
-	h := new(Context)
+func NewHttpContext() *HttpContext {
+	h := new(HttpContext)
 	r := martini.NewRouter()
 	m := martini.New()
 	m.Use(martini.Logger())

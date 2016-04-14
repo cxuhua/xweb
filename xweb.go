@@ -215,14 +215,14 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 }
 
 //获得http数据
-func (this *Context) GetBody(req *http.Request) ([]byte, error) {
+func (this *HttpContext) GetBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil {
 		return nil, errors.New("body data miss")
 	}
 	return ioutil.ReadAll(req.Body)
 }
 
-func (this *Context) newURLArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -249,7 +249,7 @@ func UnmarshalForm(iv IArgs, req *http.Request) {
 	iv.SetRequest(req)
 }
 
-func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -260,7 +260,7 @@ func (this *Context) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	return args
 }
 
-func (this *Context) newJSONArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -278,7 +278,7 @@ func (this *Context) newJSONArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	return args
 }
 
-func (this *Context) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -296,7 +296,7 @@ func (this *Context) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger) IA
 	return args
 }
 
-func (this *Context) IsIArgs(v reflect.Value) (IArgs, bool) {
+func (this *HttpContext) IsIArgs(v reflect.Value) (IArgs, bool) {
 	if !v.IsValid() {
 		return nil, false
 	}
@@ -310,7 +310,7 @@ func (this *Context) IsIArgs(v reflect.Value) (IArgs, bool) {
 	}
 }
 
-func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
+func (this *HttpContext) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
 	if !v.IsValid() {
 		return nil, false
 	}
@@ -328,7 +328,7 @@ func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
 	}
 }
 
-func (this *Context) useHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
+func (this *HttpContext) useHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
 	if len(in) == 0 || url == "" {
 		return
 	}
@@ -364,7 +364,7 @@ func (this *Context) useHandler(method string, r martini.Router, url, view, rend
 	this.URLS = append(this.URLS, urls)
 }
 
-func (this *Context) GetArgsHandler(args IArgs) interface{} {
+func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 	v := reflect.ValueOf(args)
 	if hv := v.MethodByName(HandlerSuffix); hv.IsValid() {
 		return hv.Interface()
@@ -374,7 +374,7 @@ func (this *Context) GetArgsHandler(args IArgs) interface{} {
 }
 
 //输出html结束
-func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
+func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
 	defer m.Finished()
 	for ik, iv := range m.GetHeader() {
@@ -437,7 +437,7 @@ func (this *Context) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, 
 	}
 }
 
-func (this *Context) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
 	switch iv.ReqType() {
 	case AT_URL:
 		return this.newURLArgs(iv, req, log)
@@ -453,7 +453,7 @@ func (this *Context) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs
 }
 
 //mvc模式预处理
-func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render string) martini.Handler {
+func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, view string, render string) martini.Handler {
 	return func(c martini.Context, rv Render, rw http.ResponseWriter, req *http.Request, log *log.Logger) {
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
@@ -495,7 +495,7 @@ func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render 
 	}
 }
 
-func (this *Context) useValue(mv string, r martini.Router, c IDispatcher, vv reflect.Value) {
+func (this *HttpContext) useValue(mv string, r martini.Router, c IDispatcher, vv reflect.Value) {
 	vt := vv.Type()
 	sv := reflect.ValueOf(c)
 	for i := 0; i < vt.NumField(); i++ {
@@ -543,11 +543,11 @@ func (this *Context) useValue(mv string, r martini.Router, c IDispatcher, vv ref
 	}
 }
 
-func (this *Context) useRouter(r martini.Router, c IDispatcher) {
+func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 	this.useValue(http.MethodGet, r, c, reflect.ValueOf(c).Elem())
 }
 
-func (this *Context) UseDispatcher(c IDispatcher, in ...martini.Handler) {
+func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
 	this.Group(c.URL(), func(r martini.Router) {
 		this.useRouter(r, c)
 	}, in...)
