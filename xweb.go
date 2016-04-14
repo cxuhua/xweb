@@ -328,7 +328,7 @@ func (this *Context) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
 	}
 }
 
-func (this *Context) useHandler(r martini.Router, url, method, view, render string, args IArgs, in ...martini.Handler) {
+func (this *Context) useHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
 	if len(in) == 0 || url == "" {
 		return
 	}
@@ -472,7 +472,7 @@ func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render 
 		c.Map(model)
 		mvc.SetModel(model)
 		if err := this.Validate(args); err != nil {
-			args.Error(NewValidateModel(err), mvc)
+			args.ValidateError(NewValidateModel(err), mvc)
 		} else {
 			fm := this.GetArgsHandler(args)
 			var err error = nil
@@ -495,7 +495,7 @@ func (this *Context) mvcHandler(iv IArgs, hv reflect.Value, view string, render 
 	}
 }
 
-func (this *Context) useValue(r martini.Router, c IDispatcher, vv reflect.Value) {
+func (this *Context) useValue(mv string, r martini.Router, c IDispatcher, vv reflect.Value) {
 	vt := vv.Type()
 	sv := reflect.ValueOf(c)
 	for i := 0; i < vt.NumField(); i++ {
@@ -509,8 +509,9 @@ func (this *Context) useValue(r martini.Router, c IDispatcher, vv reflect.Value)
 			handler = f.Name
 		}
 		method := f.Tag.Get("method")
+		//使用上父结构方法
 		if method == "" {
-			method = http.MethodGet
+			method = mv
 		}
 		in := []martini.Handler{}
 		//设置前置组件
@@ -528,22 +529,22 @@ func (this *Context) useValue(r martini.Router, c IDispatcher, vv reflect.Value)
 				this.useRouter(r, d)
 			}, in...)
 		} else if ab {
-			this.useHandler(r, url, method, view, render, iv, in...)
+			this.useHandler(method, r, url, view, render, iv, in...)
 		} else if v.Kind() == reflect.Struct {
 			if hv.IsValid() {
 				in = append(in, hv.Interface())
 			}
 			this.Group(url, func(r martini.Router) {
-				this.useValue(r, c, v)
+				this.useValue(method, r, c, v)
 			}, in...)
 		} else {
-			this.useHandler(r, url, method, view, render, iv, in...)
+			this.useHandler(method, r, url, view, render, iv, in...)
 		}
 	}
 }
 
 func (this *Context) useRouter(r martini.Router, c IDispatcher) {
-	this.useValue(r, c, reflect.ValueOf(c).Elem())
+	this.useValue(http.MethodGet, r, c, reflect.ValueOf(c).Elem())
 }
 
 func (this *Context) UseDispatcher(c IDispatcher, in ...martini.Handler) {

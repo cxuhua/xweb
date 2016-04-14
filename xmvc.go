@@ -189,10 +189,10 @@ type ValidateError struct {
 }
 
 type ValidateModel struct {
-	JSONModel
-	XMLName struct{}        `xml:"xml" json:"-"`
-	Code    int             `xml:"code" json:"code"`
-	Errors  []ValidateError `xml:"errors>item,omitempty" json:"errors,omitempty"`
+	JSONModel `json:"-" xml:"-" form:"-" url:"-"`
+	XMLName   struct{}        `xml:"xml" json:"-" form:"-" url:"-"`
+	Code      int             `xml:"code" json:"code"`
+	Errors    []ValidateError `xml:"errors>item,omitempty" json:"errors,omitempty"`
 }
 
 func (this *ValidateModel) ToJSON() string {

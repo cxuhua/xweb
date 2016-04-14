@@ -17,7 +17,7 @@ type IArgs interface {
 	//是否校验参数
 	IsValidate() bool
 	//参数校验失败
-	Error(*ValidateModel, IMVC)
+	ValidateError(*ValidateModel, IMVC)
 	//参数解析类型
 	ReqType() int
 	//返回默认的输出模型
@@ -28,46 +28,50 @@ type IArgs interface {
 	RemoteAddr() string
 }
 
-type Args struct {
+type XArgs struct {
 	IArgs
 	*http.Request
 }
 
-func (this *Args) RemoteAddr() string {
+func (this *XArgs) Model() IModel {
+	return &HtmlModel{}
+}
+
+func (this *XArgs) ReqType() int {
+	return AT_NONE
+}
+
+func (this *XArgs) RemoteAddr() string {
 	return GetRemoteAddr(this.Request)
 }
 
-func (this *Args) IsValidate() bool {
+func (this *XArgs) IsValidate() bool {
 	return true
 }
 
-func (this *Args) SetRequest(req *http.Request) {
+func (this *XArgs) SetRequest(req *http.Request) {
 	this.Request = req
 }
 
-type URLArgs struct {
-	Args
-}
-
-func (this *URLArgs) Error(m *ValidateModel, c IMVC) {
+func (this *XArgs) ValidateError(m *ValidateModel, c IMVC) {
 	v := &StringModel{Text: m.ToTEXT()}
 	c.SetModel(v)
 	c.SetRender(TEXT_RENDER)
+}
+
+type URLArgs struct {
+	XArgs
 }
 
 func (this *URLArgs) ReqType() int {
 	return AT_URL
 }
 
-func (this *URLArgs) Model() IModel {
-	return &HtmlModel{}
-}
-
 type FORMArgs struct {
-	Args
+	XArgs
 }
 
-func (this *FORMArgs) Error(m *ValidateModel, c IMVC) {
+func (this *FORMArgs) ValidateError(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
 }
@@ -81,10 +85,10 @@ func (this *FORMArgs) Model() IModel {
 }
 
 type JSONArgs struct {
-	Args
+	XArgs
 }
 
-func (this *JSONArgs) Error(m *ValidateModel, c IMVC) {
+func (this *JSONArgs) ValidateError(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
 }
@@ -98,10 +102,10 @@ func (this *JSONArgs) Model() IModel {
 }
 
 type XMLArgs struct {
-	Args
+	XArgs
 }
 
-func (this *XMLArgs) Error(m *ValidateModel, c IMVC) {
+func (this *XMLArgs) ValidateError(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(XML_RENDER)
 }
