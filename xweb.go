@@ -188,7 +188,10 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 			continue
 		} else if input, ok := form[name]; ok {
 			num := len(input)
-			if sf.Kind() == reflect.Slice && num > 0 {
+			if num == 0 {
+				continue
+			}
+			if sf.Kind() == reflect.Slice {
 				skind := sf.Type().Elem().Kind()
 				slice := reflect.MakeSlice(sf.Type(), num, num)
 				for i := 0; i < num; i++ {
@@ -201,7 +204,10 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 		} else if input, ok := files[name]; ok {
 			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
 			num := len(input)
-			if sf.Kind() == reflect.Slice && num > 0 && sf.Type().Elem() == fileType {
+			if num == 0 {
+				continue
+			}
+			if sf.Kind() == reflect.Slice && sf.Type().Elem() == fileType {
 				slice := reflect.MakeSlice(sf.Type(), num, num)
 				for i := 0; i < num; i++ {
 					slice.Index(i).Set(reflect.ValueOf(input[i]))
@@ -495,7 +501,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, view string, ren
 	}
 }
 
-func (this *HttpContext) useValue(mv string, r martini.Router, c IDispatcher, vv reflect.Value) {
+func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatcher, vv reflect.Value) {
 	vt := vv.Type()
 	sv := reflect.ValueOf(c)
 	for i := 0; i < vt.NumField(); i++ {
@@ -511,7 +517,7 @@ func (this *HttpContext) useValue(mv string, r martini.Router, c IDispatcher, vv
 		method := f.Tag.Get("method")
 		//使用上父结构方法
 		if method == "" {
-			method = mv
+			method = pmethod
 		}
 		in := []martini.Handler{}
 		//设置前置组件

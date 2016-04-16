@@ -1,38 +1,3 @@
-// Package render is a middleware for Martini that provides easy JSON serialization and HTML template rendering.
-//
-//  package main
-//
-//  import (
-//    "encoding/xml"
-//
-//    "github.com/go-martini/martini"
-//    "github.com/martini-contrib/render"
-//  )
-//
-//  type Greeting struct {
-//    XMLName xml.Name `xml:"greeting"`
-//    One     string   `xml:"one,attr"`
-//    Two     string   `xml:"two,attr"`
-//  }
-//
-//  func main() {
-//    m := martini.Classic()
-//    m.Use(render.Renderer()) // reads "templates" directory by default
-//
-//    m.Get("/html", func(r render.Render) {
-//      r.HTML(200, "mytemplate", nil)
-//    })
-//
-//    m.Get("/json", func(r render.Render) {
-//      r.JSON(200, "hello world")
-//    })
-//
-//    m.Get("/xml", func(r render.Render) {
-//      r.XML(200, Greeting{One: "hello", Two: "world"})
-//    })
-//
-//    m.Run()
-//  }
 package xweb
 
 import (
@@ -40,6 +5,8 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/go-martini/martini"
+	"github.com/oxtoacart/bpool"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -47,10 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/oxtoacart/bpool"
-
-	"github.com/go-martini/martini"
 )
 
 const (
