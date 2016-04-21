@@ -14,16 +14,16 @@ import (
 type IModel interface {
 	Finished()      //处理完成
 	Render() string //输出模式
-	GetHeader() http.Header
+	GetHeader() *http.Header
 }
 
 type HeaderModel struct {
 	IModel
-	http.Header
+	Header http.Header
 }
 
-func (this *HeaderModel) GetHeader() http.Header {
-	return this.Header
+func (this *HeaderModel) GetHeader() *http.Header {
+	return &this.Header
 }
 
 func (this *HeaderModel) Finished() {
@@ -32,6 +32,15 @@ func (this *HeaderModel) Finished() {
 
 func (this *HeaderModel) Render() string {
 	return HTML_RENDER
+}
+
+type RedirectModel struct {
+	HeaderModel
+	Url string
+}
+
+func (this *RedirectModel) Render() string {
+	return REDIRECT_RENDER
 }
 
 //html model

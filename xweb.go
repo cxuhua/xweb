@@ -26,14 +26,15 @@ const (
 )
 
 const (
-	HTML_RENDER   = "HTML"
-	JSON_RENDER   = "JSON"
-	XML_RENDER    = "XML"
-	TEXT_RENDER   = "TEXT"
-	SCRIPT_RENDER = "SCRIPT"
-	DATA_RENDER   = "DATA"
-	FILE_RENDER   = "FILE"
-	TEMP_RENDER   = "TEMP"
+	HTML_RENDER     = "HTML"
+	JSON_RENDER     = "JSON"
+	XML_RENDER      = "XML"
+	TEXT_RENDER     = "TEXT"
+	SCRIPT_RENDER   = "SCRIPT"
+	DATA_RENDER     = "DATA"
+	FILE_RENDER     = "FILE"
+	TEMP_RENDER     = "TEMP"
+	REDIRECT_RENDER = "REDIRECT"
 )
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
@@ -383,7 +384,8 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
 	defer m.Finished()
-	for ik, iv := range m.GetHeader() {
+	h := *m.GetHeader()
+	for ik, iv := range h {
 		for _, vv := range iv {
 			rw.Header().Add(ik, vv)
 		}
@@ -438,6 +440,12 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 			panic("RENDER Model error:must set TempModel")
 		}
 		render.TEMP(s, v.Template, v.Model)
+	case REDIRECT_RENDER:
+		v, b := m.(*RedirectModel)
+		if !b {
+			panic("RENDER Model error:must set TempModel")
+		}
+		http.Redirect(rw, req, v.Url, http.StatusFound)
 	default:
 		panic(errors.New(mvc.GetRender() + " not process"))
 	}
