@@ -201,7 +201,8 @@ type ValidateModel struct {
 	JSONModel `json:"-" xml:"-" form:"-" url:"-"`
 	XMLName   struct{}        `xml:"xml" json:"-" form:"-" url:"-"`
 	Code      int             `xml:"code" json:"code"`
-	Errors    []ValidateError `xml:"errors>item,omitempty" json:"errors,omitempty"`
+	Fileds    []ValidateError `xml:"fileds>item" json:"fileds"`
+	Error     string          `xml:"error" json:"error"`
 }
 
 func (this *ValidateModel) ToJSON() string {
@@ -222,14 +223,15 @@ func (this *ValidateModel) ToXML() string {
 
 func (this *ValidateModel) ToTEXT() string {
 	s := []string{}
-	for _, i := range this.Errors {
+	for _, i := range this.Fileds {
 		s = append(s, i.Field)
 	}
 	return strings.Join(s, ",")
 }
 
 func (this *ValidateModel) Init(e error) {
-	this.Errors = []ValidateError{}
+	this.Error = "args error,look fileds"
+	this.Fileds = []ValidateError{}
 	this.Code = ValidateErrorCode
 	err, ok := e.(ErrorMap)
 	if !ok {
@@ -237,7 +239,7 @@ func (this *ValidateModel) Init(e error) {
 	}
 	for k, v := range err {
 		e := ValidateError{Field: k, Error: v.Error()}
-		this.Errors = append(this.Errors, e)
+		this.Fileds = append(this.Fileds, e)
 	}
 }
 
