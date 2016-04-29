@@ -3,7 +3,6 @@ package xweb
 import (
 	"fmt"
 	"github.com/go-martini/martini"
-	"github.com/martini-contrib/sessions"
 	"log"
 	"net/http"
 	"reflect"
@@ -24,10 +23,6 @@ func Validate(v IArgs) error {
 	return m.Validator.Validate(v)
 }
 
-func UseCookie(key string, name string, opts sessions.Options) {
-	m.UseCookie(key, name, opts)
-}
-
 func SetEnv(env string) {
 	martini.Env = env
 }
@@ -46,17 +41,6 @@ func UseDispatcher(c IDispatcher, in ...martini.Handler) {
 
 func Use(h martini.Handler) {
 	m.Use(h)
-}
-
-func GetDispatcher(t interface{}) IDispatcher {
-	v := m.Injector.Get(reflect.TypeOf(t))
-	if !v.IsValid() {
-		return nil
-	}
-	if i, ok := v.Interface().(IDispatcher); ok {
-		return i
-	}
-	return nil
 }
 
 func ListenAndServe(addr string, opts ...RenderOptions) error {
@@ -96,12 +80,6 @@ type HttpContext struct {
 	martini.ClassicMartini
 	Validator *Validator
 	URLS      URLSlice
-}
-
-func (this *HttpContext) UseCookie(key string, name string, opts sessions.Options) {
-	store := sessions.NewCookieStore([]byte(key))
-	store.Options(opts)
-	this.Use(sessions.Sessions(name, store))
 }
 
 func (this *HttpContext) UseRender(opts ...RenderOptions) {
