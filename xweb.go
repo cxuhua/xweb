@@ -68,14 +68,14 @@ func (this *HTTPDispatcher) URL() string {
 
 //获取远程地址
 func GetRemoteAddr(req *http.Request) string {
-	if x1, ok := req.Header["X-Forwarded-For"]; ok && len(x1) > 0 {
-		return x1[len(x1)-1]
+	if x := req.Header.Get("X-Real-IP"); x != "" {
+		return strings.Split(x, ",")[0]
 	}
-	if x2, ok := req.Header["X-Real-IP"]; ok && len(x2) > 0 {
-		return x2[len(x2)-1]
+	if x := req.Header.Get("X-Forwarded-For"); x != "" {
+		return strings.Split(x, ",")[0]
 	}
-	if x3 := strings.Split(req.RemoteAddr, ":"); len(x3) > 0 {
-		return x3[0]
+	if x := strings.Split(req.RemoteAddr, ":"); len(x) > 0 {
+		return x[0]
 	}
 	return req.RemoteAddr
 }
