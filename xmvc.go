@@ -261,6 +261,8 @@ type IMVC interface {
 
 	GetStatus() int
 	SetStatus(int)
+
+	Redirect(string)
 }
 
 type mvc struct {
@@ -269,6 +271,12 @@ type mvc struct {
 	view   string
 	render string
 	model  IModel
+}
+
+func (this *mvc) Redirect(url string) {
+	m := &RedirectModel{}
+	m.Url = url
+	this.SetModel(m)
 }
 
 func (this *mvc) String() string {

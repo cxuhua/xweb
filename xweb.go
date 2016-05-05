@@ -443,7 +443,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 	case REDIRECT_RENDER:
 		v, b := m.(*RedirectModel)
 		if !b {
-			panic("RENDER Model error:must set TempModel")
+			panic("RENDER Model error:must set RedirectModel")
 		}
 		http.Redirect(rw, req, v.Url, http.StatusFound)
 	default:
