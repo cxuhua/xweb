@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"github.com/go-martini/martini"
 	"io/ioutil"
 	"log"
@@ -395,11 +394,9 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 	switch mvc.GetRender() {
 	case HTML_RENDER:
 		if v == "" {
-			mvc.SetStatus(http.StatusNotFound)
-			panic(errors.New(fmt.Sprintf("%v,Template miss", mvc)))
-		} else {
-			render.HTML(s, v, m)
+			panic("RENDER HTML Error,Template miss")
 		}
+		render.HTML(s, v, m)
 	case JSON_RENDER:
 		render.JSON(s, m)
 	case XML_RENDER:
