@@ -22,6 +22,7 @@ var (
 const (
 	ValidateErrorCode = 10000     //数据校验失败返回
 	HandlerSuffix     = "Handler" //处理组件必须的后缀
+	DefaultHandler    = "Default" + HandlerSuffix
 )
 
 const (
@@ -77,6 +78,10 @@ func GetRemoteAddr(req *http.Request) string {
 		return x[0]
 	}
 	return req.RemoteAddr
+}
+
+func (this *HTTPDispatcher) DefaultHandler(c IMVC) {
+
 }
 
 //日志打印调试Handler
@@ -464,7 +469,10 @@ func (this *HttpContext) newArgs(iv IArgs, req *http.Request, log *log.Logger) I
 }
 
 //mvc模式预处理
-func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, view string, render string) martini.Handler {
+func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
+	if !dv.IsValid() {
+		panic(errors.New("DefaultHandler miss"))
+	}
 	return func(c martini.Context, rv Render, rw http.ResponseWriter, req *http.Request, log *log.Logger) {
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
@@ -493,7 +501,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, view string, ren
 			} else if hv.IsValid() {
 				out, err = c.Invoke(hv.Interface())
 			} else {
-				log.Println(reflect.TypeOf(args).Elem().Name(), "not set Handler")
+				out, err = c.Invoke(dv.Interface())
 			}
 			if err != nil {
 				panic(err)
@@ -527,10 +535,12 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		in := []martini.Handler{}
 		//设置前置组件
 		hv := sv.MethodByName(handler + HandlerSuffix)
+		//默认组建
+		dv := sv.MethodByName(DefaultHandler)
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
 			render = strings.ToUpper(render)
-			in = append(in, this.mvcHandler(iv, hv, view, render))
+			in = append(in, this.mvcHandler(iv, hv, dv, view, render))
 		}
 		if d, b := this.IsIDispatcher(v); b {
 			if hv.IsValid() {
