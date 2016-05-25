@@ -1,7 +1,11 @@
 package xweb
 
 import (
+	"bytes"
+	"errors"
+	"mime/multipart"
 	"net/http"
+	"os"
 )
 
 //req type
@@ -69,6 +73,39 @@ func (this *URLArgs) ReqType() int {
 
 type FORMArgs struct {
 	XArgs
+}
+
+//写文件返回md5
+func (this *FORMArgs) WriteFile(file *multipart.FileHeader, pfunc func(string) string) (string, error) {
+	data, err := this.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	md5 := MD5Bytes(data)
+	path := pfunc(md5)
+	f, err := os.OpenFile(path, os.O_WRONLY, 0666)
+	defer f.Close()
+	if n, err := f.Write(data); err != nil || n != len(data) {
+		return "", err
+	}
+	return md5, nil
+}
+
+//读取上传多文件
+func (this *FORMArgs) ReadFile(file *multipart.FileHeader) ([]byte, error) {
+	if file == nil {
+		return nil, errors.New("file args null")
+	}
+	f, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var fb bytes.Buffer
+	if _, err := fb.ReadFrom(f); err != nil {
+		return nil, err
+	}
+	return fb.Bytes(), nil
 }
 
 func (this *FORMArgs) ValidateError(m *ValidateModel, c IMVC) {

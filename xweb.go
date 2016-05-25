@@ -388,8 +388,7 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
 	defer m.Finished()
-	h := *m.GetHeader()
-	for ik, iv := range h {
+	for ik, iv := range m.GetHeader() {
 		for _, vv := range iv {
 			rw.Header().Add(ik, vv)
 		}
@@ -399,7 +398,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 	switch mvc.GetRender() {
 	case HTML_RENDER:
 		if v == "" {
-			panic("RENDER HTML Error,Template miss")
+			panic("RENDER Model error:Template miss")
 		}
 		render.HTML(s, v, m)
 	case JSON_RENDER:
@@ -431,11 +430,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 		if !b {
 			panic("RENDER Model error:must set FileModel")
 		}
-		if len(v.Data) > 0 {
-			rw.Write(v.Data)
-		} else {
-			http.ServeContent(rw, req, v.Name, v.ModTime, v.File)
-		}
+		http.ServeContent(rw, req, v.Name, v.ModTime, v.File)
 	case TEMP_RENDER:
 		v, b := m.(*TempModel)
 		if !b {
@@ -468,6 +463,11 @@ func (this *HttpContext) newArgs(iv IArgs, req *http.Request, log *log.Logger) I
 	}
 }
 
+var (
+	ErrorArgs  = errors.New("args nil")
+	ErrorModel = errors.New("model nil")
+)
+
 //mvc模式预处理
 func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
@@ -481,12 +481,12 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		c.MapTo(mvc, (*IMVC)(nil))
 		args := this.newArgs(iv, req, log)
 		if args == nil {
-			panic(errors.New("args nil"))
+			panic(ErrorArgs)
 		}
 		c.Map(args)
 		model := args.Model()
 		if model == nil {
-			panic(errors.New("model nil"))
+			panic(ErrorModel)
 		}
 		c.Map(model)
 		mvc.SetModel(model)

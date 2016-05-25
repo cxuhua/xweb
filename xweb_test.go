@@ -93,10 +93,11 @@ func (this *WebSuite) TestHttpPostJsonValidateError(c *C) {
 	d := res.Body.Bytes()
 	c.Log(string(d))
 	c.Assert(json.Unmarshal(d, m), IsNil)
-	c.Assert(len(m.Errors), Equals, 2)
+	c.Assert(len(m.Fileds), Equals, 2)
 }
 
 func (this *WebSuite) TestQueryArgs(c *C) {
+
 	var v interface{} = nil
 
 	v = &URLArgs{}

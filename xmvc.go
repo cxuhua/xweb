@@ -14,7 +14,7 @@ import (
 type IModel interface {
 	Finished()      //处理完成
 	Render() string //输出模式
-	GetHeader() *http.Header
+	GetHeader() http.Header
 }
 
 type HeaderModel struct {
@@ -22,8 +22,8 @@ type HeaderModel struct {
 	Header http.Header
 }
 
-func (this *HeaderModel) GetHeader() *http.Header {
-	return &this.Header
+func (this *HeaderModel) GetHeader() http.Header {
+	return this.Header
 }
 
 func (this *HeaderModel) Finished() {
@@ -84,7 +84,6 @@ type FileModel struct {
 	Name    string    //名称
 	ModTime time.Time //修改时间
 	File    IHttpFile //读取接口
-	Data    []byte    //二进制数据存在只处理此数据
 }
 
 func (this *FileModel) Render() string {
@@ -117,6 +116,12 @@ func (this *ScriptModel) Finished() {
 
 }
 
+func NewScriptModel() *ScriptModel {
+	m := &ScriptModel{}
+	m.Header = http.Header{}
+	return m
+}
+
 //用于TEXT输出
 type StringModel struct {
 	HeaderModel
@@ -131,6 +136,12 @@ func (this *StringModel) Render() string {
 	return TEXT_RENDER
 }
 
+func NewStringModel() *StringModel {
+	m := &StringModel{}
+	m.Header = http.Header{}
+	return m
+}
+
 //data render model
 type BinaryModel struct {
 	HeaderModel
@@ -143,6 +154,12 @@ func (this *BinaryModel) Finished() {
 
 func (this *BinaryModel) Render() string {
 	return DATA_RENDER
+}
+
+func NewBinaryModel() *BinaryModel {
+	m := &BinaryModel{}
+	m.Header = http.Header{}
+	return m
 }
 
 //json render model
@@ -183,11 +200,15 @@ func (this *HTTPModel) Finished() {
 }
 
 func NewHTTPError(code int, err string) *HTTPModel {
-	return &HTTPModel{Code: code, Error: err}
+	m := &HTTPModel{Code: code, Error: err}
+	m.Header = http.Header{}
+	return m
 }
 
 func NewHTTPSuccess() *HTTPModel {
-	return &HTTPModel{Code: 0, Error: ""}
+	m := &HTTPModel{Code: 0}
+	m.Header = http.Header{}
+	return m
 }
 
 //数据参数校验器是吧输出
@@ -245,6 +266,7 @@ func (this *ValidateModel) Init(e error) {
 
 func NewValidateModel(err error) *ValidateModel {
 	m := &ValidateModel{}
+	m.Header = http.Header{}
 	m.Init(err)
 	return m
 }
