@@ -152,8 +152,7 @@ func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 		panic("Failed appending certs")
 	}
 	config := &tls.Config{}
-	config.Certificates = make([]tls.Certificate, 1)
-	config.Certificates[0] = cert
+	config.Certificates = []tls.Certificate{cert}
 	config.RootCAs = certPool
 	return config
 }

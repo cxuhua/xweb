@@ -139,7 +139,7 @@ func formSetValue(vk reflect.Kind, val string, sf reflect.Value) {
 	}
 }
 
-func MapURLValue(value reflect.Value, values url.Values) {
+func MapFormValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values) {
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
 	}
@@ -149,49 +149,49 @@ func MapURLValue(value reflect.Value, values url.Values) {
 		sf := value.Field(i)
 		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
 			sf.Set(reflect.New(tf.Type.Elem()))
-			MapURLValue(sf.Elem(), values)
+			MapFormValue(sf.Elem(), form, files, urls)
 			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
 				sf.Set(reflect.Zero(sf.Type()))
 			}
 		} else if tf.Type.Kind() == reflect.Struct {
-			MapURLValue(sf, values)
-		} else if name := tf.Tag.Get("url"); name == "-" || name == "" || !sf.CanSet() {
-			continue
-		} else if input, ok := values[name]; ok {
-			num := len(input)
-			if sf.Kind() == reflect.Slice && num > 0 {
-				skind := sf.Type().Elem().Kind()
-				slice := reflect.MakeSlice(sf.Type(), num, num)
-				for i := 0; i < num; i++ {
-					formSetValue(skind, input[i], slice.Index(i))
+			MapFormValue(sf, form, files, urls)
+		} else if name := tf.Tag.Get("form"); name != "-" && name != "" && sf.CanSet() {
+			if input, ok := form[name]; ok {
+				num := len(input)
+				if num == 0 {
+					continue
 				}
-				value.Field(i).Set(slice)
-			} else {
-				formSetValue(tf.Type.Kind(), input[0], sf)
+				if sf.Kind() == reflect.Slice {
+					skind := sf.Type().Elem().Kind()
+					slice := reflect.MakeSlice(sf.Type(), num, num)
+					for i := 0; i < num; i++ {
+						formSetValue(skind, input[i], slice.Index(i))
+					}
+					value.Field(i).Set(slice)
+				} else {
+					formSetValue(tf.Type.Kind(), input[0], sf)
+				}
+			} else if input, ok := files[name]; ok {
+				fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
+				num := len(input)
+				if num == 0 {
+					continue
+				}
+				if sf.Kind() == reflect.Slice && sf.Type().Elem() == fileType {
+					slice := reflect.MakeSlice(sf.Type(), num, num)
+					for i := 0; i < num; i++ {
+						slice.Index(i).Set(reflect.ValueOf(input[i]))
+					}
+					sf.Set(slice)
+				} else if sf.Type() == fileType {
+					sf.Set(reflect.ValueOf(input[0]))
+				}
 			}
-		}
-	}
-}
-
-func MapFormValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader) {
-	if value.Kind() == reflect.Ptr {
-		value = value.Elem()
-	}
-	typ := value.Type()
-	for i := 0; i < typ.NumField(); i++ {
-		tf := typ.Field(i)
-		sf := value.Field(i)
-		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
-			sf.Set(reflect.New(tf.Type.Elem()))
-			MapFormValue(sf.Elem(), form, files)
-			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
-				sf.Set(reflect.Zero(sf.Type()))
+		} else if name := tf.Tag.Get("url"); name != "-" && name != "" && sf.CanSet() {
+			input, ok := urls[name]
+			if !ok {
+				continue
 			}
-		} else if tf.Type.Kind() == reflect.Struct {
-			MapFormValue(sf, form, files)
-		} else if name := tf.Tag.Get("form"); name == "-" || name == "" || !sf.CanSet() {
-			continue
-		} else if input, ok := form[name]; ok {
 			num := len(input)
 			if num == 0 {
 				continue
@@ -206,21 +206,6 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 			} else {
 				formSetValue(tf.Type.Kind(), input[0], sf)
 			}
-		} else if input, ok := files[name]; ok {
-			fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
-			num := len(input)
-			if num == 0 {
-				continue
-			}
-			if sf.Kind() == reflect.Slice && sf.Type().Elem() == fileType {
-				slice := reflect.MakeSlice(sf.Type(), num, num)
-				for i := 0; i < num; i++ {
-					slice.Index(i).Set(reflect.ValueOf(input[i]))
-				}
-				sf.Set(slice)
-			} else if sf.Type() == fileType {
-				sf.Set(reflect.ValueOf(input[0]))
-			}
 		}
 	}
 }
@@ -233,45 +218,58 @@ func (this *HttpContext) GetBody(req *http.Request) ([]byte, error) {
 	return ioutil.ReadAll(req.Body)
 }
 
-func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
 	if !ok {
 		panic(errors.New(t.Name() + "not imp URLArgs"))
 	}
-	MapURLValue(v, req.URL.Query())
-	args.SetRequest(req)
+	UnmarshalURL(args, param, req)
 	return args
 }
 
-func UnmarshalForm(iv IArgs, req *http.Request) {
+func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request) {
 	v := reflect.ValueOf(iv)
 	ct := req.Header.Get("Content-Type")
+	uv := req.URL.Query()
+	for k, v := range param {
+		uv.Add(k, v)
+	}
 	if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
 		if err := req.ParseMultipartForm(MaxMemory); err == nil {
-			MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File)
+			MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv)
 		}
 	} else {
 		if err := req.ParseForm(); err == nil {
-			MapFormValue(v, req.Form, nil)
+			MapFormValue(v, req.Form, nil, uv)
 		}
 	}
 	iv.SetRequest(req)
 }
 
-func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
 	if !ok {
 		panic(errors.New(t.Name() + "not imp FORMArgs"))
 	}
-	UnmarshalForm(args, req)
+	UnmarshalForm(args, param, req)
 	return args
 }
 
-func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func UnmarshalURL(iv IArgs, param martini.Params, req *http.Request) {
+	v := reflect.ValueOf(iv)
+	uv := req.URL.Query()
+	for k, v := range param {
+		uv.Add(k, v)
+	}
+	MapFormValue(v, nil, nil, uv)
+	iv.SetRequest(req)
+}
+
+func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -285,11 +283,11 @@ func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, log *log.Logge
 	if err := json.Unmarshal(data, args); err != nil {
 		log.Println(err)
 	}
-	args.SetRequest(req)
+	UnmarshalURL(args, param, req)
 	return args
 }
 
-func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -303,7 +301,7 @@ func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, log *log.Logger
 	if err := xml.Unmarshal(data, args); err != nil {
 		log.Println(err)
 	}
-	args.SetRequest(req)
+	UnmarshalURL(args, param, req)
 	return args
 }
 
@@ -448,16 +446,16 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 	}
 }
 
-func (this *HttpContext) newArgs(iv IArgs, req *http.Request, log *log.Logger) IArgs {
+func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
 	switch iv.ReqType() {
 	case AT_URL:
-		return this.newURLArgs(iv, req, log)
+		return this.newURLArgs(iv, req, param, log)
 	case AT_FORM:
-		return this.newFormArgs(iv, req, log)
+		return this.newFormArgs(iv, req, param, log)
 	case AT_JSON:
-		return this.newJSONArgs(iv, req, log)
+		return this.newJSONArgs(iv, req, param, log)
 	case AT_XML:
-		return this.newXMLArgs(iv, req, log)
+		return this.newXMLArgs(iv, req, param, log)
 	default:
 		panic(errors.New("args reqtype error"))
 	}
@@ -473,13 +471,13 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
-	return func(c martini.Context, rv Render, rw http.ResponseWriter, req *http.Request, log *log.Logger) {
+	return func(c martini.Context, rv Render, rw http.ResponseWriter, param martini.Params, req *http.Request, log *log.Logger) {
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
 		mvc.SetRender(render)
 		c.MapTo(mvc, (*IMVC)(nil))
-		args := this.newArgs(iv, req, log)
+		args := this.newArgs(iv, req, param, log)
 		if args == nil {
 			panic(ErrorArgs)
 		}

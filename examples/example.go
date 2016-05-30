@@ -7,9 +7,10 @@ import (
 )
 
 type FormModel struct {
-	xweb.HtmlModel
+	xweb.JSONModel
 	A string
 	B string
+	C string
 }
 
 //source:"Body",表示JSON数据来自 form表单的Body字段
@@ -17,6 +18,7 @@ type FormArgs struct {
 	xweb.FORMArgs `form:"-"`
 	A             string `form:"a" validate:"regexp=^b.*$"`
 	B             int    `form:"b" validate:"min=1,max=50"`
+	URL           string `url:"c"`
 }
 
 //创建model时
@@ -33,6 +35,7 @@ func (this *FormArgs) Model() xweb.IModel {
 func (this *FormArgs) Handler(m *FormModel) {
 	m.A = this.A
 	m.B = fmt.Sprintf("%d", this.B)
+	m.C = this.URL
 }
 
 type IndexArgs struct {
@@ -45,6 +48,8 @@ func (this *IndexArgs) Handler(c xweb.IMVC) {
 	log.Println(this.Q, this.B)
 	m := &FormModel{}
 	m.A = this.RemoteAddr()
+	m.B = this.Q
+	m.C = this.B
 	c.SetModel(m)
 }
 
@@ -55,8 +60,9 @@ type MainDispatcher struct {
 		PostForm2 xweb.URLArgs `url:"/get" method:"GET"`
 	} `url:"/post" handler:"Logger"`
 	Logger struct {
-		Index IndexArgs    `url:"/" view:"test"`
-		WX    xweb.URLArgs `url:"/list"`
+		Index  IndexArgs    `url:"/" view:"test"`
+		Index2 IndexArgs    `url:"/test/:q/:b" view:"test"`
+		WX     xweb.URLArgs `url:"/list"`
 	}
 }
 

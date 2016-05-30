@@ -83,7 +83,10 @@ func (this *FORMArgs) WriteFile(file *multipart.FileHeader, pfunc func(string) s
 	}
 	md5 := MD5Bytes(data)
 	path := pfunc(md5)
-	f, err := os.OpenFile(path, os.O_WRONLY, 0666)
+	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+		return md5, nil
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
 	defer f.Close()
 	if n, err := f.Write(data); err != nil || n != len(data) {
 		return "", err
