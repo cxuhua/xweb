@@ -76,17 +76,16 @@ type FORMArgs struct {
 }
 
 //写文件返回md5
-func (this *FORMArgs) WriteFile(file *multipart.FileHeader, pfunc func(string) string) (string, error) {
-	data, err := this.ReadFile(file)
-	if err != nil {
-		return "", err
-	}
+func (this *FORMArgs) WriteFile(data []byte, pfunc func(string) string) (string, error) {
 	md5 := MD5Bytes(data)
 	path := pfunc(md5)
 	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
 		return md5, nil
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return "", err
+	}
 	defer f.Close()
 	if n, err := f.Write(data); err != nil || n != len(data) {
 		return "", err

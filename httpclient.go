@@ -129,6 +129,30 @@ func TLSSkipVerifyConfig() *tls.Config {
 	return &tls.Config{InsecureSkipVerify: true}
 }
 
+func MustLoadTLSConfig(ca, crt, key string) *tls.Config {
+	if len(ca) == 0 {
+		panic(errors.New("ca data miss"))
+	}
+	if len(crt) == 0 {
+		panic(errors.New("crt data miss"))
+	}
+	if len(key) == 0 {
+		panic(errors.New("key data miss"))
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM([]byte(ca)) {
+		panic("Failed appending certs")
+	}
+	cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
+	if err != nil {
+		panic(err)
+	}
+	config := &tls.Config{}
+	config.Certificates = []tls.Certificate{cert}
+	config.RootCAs = certPool
+	return config
+}
+
 func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 	if casFile == "" {
 		panic(errors.New("casFile miss"))
@@ -139,10 +163,6 @@ func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 	if keyFile == "" {
 		panic(errors.New("keyFile miss"))
 	}
-	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
-	if err != nil {
-		panic(err)
-	}
 	pem, err := ioutil.ReadFile(casFile)
 	if err != nil {
 		panic(err)
@@ -150,6 +170,10 @@ func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM(pem) {
 		panic("Failed appending certs")
+	}
+	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
+	if err != nil {
+		panic(err)
 	}
 	config := &tls.Config{}
 	config.Certificates = []tls.Certificate{cert}

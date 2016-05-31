@@ -171,7 +171,8 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 				} else {
 					formSetValue(tf.Type.Kind(), input[0], sf)
 				}
-			} else if input, ok := files[name]; ok {
+			}
+			if input, ok := files[name]; ok {
 				fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
 				num := len(input)
 				if num == 0 {
