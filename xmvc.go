@@ -22,6 +22,10 @@ type HeaderModel struct {
 	Header http.Header
 }
 
+func (this *HeaderModel) InitHeader() {
+	this.Header = http.Header{}
+}
+
 func (this *HeaderModel) GetHeader() http.Header {
 	return this.Header
 }
