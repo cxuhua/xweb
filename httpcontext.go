@@ -1,6 +1,7 @@
 package xweb
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-martini/martini"
 	"log"
@@ -53,6 +54,10 @@ func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) err
 	return m.ListenAndServeTLS(addr, cert, key)
 }
 
+func Logger() *log.Logger {
+	return m.Logger()
+}
+
 type URLS struct {
 	Method  string
 	Pattern string
@@ -99,28 +104,37 @@ func (this *HttpContext) Validate(v IArgs) error {
 
 func (this *HttpContext) Logger() *log.Logger {
 	t := reflect.TypeOf((*log.Logger)(nil))
-	if v := this.Injector.Get(t); !v.IsValid() {
-		return nil
-	} else if r, ok := v.Interface().(*log.Logger); ok {
-		return r
-	} else {
-		return nil
+	v := this.Injector.Get(t)
+	if !v.IsValid() {
+		panic(errors.New("get logger error"))
 	}
+	ret, ok := v.Interface().(*log.Logger)
+	if !ok || ret == nil {
+		panic(errors.New("get logger error"))
+	}
+	return ret
+}
+
+func (this *HttpContext) initLogger() *log.Logger {
+	logger := this.Logger()
+	if logger == nil {
+		panic(errors.New("logger init error"))
+	}
+	logger.SetFlags(log.Ldate | log.Ltime)
+	if martini.Env == martini.Dev {
+		logger.SetFlags(log.Llongfile)
+	}
+	this.printURLS(logger)
+	return logger
 }
 
 func (this *HttpContext) ListenAndServe(addr string) error {
-	if log := this.Logger(); log != nil {
-		this.printURLS(log)
-		log.Printf("http listening on %s (%s)\n", addr, martini.Env)
-	}
+	this.initLogger().Printf("http listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
-	if log := this.Logger(); log != nil {
-		this.printURLS(log)
-		log.Printf("https listening on %s (%s)\n", addr, martini.Env)
-	}
+	this.initLogger().Printf("https listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
