@@ -121,9 +121,6 @@ func (this *HttpContext) initLogger() *log.Logger {
 		panic(errors.New("logger init error"))
 	}
 	logger.SetFlags(log.Ldate | log.Ltime)
-	if martini.Env == martini.Dev {
-		logger.SetFlags(log.Llongfile)
-	}
 	this.printURLS(logger)
 	return logger
 }

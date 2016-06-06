@@ -50,16 +50,11 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
-	//url 前缀
 	URL() string
 }
 
 type HTTPDispatcher struct {
 	IDispatcher
-}
-
-func (this *HTTPDispatcher) Render() string {
-	return ""
 }
 
 func (this *HTTPDispatcher) URL() string {
@@ -246,7 +241,6 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request) {
 			MapFormValue(v, req.Form, nil, uv)
 		}
 	}
-	iv.SetRequest(req)
 }
 
 func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
@@ -267,7 +261,6 @@ func UnmarshalURL(iv IArgs, param martini.Params, req *http.Request) {
 		uv.Add(k, v)
 	}
 	MapFormValue(v, nil, nil, uv)
-	iv.SetRequest(req)
 }
 
 func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
@@ -448,18 +441,21 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 }
 
 func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
+	var args IArgs = nil
 	switch iv.ReqType() {
 	case AT_URL:
-		return this.newURLArgs(iv, req, param, log)
+		args = this.newURLArgs(iv, req, param, log)
 	case AT_FORM:
-		return this.newFormArgs(iv, req, param, log)
+		args = this.newFormArgs(iv, req, param, log)
 	case AT_JSON:
-		return this.newJSONArgs(iv, req, param, log)
+		args = this.newJSONArgs(iv, req, param, log)
 	case AT_XML:
-		return this.newXMLArgs(iv, req, param, log)
+		args = this.newXMLArgs(iv, req, param, log)
 	default:
 		panic(errors.New("args reqtype error"))
 	}
+	args.Init(req)
+	return args
 }
 
 var (
@@ -490,7 +486,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		c.Map(model)
 		mvc.SetModel(model)
 		if err := this.Validate(args); err != nil {
-			args.ValidateError(NewValidateModel(err), mvc)
+			args.Validate(NewValidateModel(err), mvc)
 		} else {
 			fm := this.GetArgsHandler(args)
 			var err error = nil

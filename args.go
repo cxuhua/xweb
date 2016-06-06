@@ -18,16 +18,16 @@ const (
 )
 
 type IArgs interface {
+	//初始化
+	Init(*http.Request)
 	//是否校验参数
 	IsValidate() bool
 	//参数校验失败
-	ValidateError(*ValidateModel, IMVC)
+	Validate(*ValidateModel, IMVC)
 	//参数解析类型
 	ReqType() int
 	//返回默认的输出模型
 	Model() IModel
-	//设置Request
-	SetRequest(*http.Request)
 	//获得远程Ip地址
 	RemoteAddr() string
 }
@@ -35,6 +35,10 @@ type IArgs interface {
 type XArgs struct {
 	IArgs
 	*http.Request
+}
+
+func (this *XArgs) Init(req *http.Request) {
+	this.Request = req
 }
 
 func (this *XArgs) Model() IModel {
@@ -53,11 +57,7 @@ func (this *XArgs) IsValidate() bool {
 	return true
 }
 
-func (this *XArgs) SetRequest(req *http.Request) {
-	this.Request = req
-}
-
-func (this *XArgs) ValidateError(m *ValidateModel, c IMVC) {
+func (this *XArgs) Validate(m *ValidateModel, c IMVC) {
 	v := &StringModel{Text: m.ToTEXT()}
 	c.SetModel(v)
 	c.SetRender(TEXT_RENDER)
@@ -110,7 +110,7 @@ func (this *FORMArgs) ReadFile(file *multipart.FileHeader) ([]byte, error) {
 	return fb.Bytes(), nil
 }
 
-func (this *FORMArgs) ValidateError(m *ValidateModel, c IMVC) {
+func (this *FORMArgs) Validate(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
 }
@@ -127,7 +127,7 @@ type JSONArgs struct {
 	XArgs
 }
 
-func (this *JSONArgs) ValidateError(m *ValidateModel, c IMVC) {
+func (this *JSONArgs) Validate(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
 }
@@ -144,7 +144,7 @@ type XMLArgs struct {
 	XArgs
 }
 
-func (this *XMLArgs) ValidateError(m *ValidateModel, c IMVC) {
+func (this *XMLArgs) Validate(m *ValidateModel, c IMVC) {
 	c.SetModel(m)
 	c.SetRender(XML_RENDER)
 }
