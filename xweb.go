@@ -527,6 +527,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		if method == "" {
 			method = pmethod
 		}
+		method = strings.ToUpper(method)
 		in := []martini.Handler{}
 		//设置前置组件
 		hv := sv.MethodByName(handler + HandlerSuffix)

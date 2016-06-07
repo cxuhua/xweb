@@ -17,29 +17,29 @@ type IModel interface {
 	GetHeader() http.Header
 }
 
-type HeaderModel struct {
+type xModel struct {
 	IModel
 	Header http.Header
 }
 
-func (this *HeaderModel) InitHeader() {
+func (this *xModel) InitHeader() {
 	this.Header = http.Header{}
 }
 
-func (this *HeaderModel) GetHeader() http.Header {
+func (this *xModel) GetHeader() http.Header {
 	return this.Header
 }
 
-func (this *HeaderModel) Finished() {
+func (this *xModel) Finished() {
 
 }
 
-func (this *HeaderModel) Render() string {
+func (this *xModel) Render() string {
 	return HTML_RENDER
 }
 
 type RedirectModel struct {
-	HeaderModel
+	xModel
 	Url string
 }
 
@@ -49,7 +49,7 @@ func (this *RedirectModel) Render() string {
 
 //html model
 type HtmlModel struct {
-	HeaderModel
+	xModel
 }
 
 func (this *HtmlModel) Finished() {
@@ -63,7 +63,7 @@ func (this *HtmlModel) Render() string {
 //内存模版输出
 
 type TempModel struct {
-	HeaderModel
+	xModel
 	Template string
 	Model    interface{}
 }
@@ -84,7 +84,7 @@ type IHttpFile interface {
 
 //文件输出
 type FileModel struct {
-	HeaderModel
+	xModel
 	Name    string    //名称
 	ModTime time.Time //修改时间
 	File    IHttpFile //读取接口
@@ -108,7 +108,7 @@ func NewFileModel() *FileModel {
 
 //脚本输出
 type ScriptModel struct {
-	HeaderModel
+	xModel
 	Script string
 }
 
@@ -128,7 +128,7 @@ func NewScriptModel() *ScriptModel {
 
 //用于TEXT输出
 type StringModel struct {
-	HeaderModel
+	xModel
 	Text string
 }
 
@@ -148,7 +148,7 @@ func NewStringModel() *StringModel {
 
 //data render model
 type BinaryModel struct {
-	HeaderModel
+	xModel
 	Data []byte
 }
 
@@ -168,7 +168,7 @@ func NewBinaryModel() *BinaryModel {
 
 //json render model
 type JSONModel struct {
-	HeaderModel
+	xModel
 }
 
 func (this *JSONModel) Finished() {
@@ -181,7 +181,7 @@ func (this *JSONModel) Render() string {
 
 //xml render model
 type XMLModel struct {
-	HeaderModel
+	xModel
 }
 
 func (this *XMLModel) Finished() {

@@ -32,39 +32,39 @@ type IArgs interface {
 	RemoteAddr() string
 }
 
-type XArgs struct {
+type xArgs struct {
 	IArgs
 	*http.Request
 }
 
-func (this *XArgs) Init(req *http.Request) {
+func (this *xArgs) Init(req *http.Request) {
 	this.Request = req
 }
 
-func (this *XArgs) Model() IModel {
+func (this *xArgs) Model() IModel {
 	return &HtmlModel{}
 }
 
-func (this *XArgs) ReqType() int {
+func (this *xArgs) ReqType() int {
 	return AT_NONE
 }
 
-func (this *XArgs) RemoteAddr() string {
+func (this *xArgs) RemoteAddr() string {
 	return GetRemoteAddr(this.Request)
 }
 
-func (this *XArgs) IsValidate() bool {
+func (this *xArgs) IsValidate() bool {
 	return true
 }
 
-func (this *XArgs) Validate(m *ValidateModel, c IMVC) {
+func (this *xArgs) Validate(m *ValidateModel, c IMVC) {
 	v := &StringModel{Text: m.ToTEXT()}
 	c.SetModel(v)
 	c.SetRender(TEXT_RENDER)
 }
 
 type URLArgs struct {
-	XArgs
+	xArgs
 }
 
 func (this *URLArgs) ReqType() int {
@@ -72,7 +72,7 @@ func (this *URLArgs) ReqType() int {
 }
 
 type FORMArgs struct {
-	XArgs
+	xArgs
 }
 
 //写文件返回md5
@@ -124,7 +124,7 @@ func (this *FORMArgs) Model() IModel {
 }
 
 type JSONArgs struct {
-	XArgs
+	xArgs
 }
 
 func (this *JSONArgs) Validate(m *ValidateModel, c IMVC) {
@@ -141,7 +141,7 @@ func (this *JSONArgs) Model() IModel {
 }
 
 type XMLArgs struct {
-	XArgs
+	xArgs
 }
 
 func (this *XMLArgs) Validate(m *ValidateModel, c IMVC) {
