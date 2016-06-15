@@ -22,6 +22,7 @@ var (
 const (
 	ValidateErrorCode = 10000     //数据校验失败返回
 	HandlerSuffix     = "Handler" //处理组件必须的后缀
+	ModelSuffix       = "Model"   //创建model方法
 	DefaultHandler    = "Default" + HandlerSuffix
 )
 
@@ -376,6 +377,15 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 	}
 }
 
+func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
+	v := reflect.ValueOf(args)
+	if hv := v.MethodByName(ModelSuffix); hv.IsValid() {
+		return hv.Interface()
+	} else {
+		return nil
+	}
+}
+
 //输出html结束
 func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
 	m := mvc.GetModel()
@@ -473,37 +483,32 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
 		mvc.SetRender(render)
+		//map mvc
 		c.MapTo(mvc, (*IMVC)(nil))
 		args := this.newArgs(iv, req, param, log)
 		if args == nil {
 			panic(ErrorArgs)
 		}
+		//map args
 		c.Map(args)
 		model := args.Model()
 		if model == nil {
 			panic(ErrorModel)
 		}
+		//map model
 		c.Map(model)
 		mvc.SetModel(model)
 		if err := this.Validate(args); err != nil {
 			args.Validate(NewValidateModel(err), mvc)
+		} else if fm := this.GetArgsHandler(args); fm != nil {
+			//args Handler
+			c.Invoke(fm)
+		} else if hv.IsValid() {
+			//dispatch Handler
+			c.Invoke(hv.Interface())
 		} else {
-			fm := this.GetArgsHandler(args)
-			var err error = nil
-			var out []reflect.Value = nil
-			if fm != nil {
-				out, err = c.Invoke(fm)
-			} else if hv.IsValid() {
-				out, err = c.Invoke(hv.Interface())
-			} else {
-				out, err = c.Invoke(dv.Interface())
-			}
-			if err != nil {
-				panic(err)
-			}
-			if len(out) > 0 {
-				log.Println(out)
-			}
+			//default Handler
+			c.Invoke(dv.Interface())
 		}
 		this.mvcRender(mvc, rv, rw, req)
 	}
