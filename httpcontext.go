@@ -160,7 +160,7 @@ func (this *HttpContext) printURLS(log *log.Logger) {
 			vc = len(u.View)
 		}
 		if u.Render == "" {
-			u.Render = u.Args.Model().Render()
+			u.Render = RenderToString(u.Args.Model().Render())
 		}
 		if len(u.Render) > rc {
 			rc = len(u.Render)

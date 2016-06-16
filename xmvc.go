@@ -12,8 +12,8 @@ import (
 )
 
 type IModel interface {
-	Finished()      //处理完成
-	Render() string //输出模式
+	Finished()   //处理完成
+	Render() int //输出模式
 	GetHeader() http.Header
 }
 
@@ -34,7 +34,7 @@ func (this *xModel) Finished() {
 
 }
 
-func (this *xModel) Render() string {
+func (this *xModel) Render() int {
 	return HTML_RENDER
 }
 
@@ -43,7 +43,7 @@ type RedirectModel struct {
 	Url string
 }
 
-func (this *RedirectModel) Render() string {
+func (this *RedirectModel) Render() int {
 	return REDIRECT_RENDER
 }
 
@@ -56,7 +56,7 @@ func (this *HtmlModel) Finished() {
 
 }
 
-func (this *HtmlModel) Render() string {
+func (this *HtmlModel) Render() int {
 	return HTML_RENDER
 }
 
@@ -72,7 +72,7 @@ func (this *TempModel) Finished() {
 
 }
 
-func (this *TempModel) Render() string {
+func (this *TempModel) Render() int {
 	return TEMP_RENDER
 }
 
@@ -90,7 +90,7 @@ type FileModel struct {
 	File    IHttpFile //读取接口
 }
 
-func (this *FileModel) Render() string {
+func (this *FileModel) Render() int {
 	return FILE_RENDER
 }
 
@@ -112,7 +112,7 @@ type ScriptModel struct {
 	Script string
 }
 
-func (this *ScriptModel) Render() string {
+func (this *ScriptModel) Render() int {
 	return SCRIPT_RENDER
 }
 
@@ -136,7 +136,7 @@ func (this *StringModel) Finished() {
 
 }
 
-func (this *StringModel) Render() string {
+func (this *StringModel) Render() int {
 	return TEXT_RENDER
 }
 
@@ -156,7 +156,7 @@ func (this *BinaryModel) Finished() {
 
 }
 
-func (this *BinaryModel) Render() string {
+func (this *BinaryModel) Render() int {
 	return DATA_RENDER
 }
 
@@ -175,7 +175,7 @@ func (this *JSONModel) Finished() {
 
 }
 
-func (this *JSONModel) Render() string {
+func (this *JSONModel) Render() int {
 	return JSON_RENDER
 }
 
@@ -188,7 +188,7 @@ func (this *XMLModel) Finished() {
 
 }
 
-func (this *XMLModel) Render() string {
+func (this *XMLModel) Render() int {
 	return XML_RENDER
 }
 
@@ -282,8 +282,8 @@ type IMVC interface {
 	GetModel() IModel
 	SetModel(IModel)
 
-	GetRender() string
-	SetRender(string)
+	GetRender() int
+	SetRender(int)
 
 	GetStatus() int
 	SetStatus(int)
@@ -295,7 +295,7 @@ type mvc struct {
 	IMVC
 	status int
 	view   string
-	render string
+	render int
 	model  IModel
 }
 
@@ -306,7 +306,7 @@ func (this *mvc) Redirect(url string) {
 }
 
 func (this *mvc) String() string {
-	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v", this.status, this.view, this.render, reflect.TypeOf(this.model).Elem())
+	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v", this.status, this.view, RenderToString(this.render), reflect.TypeOf(this.model).Elem())
 }
 
 func (this *mvc) GetView() string {
@@ -325,14 +325,14 @@ func (this *mvc) SetModel(v IModel) {
 	this.model = v
 }
 
-func (this *mvc) GetRender() string {
-	if this.render == "" {
+func (this *mvc) GetRender() int {
+	if this.render == 0 {
 		this.render = this.model.Render()
 	}
 	return this.render
 }
 
-func (this *mvc) SetRender(v string) {
+func (this *mvc) SetRender(v int) {
 	this.render = v
 }
 

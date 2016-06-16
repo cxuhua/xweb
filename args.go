@@ -11,10 +11,10 @@ import (
 //req type
 const (
 	AT_NONE = iota
-	AT_FORM
-	AT_JSON
-	AT_XML
-	AT_URL //body use Query type parse
+	AT_FORM //表单数据解析
+	AT_JSON //json数据解析
+	AT_XML  //xml数据解析
+	AT_URL  //body use Query type parse
 )
 
 type IArgs interface {

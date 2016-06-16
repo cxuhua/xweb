@@ -27,16 +27,67 @@ const (
 )
 
 const (
-	HTML_RENDER     = "HTML"
-	JSON_RENDER     = "JSON"
-	XML_RENDER      = "XML"
-	TEXT_RENDER     = "TEXT"
-	SCRIPT_RENDER   = "SCRIPT"
-	DATA_RENDER     = "DATA"
-	FILE_RENDER     = "FILE"
-	TEMP_RENDER     = "TEMP"
-	REDIRECT_RENDER = "REDIRECT"
+	NONE_RENDER = iota
+	HTML_RENDER
+	JSON_RENDER
+	XML_RENDER
+	TEXT_RENDER
+	SCRIPT_RENDER
+	DATA_RENDER
+	FILE_RENDER
+	TEMP_RENDER
+	REDIRECT_RENDER
 )
+
+func StringToRender(r string) int {
+	switch r {
+	case "HTML":
+		return HTML_RENDER
+	case "JSON":
+		return JSON_RENDER
+	case "XML":
+		return XML_RENDER
+	case "TEXT":
+		return TEXT_RENDER
+	case "SCRIPT":
+		return SCRIPT_RENDER
+	case "DATA":
+		return DATA_RENDER
+	case "FILE":
+		return FILE_RENDER
+	case "TEMP":
+		return TEMP_RENDER
+	case "REDIRECT":
+		return REDIRECT_RENDER
+	default:
+		return 0
+	}
+}
+
+func RenderToString(r int) string {
+	switch r {
+	case HTML_RENDER:
+		return "HTML"
+	case JSON_RENDER:
+		return "JSON"
+	case XML_RENDER:
+		return "XML"
+	case TEXT_RENDER:
+		return "TEXT"
+	case SCRIPT_RENDER:
+		return "SCRIPT"
+	case DATA_RENDER:
+		return "DATA"
+	case FILE_RENDER:
+		return "FILE"
+	case TEMP_RENDER:
+		return "TEMP"
+	case REDIRECT_RENDER:
+		return "REDIRECT"
+	default:
+		return "NONE"
+	}
+}
 
 func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 	if fh == nil {
@@ -356,7 +407,7 @@ func (this *HttpContext) useHandler(method string, r martini.Router, url, view, 
 		panic(errors.New(method + " do not support"))
 	}
 	if render == "" {
-		render = args.Model().Render()
+		render = RenderToString(args.Model().Render())
 	}
 	//保存记录打印
 	urls := URLS{}
@@ -446,7 +497,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 		}
 		http.Redirect(rw, req, v.Url, http.StatusFound)
 	default:
-		panic(errors.New(mvc.GetRender() + " not process"))
+		panic(errors.New(RenderToString(mvc.GetRender()) + " not process"))
 	}
 }
 
@@ -482,7 +533,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
-		mvc.SetRender(render)
+		mvc.SetRender(StringToRender(render))
 		//map mvc
 		c.MapTo(mvc, (*IMVC)(nil))
 		args := this.newArgs(iv, req, param, log)
