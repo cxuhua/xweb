@@ -186,6 +186,11 @@ func formSetValue(vk reflect.Kind, val string, sf reflect.Value) {
 	}
 }
 
+func MapFormType(v interface{}, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values) {
+	value := reflect.ValueOf(v)
+	MapFormValue(value, form, files, urls)
+}
+
 func MapFormValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values) {
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
