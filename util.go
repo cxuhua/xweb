@@ -4,13 +4,10 @@ import (
 	"time"
 )
 
-//获得当天0点时间
+//get 00:00:00 unix time
 func ZeroTime() time.Time {
 	now := time.Now()
-	fmt := now.Format("2006-01-02")
-	zv, err := time.ParseInLocation("2006-01-02", fmt, time.Local)
-	if err != nil {
-		panic(err)
-	}
-	return zv
+	hour, min, sec := now.Clock()
+	t := now.Unix() - int64(hour*60*60+min*60+sec)
+	return time.Unix(t, 0)
 }

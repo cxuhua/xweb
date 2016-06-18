@@ -1,7 +1,10 @@
 package xweb
 
 import (
+	// "crypto/rand"
+	// "encoding/binary"
 	. "gopkg.in/check.v1"
+	// "log"
 	"time"
 )
 
