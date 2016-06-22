@@ -31,7 +31,7 @@ func (this HTTPValues) RawEncode() string {
 	if this.Values == nil {
 		return ""
 	}
-	var buf bytes.Buffer
+	buf := bytes.Buffer{}
 	keys := make([]string, 0, len(this.Values))
 	for k := range this.Values {
 		keys = append(keys, k)
@@ -104,6 +104,10 @@ func (this HTTPClient) Get(path string, q HTTPValues) ([]byte, error) {
 	} else {
 		return this.ReadResponse(res)
 	}
+}
+
+func (this HTTPClient) PostBytes(path string, bt string, data []byte) ([]byte, error) {
+	return this.Post(path, bt, bytes.NewReader(data))
 }
 
 func (this HTTPClient) Post(path string, bt string, body io.Reader) ([]byte, error) {
