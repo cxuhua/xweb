@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -70,17 +72,7 @@ func NewHTTPValues() HTTPValues {
 	return HTTPValues{Values: url.Values{}}
 }
 
-type HTTPClient struct {
-	http.Client
-	IsSecure bool
-	Host     string
-}
-
-var (
-	NoDataError = errors.New("http not response data")
-)
-
-func (this HTTPClient) ReadResponse(res *http.Response) ([]byte, error) {
+func readResponse(res *http.Response) ([]byte, error) {
 	if res.Body == nil {
 		return nil, NoDataError
 	}
@@ -95,35 +87,75 @@ func (this HTTPClient) ReadResponse(res *http.Response) ([]byte, error) {
 	return data, err
 }
 
-func (this HTTPClient) Get(path string, q HTTPValues) ([]byte, error) {
+type HttpResponse struct {
+	*http.Response
+}
+
+func (this HttpResponse) ToBytes() ([]byte, error) {
+	return readResponse(this.Response)
+}
+
+func (this HttpResponse) ToJson(v interface{}) error {
+	data, err := this.ToBytes()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+func (this HttpResponse) ToXml(v interface{}) error {
+	data, err := this.ToBytes()
+	if err != nil {
+		return err
+	}
+	return xml.Unmarshal(data, v)
+}
+
+type HTTPClient struct {
+	http.Client
+	IsSecure bool
+	Host     string
+}
+
+var (
+	NoDataError = errors.New("http not response data")
+)
+
+func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
+	ret := HttpResponse{}
 	if !q.IsEmpty() {
 		path = path + "?" + q.Encode()
 	}
-	if res, err := this.Client.Get(this.Host + path); err != nil {
-		return nil, err
-	} else {
-		return this.ReadResponse(res)
+	res, err := this.Client.Get(this.Host + path)
+	if err != nil {
+		return ret, err
 	}
+	ret.Response = res
+	return ret, nil
 }
 
-func (this HTTPClient) PostBytes(path string, bt string, data []byte) ([]byte, error) {
+func (this HTTPClient) PostBytes(path string, bt string, data []byte) (HttpResponse, error) {
 	return this.Post(path, bt, bytes.NewReader(data))
 }
 
-func (this HTTPClient) Post(path string, bt string, body io.Reader) ([]byte, error) {
-	if res, err := this.Client.Post(this.Host+path, bt, body); err != nil {
-		return nil, err
-	} else {
-		return this.ReadResponse(res)
+func (this HTTPClient) Post(path string, bt string, body io.Reader) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := this.Client.Post(this.Host+path, bt, body)
+	if err != nil {
+		return ret, err
 	}
+	ret.Response = res
+	return ret, nil
 }
 
-func (this HTTPClient) Form(path string, v HTTPValues) ([]byte, error) {
-	if res, err := this.Client.PostForm(this.Host+path, v.Values); err != nil {
-		return nil, err
-	} else {
-		return this.ReadResponse(res)
+func (this HTTPClient) Form(path string, v HTTPValues) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := this.Client.PostForm(this.Host+path, v.Values)
+	if err != nil {
+		return ret, err
 	}
+	ret.Response = res
+	return ret, nil
 }
 
 //http.MethodPost http.MethodGet http.MethodHead...

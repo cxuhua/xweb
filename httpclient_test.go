@@ -24,27 +24,20 @@ func (this *HttpSuite) TestHttpRequest(c *C) {
 	c.Assert(err, IsNil)
 	res, err := client.Do(req)
 	c.Assert(err, IsNil)
-	data, err := client.ReadResponse(res)
+	data, err := readResponse(res)
 	c.Assert(err, IsNil)
 	c.Log(string(data))
 	c.Assert(len(data) > 0, Equals, true)
 }
 
-// func (this *HttpSuite) TestTLSWithPEM(c *C) {
-// 	config := MustLoadTLSFileConfig("rootca.pem", "apiclient_cert.pem", "apiclient_key.pem")
-// 	http := NewHTTPClient("https://api.mch.weixin.qq.com", config)
-// 	log.Println(http)
-// 	data, err := http.Post("/secapi/pay/refund", "application/xml", nil)
-// 	c.Assert(err, IsNil)
-// 	log.Println(string(data), err)
-// }
-
 func (this *HttpSuite) TestHTTPS(c *C) {
 	http := NewHTTPClient("https://www.baidu.com")
 	d, err := http.Get("/", HTTPValues{})
 	c.Assert(err, IsNil)
-	c.Log(string(d))
-	c.Assert(len(d) > 0, Equals, true)
+	data, err := d.ToBytes()
+	c.Assert(err, IsNil)
+	c.Log(string(data))
+	c.Assert(len(data) > 0, Equals, true)
 }
 
 func (this *HttpSuite) TestURL(c *C) {

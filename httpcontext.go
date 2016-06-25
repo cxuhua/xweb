@@ -16,6 +16,10 @@ var (
 	m = NewHttpContext()
 )
 
+func ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	m.ServeHTTP(res, req)
+}
+
 func SetValidationFunc(name string, vf ValidationFunc) error {
 	return m.Validator.SetValidationFunc(name, vf)
 }
@@ -44,13 +48,17 @@ func Use(h martini.Handler) {
 	m.Use(h)
 }
 
-func ListenAndServe(addr string, opts ...RenderOptions) error {
+func UseRender(opts ...RenderOptions) {
 	m.UseRender(opts...)
+}
+
+func ListenAndServe(addr string, opts ...RenderOptions) error {
+	UseRender(opts...)
 	return m.ListenAndServe(addr)
 }
 
 func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) error {
-	m.UseRender(opts...)
+	UseRender(opts...)
 	return m.ListenAndServeTLS(addr, cert, key)
 }
 
