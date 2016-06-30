@@ -24,7 +24,7 @@ func (this *HttpSuite) TestHttpRequest(c *C) {
 	c.Assert(err, IsNil)
 	res, err := client.Do(req)
 	c.Assert(err, IsNil)
-	data, err := readResponse(res)
+	data, err := readResponse(res.Response)
 	c.Assert(err, IsNil)
 	c.Log(string(data))
 	c.Assert(len(data) > 0, Equals, true)

@@ -1,20 +1,48 @@
 package xweb
 
 import (
-	"bytes"
-	"errors"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"reflect"
 )
+
+var (
+	FormFileType = reflect.TypeOf(FormFile{})
+)
+
+type FormFile struct {
+	*multipart.FileHeader
+}
+
+func (this FormFile) Write(data []byte, pfunc func(string) string) (string, error) {
+	md5 := MD5Bytes(data)
+	path := pfunc(md5)
+	//exists file check
+	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+		return md5, nil
+	}
+	return md5, ioutil.WriteFile(path, data, 0666)
+}
+
+//read file data
+func (this FormFile) ReadAll() ([]byte, error) {
+	f, err := this.FileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return ioutil.ReadAll(f)
+}
 
 //req type
 const (
 	AT_NONE = iota
-	AT_FORM //表单数据解析
-	AT_JSON //json数据解析
-	AT_XML  //xml数据解析
-	AT_URL  //body use Query type parse
+	AT_FORM //表单数据解析  	use:form tag
+	AT_JSON //json数据解析	use:json tag
+	AT_XML  //xml数据解析	use:xml tag
+	AT_URL  //url			user:url tag
 )
 
 type IArgs interface {
@@ -73,41 +101,6 @@ func (this *URLArgs) ReqType() int {
 
 type FORMArgs struct {
 	xArgs
-}
-
-//写文件返回md5
-func (this *FORMArgs) WriteFile(data []byte, pfunc func(string) string) (string, error) {
-	md5 := MD5Bytes(data)
-	path := pfunc(md5)
-	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
-		return md5, nil
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	if n, err := f.Write(data); err != nil || n != len(data) {
-		return "", err
-	}
-	return md5, nil
-}
-
-//读取上传多文件
-func (this *FORMArgs) ReadFile(file *multipart.FileHeader) ([]byte, error) {
-	if file == nil {
-		return nil, errors.New("file args null")
-	}
-	f, err := file.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	var fb bytes.Buffer
-	if _, err := fb.ReadFrom(f); err != nil {
-		return nil, err
-	}
-	return fb.Bytes(), nil
 }
 
 func (this *FORMArgs) Validate(m *ValidateModel, c IMVC) {

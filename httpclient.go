@@ -56,12 +56,20 @@ func (this HTTPValues) RawEncode() string {
 	return buf.String()
 }
 
+func (this HTTPValues) AddFormat(key, format string, value interface{}) {
+	this.Values.Add(key, fmt.Sprintf(format, value))
+}
+
 func (this HTTPValues) Add(key string, value interface{}) {
-	this.Values.Add(key, fmt.Sprintf("%v", value))
+	this.AddFormat(key, "%v", value)
+}
+
+func (this HTTPValues) SetFormat(key, format string, value interface{}) {
+	this.Values.Set(key, fmt.Sprintf(format, value))
 }
 
 func (this HTTPValues) Set(key string, value interface{}) {
-	this.Values.Set(key, fmt.Sprintf("%v", value))
+	this.SetFormat(key, "%v", value)
 }
 
 func (this HTTPValues) IsEmpty() bool {
@@ -101,6 +109,19 @@ func (this HttpResponse) ToJson(v interface{}) error {
 		return err
 	}
 	return json.Unmarshal(data, v)
+}
+
+func (this HttpResponse) ToForm(v interface{}) error {
+	data, err := this.ToBytes()
+	if err != nil {
+		return err
+	}
+	fv, err := url.ParseQuery(string(data))
+	if err != nil {
+		return err
+	}
+	MapFormType(v, fv, nil, nil)
+	return nil
 }
 
 func (this HttpResponse) ToXml(v interface{}) error {
@@ -163,8 +184,14 @@ func (this HTTPClient) NewRequest(method, path string, body io.Reader) (*http.Re
 	return http.NewRequest(method, this.Host+path, body)
 }
 
-func (this HTTPClient) Do(req *http.Request) (*http.Response, error) {
-	return this.Client.Do(req)
+func (this HTTPClient) Do(req *http.Request) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := this.Client.Do(req)
+	if err != nil {
+		return ret, err
+	}
+	ret.Response = res
+	return ret, nil
 }
 
 //not verify config

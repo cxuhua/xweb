@@ -21,11 +21,11 @@ import (
 	"reflect"
 )
 
-type MySuite struct {
+type ValidatorSuite struct {
 	validate *Validator
 }
 
-var _ = Suite(&MySuite{})
+var _ = Suite(&ValidatorSuite{})
 
 type Simple struct {
 	A int `validate:"min=10"`
@@ -43,15 +43,15 @@ type TestStruct struct {
 	D *Simple `validate:"nonzero"`
 }
 
-func (this *MySuite) SetUpSuite(c *C) {
+func (this *ValidatorSuite) SetUpSuite(c *C) {
 	this.validate = NewValidator()
 }
 
-func (this *MySuite) TearDownSuite(c *C) {
+func (this *ValidatorSuite) TearDownSuite(c *C) {
 
 }
 
-func (ms *MySuite) TestValidate(c *C) {
+func (ms *ValidatorSuite) TestValidate(c *C) {
 	t := TestStruct{
 		A: 0,
 		B: "12345",
@@ -76,7 +76,7 @@ func (ms *MySuite) TestValidate(c *C) {
 	c.Assert(errs["Sub.D"], HasError, ErrZeroValue)
 }
 
-func (ms *MySuite) TestValidSlice(c *C) {
+func (ms *ValidatorSuite) TestValidSlice(c *C) {
 	s := make([]int, 0, 10)
 	err := ms.validate.Valid(s, "nonzero")
 	c.Assert(err, NotNil)
@@ -98,7 +98,7 @@ func (ms *MySuite) TestValidSlice(c *C) {
 	c.Assert(errs, Not(HasError), ErrZeroValue)
 }
 
-func (ms *MySuite) TestValidMap(c *C) {
+func (ms *ValidatorSuite) TestValidMap(c *C) {
 	m := make(map[string]string)
 	err := ms.validate.Valid(m, "nonzero")
 	c.Assert(err, NotNil)
@@ -140,7 +140,7 @@ func (ms *MySuite) TestValidMap(c *C) {
 
 }
 
-func (ms *MySuite) TestValidFloat(c *C) {
+func (ms *ValidatorSuite) TestValidFloat(c *C) {
 	err := ms.validate.Valid(12.34, "nonzero")
 	c.Assert(err, IsNil)
 
@@ -151,7 +151,7 @@ func (ms *MySuite) TestValidFloat(c *C) {
 	c.Assert(errs, HasError, ErrZeroValue)
 }
 
-func (ms *MySuite) TestValidInt(c *C) {
+func (ms *ValidatorSuite) TestValidInt(c *C) {
 	i := 123
 	err := ms.validate.Valid(i, "nonzero")
 	c.Assert(err, IsNil)
@@ -173,7 +173,7 @@ func (ms *MySuite) TestValidInt(c *C) {
 	c.Assert(errs, HasError, ErrMax)
 }
 
-func (ms *MySuite) TestValidString(c *C) {
+func (ms *ValidatorSuite) TestValidString(c *C) {
 	s := "test1234"
 	err := ms.validate.Valid(s, "len=8")
 	c.Assert(err, IsNil)
@@ -200,7 +200,7 @@ func (ms *MySuite) TestValidString(c *C) {
 	c.Assert(errs, Not(HasError), ErrMax)
 }
 
-func (ms *MySuite) TestValidateStructVar(c *C) {
+func (ms *ValidatorSuite) TestValidateStructVar(c *C) {
 	// just verifies that a the given val is a struct
 	ms.validate.SetValidationFunc("struct", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
@@ -238,7 +238,7 @@ func (ms *MySuite) TestValidateStructVar(c *C) {
 	c.Assert(errs["A.B"], HasError, ErrUnknownTag)
 }
 
-func (ms *MySuite) TestValidatePointerVar(c *C) {
+func (ms *ValidatorSuite) TestValidatePointerVar(c *C) {
 	// just verifies that a the given val is a struct
 	ms.validate.SetValidationFunc("struct", func(val interface{}, _ string) error {
 		v := reflect.ValueOf(val)
@@ -303,7 +303,7 @@ func (ms *MySuite) TestValidatePointerVar(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (ms *MySuite) TestValidateOmittedStructVar(c *C) {
+func (ms *ValidatorSuite) TestValidateOmittedStructVar(c *C) {
 	type test2 struct {
 		B int `validate:"min=1"`
 	}
@@ -319,7 +319,7 @@ func (ms *MySuite) TestValidateOmittedStructVar(c *C) {
 	c.Assert(errs, IsNil)
 }
 
-func (ms *MySuite) TestUnknownTag(c *C) {
+func (ms *ValidatorSuite) TestUnknownTag(c *C) {
 	type test struct {
 		A int `validate:"foo"`
 	}
@@ -332,7 +332,7 @@ func (ms *MySuite) TestUnknownTag(c *C) {
 	c.Assert(errs["A"], HasError, ErrUnknownTag)
 }
 
-func (ms *MySuite) TestUnsupported(c *C) {
+func (ms *ValidatorSuite) TestUnsupported(c *C) {
 	type test struct {
 		A int     `validate:"regexp=a.*b"`
 		B float64 `validate:"regexp=.*"`
@@ -347,7 +347,7 @@ func (ms *MySuite) TestUnsupported(c *C) {
 	c.Assert(errs["B"], HasError, ErrUnsupported)
 }
 
-func (ms *MySuite) TestBadParameter(c *C) {
+func (ms *ValidatorSuite) TestBadParameter(c *C) {
 	type test struct {
 		A string `validate:"min="`
 		B string `validate:"len=="`

@@ -102,7 +102,7 @@ func (this *FileModel) Finished() {
 
 func NewFileModel() *FileModel {
 	m := &FileModel{ModTime: time.Now()}
-	m.Header = http.Header{}
+	m.InitHeader()
 	return m
 }
 
@@ -122,7 +122,7 @@ func (this *ScriptModel) Finished() {
 
 func NewScriptModel() *ScriptModel {
 	m := &ScriptModel{}
-	m.Header = http.Header{}
+	m.InitHeader()
 	return m
 }
 
@@ -142,7 +142,7 @@ func (this *StringModel) Render() int {
 
 func NewStringModel() *StringModel {
 	m := &StringModel{}
-	m.Header = http.Header{}
+	m.InitHeader()
 	return m
 }
 
@@ -162,7 +162,7 @@ func (this *BinaryModel) Render() int {
 
 func NewBinaryModel() *BinaryModel {
 	m := &BinaryModel{}
-	m.Header = http.Header{}
+	m.InitHeader()
 	return m
 }
 
@@ -205,13 +205,13 @@ func (this *HTTPModel) Finished() {
 
 func NewHTTPError(code int, err string) *HTTPModel {
 	m := &HTTPModel{Code: code, Error: err}
-	m.Header = http.Header{}
+	m.InitHeader()
 	return m
 }
 
 func NewHTTPSuccess() *HTTPModel {
 	m := &HTTPModel{Code: 0}
-	m.Header = http.Header{}
+	m.InitHeader()
 	return m
 }
 
@@ -270,7 +270,7 @@ func (this *ValidateModel) Init(e error) {
 
 func NewValidateModel(err error) *ValidateModel {
 	m := &ValidateModel{}
-	m.Header = http.Header{}
+	m.InitHeader()
 	m.Init(err)
 	return m
 }
@@ -300,8 +300,8 @@ type mvc struct {
 }
 
 func (this *mvc) Redirect(url string) {
-	m := &RedirectModel{}
-	m.Url = url
+	m := &RedirectModel{Url: url}
+	m.InitHeader()
 	this.SetModel(m)
 }
 

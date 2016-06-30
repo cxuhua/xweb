@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -54,6 +55,8 @@ type Render interface {
 	XML(status int, v interface{})
 	// Data writes the raw byte array to the http.ResponseWriter.
 	Data(status int, v []byte)
+	// File write
+	File(name string, mod time.Time, file IHttpFile)
 	// Text writes the given status and plain text to the http.ResponseWriter.
 	Text(status int, v string)
 	// Error is a convenience function that writes an http status to the http.ResponseWriter.
@@ -218,6 +221,10 @@ type renderer struct {
 	compiledCharset string
 }
 
+func (r *renderer) File(name string, mod time.Time, file IHttpFile) {
+	http.ServeContent(r, r.req, name, mod, file)
+}
+
 func (r *renderer) JSON(status int, v interface{}) {
 	var result []byte
 	var err error
@@ -230,7 +237,6 @@ func (r *renderer) JSON(status int, v interface{}) {
 		http.Error(r, err.Error(), 500)
 		return
 	}
-
 	// json rendered fine, write out the result
 	r.Header().Set(ContentType, ContentJSON+r.compiledCharset)
 	r.WriteHeader(status)
@@ -264,13 +270,11 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 		r.addYield(name, binding)
 		name = opt.Layout
 	}
-
 	buf, err := r.execute(name, binding)
 	if err != nil {
 		http.Error(r, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	// template rendered fine, write out the result
 	r.Header().Set(ContentType, r.opt.HTMLContentType+r.compiledCharset)
 	r.WriteHeader(status)
@@ -290,7 +294,6 @@ func (r *renderer) XML(status int, v interface{}) {
 		http.Error(r, err.Error(), 500)
 		return
 	}
-
 	// XML rendered fine, write out the result
 	r.Header().Set(ContentType, ContentXML+r.compiledCharset)
 	r.WriteHeader(status)
@@ -330,7 +333,6 @@ func (r *renderer) Redirect(location string, status ...int) {
 	if len(status) == 1 {
 		code = status[0]
 	}
-
 	http.Redirect(r, r.req, location, code)
 }
 

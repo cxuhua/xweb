@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	MaxMemory = int64(1024 * 1024 * 10)
+	FormMaxMemory = int64(1024 * 1024 * 10)
 )
 
 const (
@@ -144,7 +144,7 @@ func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
 	log.Println("--------------------------------------------------------------")
 }
 
-func formSetValue(vk reflect.Kind, val string, sf reflect.Value) {
+func setKindValue(vk reflect.Kind, val string, sf reflect.Value) {
 	switch vk {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if val == "" {
@@ -195,19 +195,19 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 	if value.Kind() == reflect.Ptr {
 		value = value.Elem()
 	}
-	typ := value.Type()
-	for i := 0; i < typ.NumField(); i++ {
-		tf := typ.Field(i)
+	vtyp := value.Type()
+	for i := 0; i < vtyp.NumField(); i++ {
+		tf := vtyp.Field(i)
 		sf := value.Field(i)
-		if tf.Type.Kind() == reflect.Ptr && tf.Anonymous {
+		if !sf.CanSet() {
+			continue
+		}
+		if tf.Type.Kind() == reflect.Ptr {
 			sf.Set(reflect.New(tf.Type.Elem()))
 			MapFormValue(sf.Elem(), form, files, urls)
-			if reflect.DeepEqual(sf.Elem().Interface(), reflect.Zero(sf.Elem().Type()).Interface()) {
-				sf.Set(reflect.Zero(sf.Type()))
-			}
-		} else if tf.Type.Kind() == reflect.Struct {
+		} else if tf.Type.Kind() == reflect.Struct && tf.Type != FormFileType {
 			MapFormValue(sf, form, files, urls)
-		} else if name := tf.Tag.Get("form"); name != "-" && name != "" && sf.CanSet() {
+		} else if name := tf.Tag.Get("form"); name != "-" && name != "" {
 			if input, ok := form[name]; ok {
 				num := len(input)
 				if num == 0 {
@@ -216,48 +216,47 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 				if sf.Kind() == reflect.Slice {
 					skind := sf.Type().Elem().Kind()
 					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for i := 0; i < num; i++ {
-						formSetValue(skind, input[i], slice.Index(i))
+					for j := 0; j < num; j++ {
+						setKindValue(skind, input[j], slice.Index(j))
 					}
-					value.Field(i).Set(slice)
+					sf.Set(slice)
 				} else {
-					formSetValue(tf.Type.Kind(), input[0], sf)
+					setKindValue(tf.Type.Kind(), input[0], sf)
 				}
 			}
 			if input, ok := files[name]; ok {
-				fileType := reflect.TypeOf((*multipart.FileHeader)(nil))
 				num := len(input)
 				if num == 0 {
 					continue
 				}
-				if sf.Kind() == reflect.Slice && sf.Type().Elem() == fileType {
+				if sf.Kind() == reflect.Slice && sf.Type().Elem() == FormFileType {
 					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for i := 0; i < num; i++ {
-						slice.Index(i).Set(reflect.ValueOf(input[i]))
+					for j := 0; j < num; j++ {
+						item := reflect.ValueOf(FormFile{FileHeader: input[j]})
+						slice.Index(j).Set(item)
 					}
 					sf.Set(slice)
-				} else if sf.Type() == fileType {
-					sf.Set(reflect.ValueOf(input[0]))
+				} else if sf.Type() == FormFileType {
+					item := reflect.ValueOf(FormFile{FileHeader: input[0]})
+					sf.Set(item)
 				}
 			}
-		} else if name := tf.Tag.Get("url"); name != "-" && name != "" && sf.CanSet() {
-			input, ok := urls[name]
-			if !ok {
-				continue
-			}
-			num := len(input)
-			if num == 0 {
-				continue
-			}
-			if sf.Kind() == reflect.Slice {
-				skind := sf.Type().Elem().Kind()
-				slice := reflect.MakeSlice(sf.Type(), num, num)
-				for i := 0; i < num; i++ {
-					formSetValue(skind, input[i], slice.Index(i))
+		} else if name := tf.Tag.Get("url"); name != "-" && name != "" {
+			if input, ok := urls[name]; ok {
+				num := len(input)
+				if num == 0 {
+					continue
 				}
-				value.Field(i).Set(slice)
-			} else {
-				formSetValue(tf.Type.Kind(), input[0], sf)
+				if sf.Kind() == reflect.Slice {
+					skind := sf.Type().Elem().Kind()
+					slice := reflect.MakeSlice(sf.Type(), num, num)
+					for j := 0; j < num; j++ {
+						setKindValue(skind, input[j], slice.Index(j))
+					}
+					sf.Set(slice)
+				} else {
+					setKindValue(tf.Type.Kind(), input[0], sf)
+				}
 			}
 		}
 	}
@@ -282,20 +281,24 @@ func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.P
 	return args
 }
 
-func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request) {
+func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *log.Logger) {
 	v := reflect.ValueOf(iv)
-	ct := req.Header.Get("Content-Type")
+	ct := strings.ToLower(req.Header.Get("Content-Type"))
 	uv := req.URL.Query()
 	for k, v := range param {
 		uv.Add(k, v)
 	}
-	if strings.Contains(strings.ToLower(ct), "multipart/form-data") {
-		if err := req.ParseMultipartForm(MaxMemory); err == nil {
+	if strings.Contains(ct, "multipart/form-data") {
+		if err := req.ParseMultipartForm(FormMaxMemory); err == nil {
 			MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv)
+		} else {
+			log.Println("parse multipart form error", err)
 		}
 	} else {
 		if err := req.ParseForm(); err == nil {
 			MapFormValue(v, req.Form, nil, uv)
+		} else {
+			log.Println("parse form error", err)
 		}
 	}
 }
@@ -307,7 +310,7 @@ func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.
 	if !ok {
 		panic(errors.New(t.Name() + "not imp FORMArgs"))
 	}
-	UnmarshalForm(args, param, req)
+	UnmarshalForm(args, param, req, log)
 	return args
 }
 
@@ -443,12 +446,12 @@ func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
 }
 
 //输出html结束
-func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWriter, req *http.Request) {
+func (this *HttpContext) mvcRender(mvc IMVC, render Render) {
 	m := mvc.GetModel()
 	defer m.Finished()
 	for ik, iv := range m.GetHeader() {
 		for _, vv := range iv {
-			rw.Header().Add(ik, vv)
+			render.Header().Add(ik, vv)
 		}
 	}
 	s := mvc.GetStatus()
@@ -468,9 +471,8 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 		if !b {
 			panic("RENDER Model error:must set ScriptModel")
 		}
-		rw.WriteHeader(s)
-		rw.Header().Set(ContentType, ContentJSON)
-		rw.Write([]byte(v.Script))
+		render.Header().Set(ContentType, ContentJSON)
+		render.Data(s, []byte(v.Script))
 	case TEXT_RENDER:
 		v, b := m.(*StringModel)
 		if !b {
@@ -488,7 +490,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 		if !b {
 			panic("RENDER Model error:must set FileModel")
 		}
-		http.ServeContent(rw, req, v.Name, v.ModTime, v.File)
+		render.File(v.Name, v.ModTime, v.File)
 	case TEMP_RENDER:
 		v, b := m.(*TempModel)
 		if !b {
@@ -500,7 +502,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render, rw http.ResponseWrit
 		if !b {
 			panic("RENDER Model error:must set RedirectModel")
 		}
-		http.Redirect(rw, req, v.Url, http.StatusFound)
+		render.Redirect(v.Url)
 	default:
 		panic(errors.New(RenderToString(mvc.GetRender()) + " not process"))
 	}
@@ -534,7 +536,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
-	return func(c martini.Context, rv Render, rw http.ResponseWriter, param martini.Params, req *http.Request, log *log.Logger) {
+	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *log.Logger) {
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
@@ -566,7 +568,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 			//default Handler
 			c.Invoke(dv.Interface())
 		}
-		this.mvcRender(mvc, rv, rw, req)
+		this.mvcRender(mvc, rv)
 	}
 }
 

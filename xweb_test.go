@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	. "gopkg.in/check.v1"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"strings"
 )
 
@@ -67,6 +70,41 @@ func (this *WebSuite) SetUpSuite(c *C) {
 
 func (this *WebSuite) TearDownSuite(c *C) {
 
+}
+
+func (this *WebSuite) TestMapFormValue(c *C) {
+	form := url.Values{}
+	form.Add("a", "1")
+	form.Add("b", "bb")
+	form.Add("x", "xx")
+	files := map[string][]*multipart.FileHeader{}
+	files["f"] = []*multipart.FileHeader{&multipart.FileHeader{}}
+	files["fs"] = []*multipart.FileHeader{&multipart.FileHeader{}, &multipart.FileHeader{}}
+	urls := url.Values{}
+	urls.Add("u", "uu")
+	urls.Add("su", "su")
+	type Sub struct {
+		X  string `form:"x"`
+		SU string `url:"su"`
+	}
+	type TF struct {
+		A   int        `form:"a"`
+		B   string     `form:"b"`
+		F   FormFile   `form:"f"`
+		FS  []FormFile `form:"fs"`
+		U   string     `url:"u"`
+		Sub *Sub
+	}
+	tf := &TF{}
+	MapFormValue(reflect.ValueOf(tf), form, files, urls)
+	c.Log(tf)
+	c.Assert(tf.A, Equals, 1)
+	c.Assert(tf.B, Equals, "bb")
+	c.Assert(tf.F, NotNil)
+	c.Assert(len(tf.FS), Equals, 2)
+	c.Assert(tf.U, Equals, "uu")
+	c.Assert(tf.Sub.X, Equals, "xx")
+	c.Assert(tf.Sub.SU, Equals, "su")
 }
 
 func (this *WebSuite) TestHttpPostJsonValidateSuccess(c *C) {
