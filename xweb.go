@@ -471,8 +471,8 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render) {
 		if !b {
 			panic("RENDER Model error:must set ScriptModel")
 		}
-		render.Header().Set(ContentType, ContentJSON)
-		render.Data(s, []byte(v.Script))
+		render.Header().Set(ContentType, ContentHTML)
+		render.Text(s, v.Script)
 	case TEXT_RENDER:
 		v, b := m.(*StringModel)
 		if !b {
@@ -586,7 +586,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			handler = f.Name
 		}
 		method := f.Tag.Get("method")
-		//使用上父结构方法
+		//使用父结构方法
 		if method == "" {
 			method = pmethod
 		}
@@ -596,6 +596,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		hv := sv.MethodByName(handler + HandlerSuffix)
 		//默认组建
 		dv := sv.MethodByName(DefaultHandler)
+		//检测参数
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
 			render = strings.ToUpper(render)
@@ -624,7 +625,8 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 }
 
 func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
-	this.useValue(http.MethodGet, r, c, reflect.ValueOf(c).Elem())
+	v := reflect.ValueOf(c)
+	this.useValue(http.MethodGet, r, c, v.Elem())
 }
 
 func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
