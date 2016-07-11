@@ -36,6 +36,10 @@ func Map(v interface{}) {
 	m.Map(v)
 }
 
+func GetBody(req *http.Request) ([]byte, error) {
+	return m.GetBody(req)
+}
+
 func MapTo(v interface{}, t interface{}) {
 	m.MapTo(v, t)
 }
@@ -141,17 +145,6 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
 	this.initLogger().Printf("https listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServeTLS(addr, cert, key, this)
-}
-
-//分析参数文档
-func (this *HttpContext) DumpDoc(v interface{}) {
-	t := reflect.TypeOf(v)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	for i := 0; i < t.NumField(); i++ {
-		log.Println(t.Field(i))
-	}
 }
 
 func (this *HttpContext) printURLS(log *log.Logger) {

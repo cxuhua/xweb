@@ -1,6 +1,7 @@
 package xweb
 
 import (
+	"errors"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -28,6 +29,9 @@ func (this FormFile) Write(data []byte, pfunc func(string) string) (string, erro
 
 //read file data
 func (this FormFile) ReadAll() ([]byte, error) {
+	if this.FileHeader == nil {
+		return nil, errors.New("file header nil")
+	}
 	f, err := this.FileHeader.Open()
 	if err != nil {
 		return nil, err
@@ -42,7 +46,7 @@ const (
 	AT_FORM //表单数据解析  	use:form tag
 	AT_JSON //json数据解析	use:json tag
 	AT_XML  //xml数据解析	use:xml tag
-	AT_URL  //url			user:url tag
+	AT_URL  //url可以和以上结构体混用 use:url tag
 )
 
 type IArgs interface {
@@ -89,6 +93,13 @@ func (this *xArgs) Validate(m *ValidateModel, c IMVC) {
 	v := &StringModel{Text: m.ToTEXT()}
 	c.SetModel(v)
 	c.SetRender(TEXT_RENDER)
+}
+
+func (this *xArgs) Body() ([]byte, error) {
+	if this.Request == nil {
+		panic(errors.New("request nil"))
+	}
+	return GetBody(this.Request)
 }
 
 type URLArgs struct {

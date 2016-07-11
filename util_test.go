@@ -4,7 +4,7 @@ import (
 	// "crypto/rand"
 	// "encoding/binary"
 	. "gopkg.in/check.v1"
-	// "log"
+	"log"
 	"time"
 )
 
@@ -28,4 +28,8 @@ func (this *UtilSuite) TestZeroTime(c *C) {
 	c.Assert(v1, Equals, v2)
 	ns := time.Now().Format("2006-01-02")
 	c.Assert(ns, Equals, ZeroTime().Format("2006-01-02"))
+}
+
+func (this *UtilSuite) TestGenId(c *C) {
+	log.Println(GenId())
 }
