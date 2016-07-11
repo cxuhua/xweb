@@ -95,7 +95,7 @@ func (this *xArgs) Validate(m *ValidateModel, c IMVC) {
 	c.SetRender(TEXT_RENDER)
 }
 
-func (this *xArgs) Body() ([]byte, error) {
+func (this *xArgs) HttpBody() ([]byte, error) {
 	if this.Request == nil {
 		panic(errors.New("request nil"))
 	}
