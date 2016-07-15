@@ -187,8 +187,7 @@ func setKindValue(vk reflect.Kind, val string, sf reflect.Value) {
 }
 
 func MapFormType(v interface{}, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values) {
-	value := reflect.ValueOf(v)
-	MapFormValue(value, form, files, urls)
+	MapFormValue(reflect.ValueOf(v), form, files, urls)
 }
 
 func MapFormValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values) {
@@ -262,7 +261,7 @@ func MapFormValue(value reflect.Value, form url.Values, files map[string][]*mult
 	}
 }
 
-//获得http数据
+//获得http post数据
 func (this *HttpContext) GetBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil {
 		return nil, errors.New("body data miss")
@@ -283,12 +282,12 @@ func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.P
 
 func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *log.Logger) {
 	v := reflect.ValueOf(iv)
-	ct := strings.ToLower(req.Header.Get("Content-Type"))
+	ct := strings.ToLower(req.Header.Get(ContentType))
 	uv := req.URL.Query()
 	for k, v := range param {
 		uv.Add(k, v)
 	}
-	if strings.Contains(ct, "multipart/form-data") {
+	if strings.Contains(ct, MultipartFormData) {
 		if err := req.ParseMultipartForm(FormMaxMemory); err == nil {
 			MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv)
 		} else {

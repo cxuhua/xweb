@@ -18,15 +18,16 @@ import (
 )
 
 const (
-	ContentType    = "Content-Type"
-	ContentLength  = "Content-Length"
-	ContentBinary  = "application/octet-stream"
-	ContentText    = "text/plain"
-	ContentJSON    = "application/json"
-	ContentHTML    = "text/html"
-	ContentXHTML   = "application/xhtml+xml"
-	ContentXML     = "text/xml"
-	defaultCharset = "UTF-8"
+	MultipartFormData = "multipart/form-data"
+	ContentType       = "Content-Type"
+	ContentLength     = "Content-Length"
+	ContentBinary     = "application/octet-stream"
+	ContentText       = "text/plain"
+	ContentJSON       = "application/json"
+	ContentHTML       = "text/html"
+	ContentXHTML      = "application/xhtml+xml"
+	ContentXML        = "text/xml"
+	defaultCharset    = "UTF-8"
 )
 
 // Provides a temporary buffer to execute templates into and catch errors.

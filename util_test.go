@@ -1,10 +1,9 @@
 package xweb
 
 import (
-	// "crypto/rand"
-	// "encoding/binary"
+	"fmt"
 	. "gopkg.in/check.v1"
-	"log"
+	"strconv"
 	"time"
 )
 
@@ -31,5 +30,16 @@ func (this *UtilSuite) TestZeroTime(c *C) {
 }
 
 func (this *UtilSuite) TestGenId(c *C) {
-	log.Println(GenId())
+	ids := map[string]bool{}
+	for i := 0; i < 10000; i++ {
+		v := GenId()
+		c.Assert(ids[v], Equals, false)
+		ids[v] = true
+	}
+	id := GenId()
+	num, err := strconv.ParseUint(id, 10, 64)
+	c.Log(id, num)
+	c.Assert(err, Equals, nil)
+	s := fmt.Sprintf("%v", num)
+	c.Assert(id, Equals, s)
 }

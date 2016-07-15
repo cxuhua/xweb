@@ -1,8 +1,10 @@
 package xweb
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
+	"strconv"
 	"time"
 )
 
@@ -17,10 +19,21 @@ func ZeroTime() time.Time {
 //auto uuid
 func GenId() string {
 	t := time.Now()
-	rand.Seed(t.UnixNano())
 	hour, min, sec := t.Clock()
 	z := int64(hour*60*60 + min*60 + sec)
-	x := rand.Int() % 100000
-	v := t.Format("20060102")
-	return fmt.Sprintf("%s%.5d%.5d", v, z, x)
+	r, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		panic(err)
+	}
+	x := r.Uint64() % 1000000
+	return fmt.Sprintf("%s%.5d%.6d", t.Format("20060102"), z, x)
+}
+
+func GenUInt64() uint64 {
+	id := GenId()
+	num, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return num
 }
