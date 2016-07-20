@@ -289,14 +289,26 @@ type IMVC interface {
 	SetStatus(int)
 
 	Redirect(string)
+
+	SetCookie(cookie *http.Cookie)
+	GetCookie() []*http.Cookie
 }
 
 type mvc struct {
 	IMVC
-	status int
-	view   string
-	render int
-	model  IModel
+	status  int
+	view    string
+	render  int
+	model   IModel
+	cookies []*http.Cookie
+}
+
+func (this *mvc) SetCookie(cookie *http.Cookie) {
+	this.cookies = append(this.cookies, cookie)
+}
+
+func (this *mvc) GetCookie() []*http.Cookie {
+	return this.cookies
 }
 
 func (this *mvc) Redirect(url string) {

@@ -69,6 +69,10 @@ type xArgs struct {
 	*http.Request
 }
 
+func (this *xArgs) Cookie(name string) (*http.Cookie, error) {
+	return this.Request.Cookie(name)
+}
+
 func (this *xArgs) Init(req *http.Request) {
 	this.Request = req
 }

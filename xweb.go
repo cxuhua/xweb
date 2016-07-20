@@ -453,6 +453,9 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render) {
 			render.Header().Add(ik, vv)
 		}
 	}
+	for _, cv := range mvc.GetCookie() {
+		render.SetCookie(cv)
+	}
 	s := mvc.GetStatus()
 	v := mvc.GetView()
 	switch mvc.GetRender() {

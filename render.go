@@ -70,6 +70,8 @@ type Render interface {
 	Template() *template.Template
 	// Header exposes the header struct from http.ResponseWriter.
 	Header() http.Header
+	// SetCookie
+	SetCookie(cookie *http.Cookie)
 }
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering
@@ -220,6 +222,10 @@ type renderer struct {
 	t               *template.Template
 	opt             RenderOptions
 	compiledCharset string
+}
+
+func (r *renderer) SetCookie(cookie *http.Cookie) {
+	http.SetCookie(r.ResponseWriter, cookie)
 }
 
 func (r *renderer) File(name string, mod time.Time, file IHttpFile) {
