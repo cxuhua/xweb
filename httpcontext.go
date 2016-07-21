@@ -3,7 +3,7 @@ package xweb
 import (
 	"errors"
 	"fmt"
-	"github.com/go-martini/martini"
+	"github.com/cxuhua/xweb/martini"
 	"log"
 	"net/http"
 	"reflect"
@@ -174,7 +174,7 @@ func (this *HttpContext) printURLS(log *log.Logger) {
 }
 
 func NewHttpContext() *HttpContext {
-	h := new(HttpContext)
+	h := &HttpContext{}
 	r := martini.NewRouter()
 	m := martini.New()
 	m.Use(martini.Logger())

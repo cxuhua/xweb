@@ -1,12 +1,5 @@
 package xweb
 
-/*
-Deps:
-	go get github.com/sevlyar/go-daemon
-	go get github.com/go-martini/martini
-	go get github.com/martini-contrib/binding
-*/
-
 import (
 	"crypto/aes"
 	"crypto/cipher"

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/go-martini/martini"
+	"github.com/cxuhua/xweb/martini"
 	"github.com/oxtoacart/bpool"
 	"html/template"
 	"io"
