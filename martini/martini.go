@@ -15,15 +15,15 @@
 //
 //    m.Run()
 //  }
+
 package martini
 
 import (
+	"github.com/codegangsta/inject"
 	"log"
 	"net/http"
 	"os"
 	"reflect"
-
-	"github.com/codegangsta/inject"
 )
 
 // Martini represents the top level web application. inject.Injector methods can be invoked to map services on a global level.

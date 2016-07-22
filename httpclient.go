@@ -142,6 +142,16 @@ var (
 	NoDataError = errors.New("http not response data")
 )
 
+func (this HTTPClient) GetBytes(path string) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := this.Client.Get(this.Host + path)
+	if err != nil {
+		return ret, err
+	}
+	ret.Response = res
+	return ret, nil
+}
+
 func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
 	ret := HttpResponse{}
 	if !q.IsEmpty() {
@@ -179,9 +189,24 @@ func (this HTTPClient) Form(path string, v HTTPValues) (HttpResponse, error) {
 	return ret, nil
 }
 
-//http.MethodPost http.MethodGet http.MethodHead...
 func (this HTTPClient) NewRequest(method, path string, body io.Reader) (*http.Request, error) {
 	return http.NewRequest(method, this.Host+path, body)
+}
+
+func (this HTTPClient) NewGet(path string, q HTTPValues) (*http.Request, error) {
+	if !q.IsEmpty() {
+		path = path + "?" + q.Encode()
+	}
+	return http.NewRequest(http.MethodGet, this.Host+path, nil)
+}
+
+func (this HTTPClient) NewPost(path string, bt string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodPost, this.Host+path, body)
+	if err != nil {
+		return req, nil
+	}
+	req.Header.Set(ContentType, bt)
+	return req, nil
 }
 
 func (this HTTPClient) Do(req *http.Request) (HttpResponse, error) {
@@ -209,18 +234,18 @@ func MustLoadTLSConfig(ca, crt, key string) *tls.Config {
 	if len(key) == 0 {
 		panic(errors.New("key data miss"))
 	}
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM([]byte(ca)) {
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(ca)) {
 		panic("Failed appending certs")
 	}
 	cert, err := tls.X509KeyPair([]byte(crt), []byte(key))
 	if err != nil {
 		panic(err)
 	}
-	config := &tls.Config{}
-	config.Certificates = []tls.Certificate{cert}
-	config.RootCAs = certPool
-	return config
+	conf := &tls.Config{}
+	conf.Certificates = []tls.Certificate{cert}
+	conf.RootCAs = pool
+	return conf
 }
 
 func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
@@ -237,28 +262,28 @@ func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 	if err != nil {
 		panic(err)
 	}
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(pem) {
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
 		panic("Failed appending certs")
 	}
 	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
 	if err != nil {
 		panic(err)
 	}
-	config := &tls.Config{}
-	config.Certificates = []tls.Certificate{cert}
-	config.RootCAs = certPool
-	return config
+	conf := &tls.Config{}
+	conf.Certificates = []tls.Certificate{cert}
+	conf.RootCAs = pool
+	return conf
 }
 
-func NewHTTPClient(host string, config ...*tls.Config) HTTPClient {
+func NewHTTPClient(host string, confs ...*tls.Config) HTTPClient {
 	host = strings.ToLower(host)
 	ret := HTTPClient{}
 	ret.Host = host
 	ret.IsSecure = strings.HasPrefix(host, "https")
 	tr := &http.Transport{}
-	if len(config) > 0 {
-		tr.TLSClientConfig = config[0]
+	if len(confs) > 0 {
+		tr.TLSClientConfig = confs[0]
 	} else if ret.IsSecure {
 		tr.TLSClientConfig = TLSSkipVerifyConfig()
 	}
