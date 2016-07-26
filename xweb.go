@@ -162,7 +162,7 @@ func setKindValue(vk reflect.Kind, val string, sf reflect.Value) {
 		}
 	case reflect.Bool:
 		if val == "" {
-			val = "false"
+			val = "true"
 		}
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			sf.SetBool(boolVal)
