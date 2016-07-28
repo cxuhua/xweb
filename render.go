@@ -19,11 +19,14 @@ import (
 
 const (
 	MultipartFormData = "multipart/form-data"
+	ContentURLEncoded = "application/x-www-form-urlencoded"
 	ContentType       = "Content-Type"
 	ContentLength     = "Content-Length"
 	ContentBinary     = "application/octet-stream"
 	ContentText       = "text/plain"
 	ContentJSON       = "application/json"
+	ContentJPEG       = "image/jpeg"
+	ContentPNG        = "image/png"
 	ContentHTML       = "text/html"
 	ContentXHTML      = "application/xhtml+xml"
 	ContentXML        = "text/xml"

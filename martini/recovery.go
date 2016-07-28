@@ -3,12 +3,11 @@ package martini
 import (
 	"bytes"
 	"fmt"
+	"github.com/cxuhua/xweb/inject"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"runtime"
-
-	"github.com/codegangsta/inject"
 )
 
 const (
