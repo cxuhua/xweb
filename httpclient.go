@@ -154,10 +154,17 @@ func (this HTTPClient) GetBytes(path string) (HttpResponse, error) {
 
 func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
 	ret := HttpResponse{}
-	if !q.IsEmpty() {
-		path = path + "?" + q.Encode()
+	url, err := url.Parse(path)
+	if err != nil {
+		return ret, err
 	}
-	res, err := this.Client.Get(this.Host + path)
+	qv := url.Query()
+	for kv, vv := range q.Values {
+		for _, v := range vv {
+			qv.Add(kv, v)
+		}
+	}
+	res, err := this.Client.Get(this.Host + "?" + qv.Encode())
 	if err != nil {
 		return ret, err
 	}
@@ -165,13 +172,13 @@ func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
 	return ret, nil
 }
 
-func (this HTTPClient) PostBytes(path string, bt string, data []byte) (HttpResponse, error) {
-	return this.Post(path, bt, bytes.NewReader(data))
+func (this HTTPClient) PostBytes(path string, ct string, data []byte) (HttpResponse, error) {
+	return this.Post(path, ct, bytes.NewReader(data))
 }
 
-func (this HTTPClient) Post(path string, bt string, body io.Reader) (HttpResponse, error) {
+func (this HTTPClient) Post(path string, ct string, body io.Reader) (HttpResponse, error) {
 	ret := HttpResponse{}
-	res, err := this.Client.Post(this.Host+path, bt, body)
+	res, err := this.Client.Post(this.Host+path, ct, body)
 	if err != nil {
 		return ret, err
 	}
@@ -194,10 +201,27 @@ func (this HTTPClient) NewRequest(method, path string, body io.Reader) (*http.Re
 }
 
 func (this HTTPClient) NewGet(path string, q HTTPValues) (*http.Request, error) {
-	if !q.IsEmpty() {
-		path = path + "?" + q.Encode()
+	url, err := url.Parse(path)
+	if err != nil {
+		return nil, err
 	}
-	return http.NewRequest(http.MethodGet, this.Host+path, nil)
+	qv := url.Query()
+	for kv, vv := range q.Values {
+		for _, v := range vv {
+			qv.Add(kv, v)
+		}
+	}
+	return http.NewRequest(http.MethodGet, this.Host+"?"+qv.Encode(), nil)
+}
+
+func (this HTTPClient) NewForm(path string, v HTTPValues) (*http.Request, error) {
+	body := strings.NewReader(v.Encode())
+	req, err := http.NewRequest(http.MethodPost, this.Host+path, body)
+	if err != nil {
+		return req, nil
+	}
+	req.Header.Set(ContentType, ContentURLEncoded)
+	return req, nil
 }
 
 func (this HTTPClient) NewPost(path string, bt string, body io.Reader) (*http.Request, error) {
@@ -248,9 +272,9 @@ func MustLoadTLSConfig(ca, crt, key string) *tls.Config {
 	return conf
 }
 
-func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
-	if casFile == "" {
-		panic(errors.New("casFile miss"))
+func MustLoadTLSFileConfig(rootFile, crtFile, keyFile string) *tls.Config {
+	if rootFile == "" {
+		panic(errors.New("rootFile miss"))
 	}
 	if crtFile == "" {
 		panic(errors.New("crtFile miss"))
@@ -258,7 +282,7 @@ func MustLoadTLSFileConfig(casFile, crtFile, keyFile string) *tls.Config {
 	if keyFile == "" {
 		panic(errors.New("keyFile miss"))
 	}
-	pem, err := ioutil.ReadFile(casFile)
+	pem, err := ioutil.ReadFile(rootFile)
 	if err != nil {
 		panic(err)
 	}

@@ -127,8 +127,8 @@ func GetRemoteAddr(req *http.Request) string {
 	return req.RemoteAddr
 }
 
-func (this *HTTPDispatcher) DefaultHandler(c IMVC) {
-
+func (this *HTTPDispatcher) DefaultHandler(log *log.Logger, c IMVC) {
+	log.Println("invoke default handler")
 }
 
 //日志打印调试Handler
@@ -561,13 +561,10 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		if err := this.Validate(args); err != nil {
 			args.Validate(NewValidateModel(err), mvc)
 		} else if fm := this.GetArgsHandler(args); fm != nil {
-			//args Handler
 			c.Invoke(fm)
 		} else if hv.IsValid() {
-			//dispatch Handler
 			c.Invoke(hv.Interface())
 		} else {
-			//default Handler
 			c.Invoke(dv.Interface())
 		}
 		this.mvcRender(mvc, rv)
@@ -588,17 +585,13 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			handler = f.Name
 		}
 		method := f.Tag.Get("method")
-		//使用父结构方法
 		if method == "" {
 			method = pmethod
 		}
 		method = strings.ToUpper(method)
 		in := []martini.Handler{}
-		//设置前置组件
 		hv := sv.MethodByName(handler + HandlerSuffix)
-		//默认组建
 		dv := sv.MethodByName(DefaultHandler)
-		//检测参数
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
 			render = strings.ToUpper(render)
