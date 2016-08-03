@@ -164,7 +164,7 @@ func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
 			qv.Add(kv, v)
 		}
 	}
-	res, err := this.Client.Get(this.Host + "?" + qv.Encode())
+	res, err := this.Client.Get(this.Host + url.Path + "?" + qv.Encode())
 	if err != nil {
 		return ret, err
 	}
@@ -211,7 +211,7 @@ func (this HTTPClient) NewGet(path string, q HTTPValues) (*http.Request, error) 
 			qv.Add(kv, v)
 		}
 	}
-	return http.NewRequest(http.MethodGet, this.Host+"?"+qv.Encode(), nil)
+	return http.NewRequest(http.MethodGet, this.Host+url.Path+"?"+qv.Encode(), nil)
 }
 
 func (this HTTPClient) NewForm(path string, v HTTPValues) (*http.Request, error) {
