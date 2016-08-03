@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -129,6 +130,7 @@ func (this HttpResponse) ToXml(v interface{}) error {
 	if err != nil {
 		return err
 	}
+	log.Println("xml:", string(data))
 	return xml.Unmarshal(data, v)
 }
 
