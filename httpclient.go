@@ -99,6 +99,14 @@ type HttpResponse struct {
 	*http.Response
 }
 
+func (this HttpResponse) ToReader() (io.Reader, error) {
+	data, err := readResponse(this.Response)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(data), nil
+}
+
 func (this HttpResponse) ToBytes() ([]byte, error) {
 	return readResponse(this.Response)
 }
@@ -145,6 +153,16 @@ var (
 func (this HTTPClient) GetBytes(path string) (HttpResponse, error) {
 	ret := HttpResponse{}
 	res, err := this.Client.Get(this.Host + path)
+	if err != nil {
+		return ret, err
+	}
+	ret.Response = res
+	return ret, nil
+}
+
+func HttpGet(url string) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := http.Get(url)
 	if err != nil {
 		return ret, err
 	}
@@ -229,7 +247,9 @@ func (this HTTPClient) NewPost(path string, bt string, body io.Reader) (*http.Re
 	if err != nil {
 		return req, nil
 	}
-	req.Header.Set(ContentType, bt)
+	if bt != "" {
+		req.Header.Set(ContentType, bt)
+	}
 	return req, nil
 }
 
@@ -249,13 +269,13 @@ func TLSSkipVerifyConfig() *tls.Config {
 }
 
 func MustLoadTLSConfig(ca, crt, key string) *tls.Config {
-	if len(ca) == 0 {
+	if ca == "" {
 		panic(errors.New("ca data miss"))
 	}
-	if len(crt) == 0 {
+	if crt == "" {
 		panic(errors.New("crt data miss"))
 	}
-	if len(key) == 0 {
+	if key == "" {
 		panic(errors.New("key data miss"))
 	}
 	pool := x509.NewCertPool()

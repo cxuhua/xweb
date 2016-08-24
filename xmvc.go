@@ -76,6 +76,7 @@ func (this *TempModel) Render() int {
 	return TEMP_RENDER
 }
 
+//http文件下载
 type IHttpFile interface {
 	io.Reader
 	io.Seeker
