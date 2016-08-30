@@ -160,6 +160,26 @@ func (this HTTPClient) GetBytes(path string) (HttpResponse, error) {
 	return ret, nil
 }
 
+func HttpForm(url string, q HTTPValues) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := http.PostForm(url, q.Values)
+	if err != nil {
+		return ret, err
+	}
+	ret.Response = res
+	return ret, nil
+}
+
+func HttpPost(url string, bt string, body io.Reader) (HttpResponse, error) {
+	ret := HttpResponse{}
+	res, err := http.Post(url, bt, body)
+	if err != nil {
+		return ret, err
+	}
+	ret.Response = res
+	return ret, nil
+}
+
 func HttpGet(url string) (HttpResponse, error) {
 	ret := HttpResponse{}
 	res, err := http.Get(url)
