@@ -39,52 +39,43 @@ const (
 	REDIRECT_RENDER
 )
 
+var (
+	smap = map[string]int{
+		"HTML":     HTML_RENDER,
+		"JSON":     JSON_RENDER,
+		"XML":      XML_RENDER,
+		"TEXT":     TEXT_RENDER,
+		"SCRIPT":   SCRIPT_RENDER,
+		"DATA":     DATA_RENDER,
+		"FILE":     FILE_RENDER,
+		"TEMP":     TEMP_RENDER,
+		"REDIRECT": REDIRECT_RENDER,
+	}
+	rmap = map[int]string{
+		HTML_RENDER:     "HTML",
+		JSON_RENDER:     "JSON",
+		XML_RENDER:      "XML",
+		TEXT_RENDER:     "TEXT",
+		SCRIPT_RENDER:   "SCRIPT",
+		DATA_RENDER:     "DATA",
+		FILE_RENDER:     "FILE",
+		TEMP_RENDER:     "TEMP",
+		REDIRECT_RENDER: "REDIRECT",
+	}
+)
+
 func StringToRender(r string) int {
-	switch r {
-	case "HTML":
-		return HTML_RENDER
-	case "JSON":
-		return JSON_RENDER
-	case "XML":
-		return XML_RENDER
-	case "TEXT":
-		return TEXT_RENDER
-	case "SCRIPT":
-		return SCRIPT_RENDER
-	case "DATA":
-		return DATA_RENDER
-	case "FILE":
-		return FILE_RENDER
-	case "TEMP":
-		return TEMP_RENDER
-	case "REDIRECT":
-		return REDIRECT_RENDER
-	default:
+	if v, ok := smap[r]; ok {
+		return v
+	} else {
 		return 0
 	}
 }
 
 func RenderToString(r int) string {
-	switch r {
-	case HTML_RENDER:
-		return "HTML"
-	case JSON_RENDER:
-		return "JSON"
-	case XML_RENDER:
-		return "XML"
-	case TEXT_RENDER:
-		return "TEXT"
-	case SCRIPT_RENDER:
-		return "SCRIPT"
-	case DATA_RENDER:
-		return "DATA"
-	case FILE_RENDER:
-		return "FILE"
-	case TEMP_RENDER:
-		return "TEMP"
-	case REDIRECT_RENDER:
-		return "REDIRECT"
-	default:
+	if v, ok := rmap[r]; ok {
+		return v
+	} else {
 		return "NONE"
 	}
 }
