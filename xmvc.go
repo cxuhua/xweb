@@ -196,8 +196,8 @@ func (this *XMLModel) Render() int {
 //渲染模型
 type HTTPModel struct {
 	JSONModel `bson:"-" json:"-" xml:"-"`
-	Code      int    `json:"code" xml:"code"`
-	Error     string `json:"error,omitempty" xml:"error,omitempty"`
+	Code      int    `bson:"code" json:"code" xml:"code"`
+	Error     string `bson:"error,omitempty" json:"error,omitempty" xml:"error,omitempty"`
 }
 
 func (this *HTTPModel) Finished() {

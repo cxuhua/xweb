@@ -51,7 +51,6 @@ func nonzero(v interface{}, param string) error {
 	default:
 		return ErrUnsupported
 	}
-
 	if !valid {
 		return ErrZeroValue
 	}

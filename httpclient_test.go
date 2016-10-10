@@ -1,7 +1,9 @@
 package xweb
 
 import (
+	"github.com/cxuhua/xweb/now"
 	. "gopkg.in/check.v1"
+	"log"
 	"net/http"
 )
 
@@ -16,6 +18,10 @@ func (this *HttpSuite) SetUpSuite(c *C) {
 
 func (this *HttpSuite) TearDownSuite(c *C) {
 
+}
+
+func (this *HttpSuite) TestGet(c *C) {
+	log.Println(now.BeginningOfDay())
 }
 
 func (this *HttpSuite) TestHttpRequest(c *C) {
