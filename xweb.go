@@ -363,22 +363,18 @@ func (this *HttpContext) IsIArgs(v reflect.Value) (IArgs, bool) {
 	}
 }
 
-func (this *HttpContext) IsIDispatcher(v reflect.Value) (IDispatcher, bool) {
+func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool) {
 	if !v.IsValid() {
-		return nil, false
+		return
 	}
 	if !v.CanAddr() {
-		return nil, false
+		return
 	}
-	v = v.Addr()
-	if !v.IsValid() {
-		return nil, false
+	if v = v.Addr(); !v.IsValid() {
+		return
 	}
-	if a, ok := v.Interface().(IDispatcher); !ok {
-		return nil, false
-	} else {
-		return a, true
-	}
+	av, ok = v.Interface().(IDispatcher)
+	return
 }
 
 func (this *HttpContext) useHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
