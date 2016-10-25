@@ -3,8 +3,9 @@ package xweb
 import (
 	"errors"
 	"fmt"
+	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
-	"log"
+	"io"
 	"net/http"
 	"reflect"
 	"sort"
@@ -15,6 +16,15 @@ import (
 var (
 	m = NewHttpContext()
 )
+
+func InitDefaultLogger(w io.Writer) {
+	loggerFormat := logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`)
+	backend := logging.NewLogBackend(w, "", 0)
+	formatter := logging.NewBackendFormatter(backend, loggerFormat)
+	leveled := logging.AddModuleLevel(backend)
+	leveled.SetLevel(logging.ERROR, "")
+	logging.SetBackend(leveled, formatter)
+}
 
 func ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	m.ServeHTTP(res, req)
@@ -66,7 +76,7 @@ func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) err
 	return m.ListenAndServeTLS(addr, cert, key)
 }
 
-func Logger() *log.Logger {
+func Logger() *logging.Logger {
 	return m.Logger()
 }
 
@@ -114,40 +124,39 @@ func (this *HttpContext) Validate(v IArgs) error {
 	return this.Validator.Validate(v)
 }
 
-func (this *HttpContext) Logger() *log.Logger {
-	t := reflect.TypeOf((*log.Logger)(nil))
+func (this *HttpContext) Logger() *logging.Logger {
+	t := reflect.TypeOf((*logging.Logger)(nil))
 	v := this.Injector.Get(t)
 	if !v.IsValid() {
 		panic(errors.New("get logger error"))
 	}
-	ret, ok := v.Interface().(*log.Logger)
+	ret, ok := v.Interface().(*logging.Logger)
 	if !ok || ret == nil {
 		panic(errors.New("get logger error"))
 	}
 	return ret
 }
 
-func (this *HttpContext) initLogger() *log.Logger {
+func (this *HttpContext) initLogger() *logging.Logger {
 	logger := this.Logger()
 	if logger == nil {
 		panic(errors.New("logger init error"))
 	}
-	logger.SetFlags(log.Ldate | log.Ltime)
 	this.printURLS(logger)
 	return logger
 }
 
 func (this *HttpContext) ListenAndServe(addr string) error {
-	this.initLogger().Printf("http listening on %s (%s)\n", addr, martini.Env)
+	this.initLogger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
-	this.initLogger().Printf("https listening on %s (%s)\n", addr, martini.Env)
+	this.initLogger().Infof("https listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
-func (this *HttpContext) printURLS(log *log.Logger) {
+func (this *HttpContext) printURLS(log *logging.Logger) {
 	this.URLS.Sort()
 	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
@@ -169,7 +178,7 @@ func (this *HttpContext) printURLS(log *log.Logger) {
 	}
 	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, vc, rc)
 	for _, u := range this.URLS {
-		log.Printf(fs, u.Method, u.Pattern, u.View, u.Render)
+		log.Infof(fs, u.Method, u.Pattern, u.View, u.Render)
 	}
 }
 

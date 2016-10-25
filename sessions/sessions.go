@@ -20,10 +20,10 @@
 package sessions
 
 import (
+	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
-	"log"
 	"net/http"
 )
 
@@ -75,7 +75,7 @@ type Session interface {
 // Sessions is a Middleware that maps a session.Session service into the Martini handler chain.
 // Sessions can use a number of storage solutions with the given store.
 func Sessions(name string, store Store) martini.Handler {
-	return func(res http.ResponseWriter, r *http.Request, c martini.Context, l *log.Logger) {
+	return func(res http.ResponseWriter, r *http.Request, c martini.Context, l *logging.Logger) {
 		// Map to the Session interface
 		s := &session{name, r, l, store, nil, false}
 		c.MapTo(s, (*Session)(nil))
@@ -99,7 +99,7 @@ func Sessions(name string, store Store) martini.Handler {
 type session struct {
 	name    string
 	request *http.Request
-	logger  *log.Logger
+	logger  *logging.Logger
 	store   Store
 	session *sessions.Session
 	written bool
@@ -159,8 +159,8 @@ func (s *session) Written() bool {
 	return s.written
 }
 
-func check(err error, l *log.Logger) {
+func check(err error, l *logging.Logger) {
 	if err != nil {
-		l.Printf(errorFormat, err)
+		l.Errorf(errorFormat, err)
 	}
 }

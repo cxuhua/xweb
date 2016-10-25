@@ -20,7 +20,7 @@ package martini
 
 import (
 	"github.com/cxuhua/xweb/inject"
-	"log"
+	"github.com/cxuhua/xweb/logging"
 	"net/http"
 	"os"
 	"reflect"
@@ -31,12 +31,12 @@ type Martini struct {
 	inject.Injector
 	handlers []Handler
 	action   Handler
-	logger   *log.Logger
+	logger   *logging.Logger
 }
 
 // New creates a bare bones Martini instance. Use this method if you want to have full control over the middleware that is used.
 func New() *Martini {
-	m := &Martini{Injector: inject.New(), action: func() {}, logger: log.New(os.Stdout, "[martini] ", 0)}
+	m := &Martini{Injector: inject.New(), action: func() {}, logger: logging.MustGetLogger("xweb")}
 	m.Map(m.logger)
 	m.Map(defaultReturnHandler())
 	return m
@@ -58,7 +58,7 @@ func (m *Martini) Action(handler Handler) {
 }
 
 // Logger sets the logger
-func (m *Martini) Logger(logger *log.Logger) {
+func (m *Martini) Logger(logger *logging.Logger) {
 	m.logger = logger
 	m.Map(m.logger)
 }
@@ -81,9 +81,9 @@ func (m *Martini) RunOnAddr(addr string) {
 	// calling http.ListenAndServer directly, so that it could be stored in the martini struct for later use.
 	// This would also allow to improve testing when a custom host and port are passed.
 
-	logger := m.Injector.Get(reflect.TypeOf(m.logger)).Interface().(*log.Logger)
-	logger.Printf("listening on %s (%s)\n", addr, Env)
-	logger.Fatalln(http.ListenAndServe(addr, m))
+	logger := m.Injector.Get(reflect.TypeOf(m.logger)).Interface().(*logging.Logger)
+	logger.Infof("listening on %s (%s)\n", addr, Env)
+	logger.Fatal(http.ListenAndServe(addr, m))
 }
 
 // Run the http server. Listening on os.GetEnv("PORT") or 3000 by default.

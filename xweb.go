@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -118,21 +118,21 @@ func GetRemoteAddr(req *http.Request) string {
 	return req.RemoteAddr
 }
 
-func (this *HTTPDispatcher) DefaultHandler(log *log.Logger, c IMVC) {
-	log.Println("invoke default handler")
+func (this *HTTPDispatcher) DefaultHandler(log *logging.Logger, c IMVC) {
+	log.Info("invoke default handler")
 }
 
 //日志打印调试Handler
-func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *log.Logger) {
-	log.Println("----------------------------Logger---------------------------")
-	log.Println("Remote:", GetRemoteAddr(req))
-	log.Println("Method:", req.Method)
-	log.Println("URL:", req.URL.String())
+func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *logging.Logger) {
+	log.Info("----------------------------Logger---------------------------")
+	log.Info("Remote:", GetRemoteAddr(req))
+	log.Info("Method:", req.Method)
+	log.Info("URL:", req.URL.String())
 	for k, v := range req.Header {
-		log.Println(k, ":", v)
+		log.Info(k, ":", v)
 	}
-	log.Println("Query:", req.URL.Query())
-	log.Println("--------------------------------------------------------------")
+	log.Info("Query:", req.URL.Query())
+	log.Info("--------------------------------------------------------------")
 }
 
 func setKindValue(vk reflect.Kind, val string, sf reflect.Value) {
@@ -260,7 +260,7 @@ func (this *HttpContext) GetBody(req *http.Request) ([]byte, error) {
 	return ioutil.ReadAll(req.Body)
 }
 
-func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
+func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -271,7 +271,7 @@ func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.P
 	return args
 }
 
-func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *log.Logger) {
+func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *logging.Logger) {
 	v := reflect.ValueOf(iv)
 	ct := strings.ToLower(req.Header.Get(ContentType))
 	uv := req.URL.Query()
@@ -282,18 +282,18 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *log.L
 		if err := req.ParseMultipartForm(FormMaxMemory); err == nil {
 			MapFormValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv)
 		} else {
-			log.Println("parse multipart form error", err)
+			log.Error("parse multipart form error", err)
 		}
 	} else {
 		if err := req.ParseForm(); err == nil {
 			MapFormValue(v, req.Form, nil, uv)
 		} else {
-			log.Println("parse form error", err)
+			log.Error("parse form error", err)
 		}
 	}
 }
 
-func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
+func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -313,7 +313,7 @@ func UnmarshalURL(iv IArgs, param martini.Params, req *http.Request) {
 	MapFormValue(v, nil, nil, uv)
 }
 
-func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
+func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -322,16 +322,16 @@ func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.
 	}
 	data, err := this.GetBody(req)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := json.Unmarshal(data, args); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	UnmarshalURL(args, param, req)
 	return args
 }
 
-func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
+func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -340,10 +340,10 @@ func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.P
 	}
 	data, err := this.GetBody(req)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	if err := xml.Unmarshal(data, args); err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 	UnmarshalURL(args, param, req)
 	return args
@@ -497,7 +497,7 @@ func (this *HttpContext) mvcRender(mvc IMVC, render Render) {
 	}
 }
 
-func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *log.Logger) IArgs {
+func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	var args IArgs = nil
 	switch iv.ReqType() {
 	case AT_URL:
@@ -525,7 +525,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
-	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *log.Logger) {
+	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
 		mvc := &mvc{}
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)

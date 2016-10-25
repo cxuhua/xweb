@@ -1,7 +1,7 @@
 package martini
 
 import (
-	"log"
+	"github.com/cxuhua/xweb/logging"
 	"net/http"
 	"net/url"
 	"path"
@@ -57,7 +57,7 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 	dir := http.Dir(directory)
 	opt := prepareStaticOptions(staticOpt)
 
-	return func(res http.ResponseWriter, req *http.Request, log *log.Logger) {
+	return func(res http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		if req.Method != "GET" && req.Method != "HEAD" {
 			return
 		}
@@ -122,7 +122,7 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 		}
 
 		if !opt.SkipLogging {
-			log.Println("[Static] Serving " + file)
+			log.Error("[Static] Serving " + file)
 		}
 
 		// Add an Expires header to the static content
