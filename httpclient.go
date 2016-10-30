@@ -107,6 +107,14 @@ func (this HttpResponse) ToReader() (io.Reader, error) {
 	return bytes.NewReader(data), nil
 }
 
+func (this HttpResponse) ToString() (string, error) {
+	bytes, err := this.ToBytes()
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
 func (this HttpResponse) ToBytes() ([]byte, error) {
 	return readResponse(this.Response)
 }
@@ -163,31 +171,22 @@ func (this HTTPClient) GetBytes(path string) (HttpResponse, error) {
 func HttpForm(url string, q HTTPValues) (HttpResponse, error) {
 	ret := HttpResponse{}
 	res, err := http.PostForm(url, q.Values)
-	if err != nil {
-		return ret, err
-	}
 	ret.Response = res
-	return ret, nil
+	return ret, err
 }
 
 func HttpPost(url string, bt string, body io.Reader) (HttpResponse, error) {
 	ret := HttpResponse{}
 	res, err := http.Post(url, bt, body)
-	if err != nil {
-		return ret, err
-	}
 	ret.Response = res
-	return ret, nil
+	return ret, err
 }
 
 func HttpGet(url string) (HttpResponse, error) {
 	ret := HttpResponse{}
 	res, err := http.Get(url)
-	if err != nil {
-		return ret, err
-	}
 	ret.Response = res
-	return ret, nil
+	return ret, err
 }
 
 func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
