@@ -489,9 +489,6 @@ func (this *HttpContext) mvcRender(vs []reflect.Value, req *http.Request, mvc IM
 		if v == "" {
 			v = this.autoView(req)
 		}
-		if v == "" {
-			panic("HTML RENDER:Template view miss")
-		}
 		render.HTML(s, v, m)
 	case JSON_RENDER:
 		render.JSON(s, m)
