@@ -544,15 +544,21 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		}
 		//map model
 		c.Map(model)
+		var vs []reflect.Value
+		var err error
 		mvc.SetModel(model)
-		if err := this.Validate(args); err != nil {
+		if err = this.Validate(args); err != nil {
 			args.Validate(NewValidateModel(err), mvc)
 		} else if fm := this.GetArgsHandler(args); fm != nil {
-			c.Invoke(fm)
+			vs, err = c.Invoke(fm)
 		} else if hv.IsValid() {
-			c.Invoke(hv.Interface())
+			vs, err = c.Invoke(hv.Interface())
 		} else {
-			c.Invoke(dv.Interface())
+			vs, err = c.Invoke(dv.Interface())
+		}
+		if err != nil {
+			log.Error(vs, err)
+			panic(err)
 		}
 		this.mvcRender(mvc, rv)
 	}
