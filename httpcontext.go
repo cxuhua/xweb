@@ -14,16 +14,15 @@ import (
 //default context
 
 var (
-	m = NewHttpContext()
+	m            = NewHttpContext()
+	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:2006-01-02 15:04:05.000} %{longfunc} ▶ %{level:.4s} %{id}%{color:reset} %{message}`)
+	LoggerPrefix = ""
 )
 
 func InitDefaultLogger(w io.Writer) {
-	loggerFormat := logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`)
-	backend := logging.NewLogBackend(w, "", 0)
-	formatter := logging.NewBackendFormatter(backend, loggerFormat)
-	leveled := logging.AddModuleLevel(backend)
-	leveled.SetLevel(logging.ERROR, "")
-	logging.SetBackend(leveled, formatter)
+	lw := logging.NewLogBackend(w, LoggerPrefix, 0)
+	backend := logging.NewBackendFormatter(lw, LoggerFormat)
+	logging.SetBackend(backend)
 }
 
 func ServeHTTP(res http.ResponseWriter, req *http.Request) {

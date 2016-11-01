@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/cxuhua/xweb/martini"
 	"io"
 	"net/http"
 	"reflect"
@@ -279,6 +280,7 @@ func NewValidateModel(err error) *ValidateModel {
 type IMVC interface {
 	GetView() string
 	SetView(string)
+	SetTemplate(string)
 
 	GetModel() IModel
 	SetModel(IModel)
@@ -293,66 +295,98 @@ type IMVC interface {
 
 	SetCookie(cookie *http.Cookie)
 	GetCookie() []*http.Cookie
+
+	Skip(bool)
+	IsSkip() bool
+	Map(v interface{})
+	MapTo(v interface{}, t interface{})
+	Next()
 }
 
-type mvc struct {
+type DefaultMVC struct {
 	IMVC
 	status  int
 	view    string
 	render  int
 	model   IModel
 	cookies []*http.Cookie
+	ctx     martini.Context
+	skip    bool
 }
 
-func (this *mvc) SetCookie(cookie *http.Cookie) {
+func (this *DefaultMVC) Map(v interface{}) {
+	this.ctx.Map(v)
+}
+func (this *DefaultMVC) MapTo(v interface{}, t interface{}) {
+	this.ctx.MapTo(v, t)
+}
+
+func (this *DefaultMVC) Next() {
+	this.ctx.Next()
+}
+
+func (this *DefaultMVC) Skip(v bool) {
+	this.skip = v
+}
+
+func (this *DefaultMVC) IsSkip() bool {
+	return this.skip
+}
+
+func (this *DefaultMVC) SetCookie(cookie *http.Cookie) {
 	this.cookies = append(this.cookies, cookie)
 }
 
-func (this *mvc) GetCookie() []*http.Cookie {
+func (this *DefaultMVC) GetCookie() []*http.Cookie {
 	return this.cookies
 }
 
-func (this *mvc) Redirect(url string) {
+func (this *DefaultMVC) Redirect(url string) {
 	m := &RedirectModel{Url: url}
 	m.InitHeader()
 	this.SetModel(m)
 }
 
-func (this *mvc) String() string {
+func (this *DefaultMVC) String() string {
 	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v", this.status, this.view, RenderToString(this.render), reflect.TypeOf(this.model).Elem())
 }
 
-func (this *mvc) GetView() string {
+func (this *DefaultMVC) GetView() string {
 	return this.view
 }
 
-func (this *mvc) SetView(v string) {
+func (this *DefaultMVC) SetView(v string) {
 	this.view = v
 }
 
-func (this *mvc) GetModel() IModel {
+func (this *DefaultMVC) GetModel() IModel {
 	return this.model
 }
 
-func (this *mvc) SetModel(v IModel) {
+func (this *DefaultMVC) SetModel(v IModel) {
 	this.model = v
 }
 
-func (this *mvc) GetRender() int {
+func (this *DefaultMVC) SetTemplate(v string) {
+	this.view = v
+	this.render = HTML_RENDER
+}
+
+func (this *DefaultMVC) GetRender() int {
 	if this.render == 0 {
 		this.render = this.model.Render()
 	}
 	return this.render
 }
 
-func (this *mvc) SetRender(v int) {
+func (this *DefaultMVC) SetRender(v int) {
 	this.render = v
 }
 
-func (this *mvc) GetStatus() int {
+func (this *DefaultMVC) GetStatus() int {
 	return this.status
 }
 
-func (this *mvc) SetStatus(v int) {
+func (this *DefaultMVC) SetStatus(v int) {
 	this.status = v
 }

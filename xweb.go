@@ -100,6 +100,10 @@ type HTTPDispatcher struct {
 	IDispatcher
 }
 
+func NewMVC(c martini.Context) IMVC {
+	return &DefaultMVC{ctx: c, model: &xModel{}, skip: false}
+}
+
 func (this *HTTPDispatcher) URL() string {
 	return ""
 }
@@ -432,7 +436,7 @@ func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
 }
 
 //输出html结束
-func (this *HttpContext) mvcRender(mvc IMVC, render Render) {
+func (this *HttpContext) mvcRender(vs []reflect.Value, mvc IMVC, render Render) {
 	m := mvc.GetModel()
 	defer m.Finished()
 	for ik, iv := range m.GetHeader() {
@@ -520,13 +524,43 @@ var (
 	ErrorModel = errors.New("model nil")
 )
 
+func (this *HttpContext) newHandler(hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
+	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
+		var vs []reflect.Value
+		var err error
+		mvc := NewMVC(c)
+		mvc.SetStatus(http.StatusOK)
+		if view != "" {
+			mvc.SetView(view)
+		}
+		if render != "" {
+			mvc.SetRender(StringToRender(render))
+		}
+		c.MapTo(mvc, (*IMVC)(nil))
+		if hv.IsValid() {
+			vs, err = c.Invoke(hv.Interface())
+		} else {
+			vs, err = c.Invoke(dv.Interface())
+		}
+		if err != nil {
+			panic(err)
+		}
+		//是否跳过渲染
+		if !mvc.IsSkip() {
+			this.mvcRender(vs, mvc, rv)
+		}
+	}
+}
+
 //mvc模式预处理
 func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
 	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
-		mvc := &mvc{}
+		var vs []reflect.Value
+		var err error
+		mvc := NewMVC(c)
 		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
 		mvc.SetRender(StringToRender(render))
@@ -544,8 +578,6 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		}
 		//map model
 		c.Map(model)
-		var vs []reflect.Value
-		var err error
 		mvc.SetModel(model)
 		if err = this.Validate(args); err != nil {
 			args.Validate(NewValidateModel(err), mvc)
@@ -557,10 +589,12 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 			vs, err = c.Invoke(dv.Interface())
 		}
 		if err != nil {
-			log.Error(vs, err)
 			panic(err)
 		}
-		this.mvcRender(mvc, rv)
+		//是否跳过渲染
+		if !mvc.IsSkip() {
+			this.mvcRender(vs, mvc, rv)
+		}
 	}
 }
 
@@ -572,7 +606,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		v := vv.Field(i)
 		url := f.Tag.Get("url")
 		view := f.Tag.Get("view")
-		render := f.Tag.Get("render")
+		render := strings.ToUpper(f.Tag.Get("render"))
 		handler := f.Tag.Get("handler")
 		if handler == "" {
 			handler = f.Name
@@ -587,12 +621,11 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		dv := sv.MethodByName(DefaultHandler)
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
-			render = strings.ToUpper(render)
 			in = append(in, this.mvcHandler(iv, hv, dv, view, render))
 		}
 		if d, b := this.IsIDispatcher(v); b {
 			if hv.IsValid() {
-				in = append(in, hv.Interface())
+				in = append(in, this.newHandler(hv, dv, view, render))
 			}
 			this.Group(d.URL()+url, func(r martini.Router) {
 				this.useRouter(r, d)
@@ -601,7 +634,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			this.useHandler(method, r, url, view, render, iv, in...)
 		} else if v.Kind() == reflect.Struct {
 			if hv.IsValid() {
-				in = append(in, hv.Interface())
+				in = append(in, this.newHandler(hv, dv, view, render))
 			}
 			this.Group(url, func(r martini.Router) {
 				this.useValue(method, r, c, v)
