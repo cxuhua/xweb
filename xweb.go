@@ -435,8 +435,43 @@ func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
 	}
 }
 
+func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
+	var args IArgs = nil
+	switch iv.ReqType() {
+	case AT_URL:
+		args = this.newURLArgs(iv, req, param, log)
+	case AT_FORM:
+		args = this.newFormArgs(iv, req, param, log)
+	case AT_JSON:
+		args = this.newJSONArgs(iv, req, param, log)
+	case AT_XML:
+		args = this.newXMLArgs(iv, req, param, log)
+	default:
+		panic(errors.New("args reqtype error"))
+	}
+	args.Init(req)
+	return args
+}
+
+var (
+	ErrorArgs  = errors.New("args nil")
+	ErrorModel = errors.New("model nil")
+)
+
+func (this *HttpContext) autoView(req *http.Request) string {
+	path := req.URL.Path
+	if path == "" {
+		return "index"
+	}
+	l := len(path)
+	if path[l-1] == '/' {
+		return path[1:] + "index"
+	}
+	return path[1:]
+}
+
 //输出html结束
-func (this *HttpContext) mvcRender(vs []reflect.Value, mvc IMVC, render Render) {
+func (this *HttpContext) mvcRender(vs []reflect.Value, req *http.Request, mvc IMVC, render Render) {
 	m := mvc.GetModel()
 	defer m.Finished()
 	for ik, iv := range m.GetHeader() {
@@ -448,11 +483,11 @@ func (this *HttpContext) mvcRender(vs []reflect.Value, mvc IMVC, render Render) 
 		render.SetCookie(cv)
 	}
 	s := mvc.GetStatus()
-	v := mvc.GetView()
 	switch mvc.GetRender() {
 	case HTML_RENDER:
+		v := mvc.GetView()
 		if v == "" {
-			panic("RENDER Model error:Template miss")
+			v = this.autoView(req)
 		}
 		render.HTML(s, v, m)
 	case JSON_RENDER:
@@ -501,29 +536,6 @@ func (this *HttpContext) mvcRender(vs []reflect.Value, mvc IMVC, render Render) 
 	}
 }
 
-func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
-	var args IArgs = nil
-	switch iv.ReqType() {
-	case AT_URL:
-		args = this.newURLArgs(iv, req, param, log)
-	case AT_FORM:
-		args = this.newFormArgs(iv, req, param, log)
-	case AT_JSON:
-		args = this.newJSONArgs(iv, req, param, log)
-	case AT_XML:
-		args = this.newXMLArgs(iv, req, param, log)
-	default:
-		panic(errors.New("args reqtype error"))
-	}
-	args.Init(req)
-	return args
-}
-
-var (
-	ErrorArgs  = errors.New("args nil")
-	ErrorModel = errors.New("model nil")
-)
-
 func (this *HttpContext) newHandler(hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
 		var vs []reflect.Value
@@ -547,7 +559,7 @@ func (this *HttpContext) newHandler(hv reflect.Value, dv reflect.Value, view str
 		}
 		//是否跳过渲染
 		if !mvc.IsSkip() {
-			this.mvcRender(vs, mvc, rv)
+			this.mvcRender(vs, req, mvc, rv)
 		}
 	}
 }
@@ -593,7 +605,7 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		}
 		//是否跳过渲染
 		if !mvc.IsSkip() {
-			this.mvcRender(vs, mvc, rv)
+			this.mvcRender(vs, req, mvc, rv)
 		}
 	}
 }
