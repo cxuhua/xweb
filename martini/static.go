@@ -122,7 +122,7 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 		}
 
 		if !opt.SkipLogging {
-			log.Error("[Static] Serving " + file)
+			log.Info("[Static] Serving " + file)
 		}
 
 		// Add an Expires header to the static content
