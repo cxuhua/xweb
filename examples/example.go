@@ -77,7 +77,7 @@ type MainDispatcher struct {
 func (this *MainDispatcher) HeaderHandler(c xweb.IMVC) {
 	c.Logger().Error("header")
 	c.SetView("list")
-	// c.SkipNext() 跳过后续的处理
+	c.SkipNext() //跳过后续的处理
 }
 
 func main() {

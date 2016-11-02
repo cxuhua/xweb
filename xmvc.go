@@ -433,6 +433,7 @@ func (this *DefaultMVC) Redirect(url string) {
 	m := &RedirectModel{Url: url}
 	m.InitHeader()
 	this.SetModel(m)
+	this.render = REDIRECT_RENDER
 }
 
 func (this *DefaultMVC) String() string {

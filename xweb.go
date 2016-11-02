@@ -612,7 +612,6 @@ func (this *HttpContext) NewMVCHandler() martini.Handler {
 			render:   NONE_RENDER,
 			isrender: true,
 			rev:      rv}
-
 		mvc.MapTo(mvc, (*IMVC)(nil))
 		mvc.Next()
 		if !mvc.isrender {
