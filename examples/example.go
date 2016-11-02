@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/cxuhua/xweb"
-	"github.com/cxuhua/xweb/logging"
 	"os"
 )
 
@@ -49,16 +48,16 @@ type IndexArgs struct {
 }
 
 //当接收到参数时用此方法处理参数
-func (this *IndexArgs) Handler(c xweb.IMVC, log *logging.Logger) {
+func (this *IndexArgs) Handler(c xweb.IMVC) {
 
-	log.Error("Handler")
+	c.Logger().Error("Handler")
 
-	m := &FormModel{}
-	c.SetModel(m)
+	// m := &FormModel{}
+	// c.SetModel(m)
 
-	m.A = this.RemoteAddr()
-	m.B = this.Q
-	m.C = this.B
+	// m.A = this.RemoteAddr()
+	// m.B = this.Q
+	// m.C = this.B
 }
 
 type MainDispatcher struct {
@@ -71,14 +70,14 @@ type MainDispatcher struct {
 		PostForm FormArgs `url:"/form" method:"POST"`
 	} `url:"/post" handler:"Logger"`
 	Header struct {
-		Index IndexArgs `url:"/"`
+		Index IndexArgs `url:"/" view:"index"`
 	}
 }
 
-func (this *MainDispatcher) HeaderHandler(c xweb.IMVC, log *logging.Logger) {
-	log.Error("header")
+func (this *MainDispatcher) HeaderHandler(c xweb.IMVC) {
+	c.Logger().Error("header")
 	c.SetView("list")
-	c.Skip()
+	// c.SkipNext() 跳过后续的处理
 }
 
 func main() {

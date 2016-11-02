@@ -146,7 +146,7 @@ type Context interface {
 	// Written returns whether or not the response for this context has been written.
 	Written() bool
 	// skip handler
-	Skip()
+	SkipNext()
 }
 
 type context struct {
@@ -168,7 +168,7 @@ func (c *context) handler() Handler {
 }
 
 //skip after handler
-func (c *context) Skip() {
+func (c *context) SkipNext() {
 	c.index += (len(c.handlers) + 1)
 }
 

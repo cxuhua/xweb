@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"io"
 	"net/http"
@@ -285,29 +286,51 @@ type IMVC interface {
 	SetModel(IModel)
 	SetRender(int)
 	SetStatus(int)
+
 	Redirect(string)
+
 	SetCookie(cookie *http.Cookie)
+
 	Map(v interface{})
 	MapTo(v interface{}, t interface{})
 	Next()
-	Skip()
-	Render()
+	SkipNext()
+	SkipRender(bool)
+
+	RunRender()
+
+	Logger() *logging.Logger
+	Request() *http.Request
 }
 
 type DefaultMVC struct {
 	IMVC
-	status  int
-	view    string
-	render  int
-	model   IModel
-	cookies []*http.Cookie
-	req     *http.Request
-	rev     Render
-	ctx     martini.Context
+	status   int
+	view     string
+	render   int
+	model    IModel
+	cookies  []*http.Cookie
+	req      *http.Request
+	rev      Render
+	ctx      martini.Context
+	log      *logging.Logger
+	isrender bool
 }
 
-func (this *DefaultMVC) Skip() {
-	this.ctx.Skip()
+func (this *DefaultMVC) Render() Render {
+	return this.rev
+}
+
+func (this *DefaultMVC) Request() *http.Request {
+	return this.req
+}
+
+func (this *DefaultMVC) Logger() *logging.Logger {
+	return this.log
+}
+
+func (this *DefaultMVC) SkipNext() {
+	this.ctx.SkipNext()
 }
 
 func (this *DefaultMVC) autoView() string {
@@ -322,7 +345,11 @@ func (this *DefaultMVC) autoView() string {
 	return path[1:]
 }
 
-func (this *DefaultMVC) Render() {
+func (this *DefaultMVC) SkipRender(v bool) {
+	this.isrender = v
+}
+
+func (this *DefaultMVC) RunRender() {
 	defer this.model.Finished()
 	for ik, iv := range this.model.GetHeader() {
 		for _, vv := range iv {
@@ -332,7 +359,7 @@ func (this *DefaultMVC) Render() {
 	for _, cv := range this.cookies {
 		this.rev.SetCookie(cv)
 	}
-	if this.render == 0 {
+	if this.render == NONE_RENDER {
 		this.render = this.model.Render()
 	}
 	switch this.render {

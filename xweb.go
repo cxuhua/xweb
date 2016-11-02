@@ -513,7 +513,7 @@ func (this *HttpContext) autoView(req *http.Request) string {
 }
 
 //mvc模式预处理
-func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
+func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
@@ -572,7 +572,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		dv := sv.MethodByName(DefaultHandler)
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
-			in = append(in, this.mvcHandler(iv, hv, dv, view, render))
+			in = append(in, this.handlerWithArgs(iv, hv, dv, view, render))
 		}
 		if d, b := this.IsIDispatcher(v); b {
 			if hv.IsValid() {
@@ -602,13 +602,23 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 }
 
 func (this *HttpContext) NewMVCHandler() martini.Handler {
-	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
-		mvc := &DefaultMVC{ctx: c, model: &xModel{}, status: http.StatusOK, req: req, rev: rv}
-		c.MapTo(mvc, (*IMVC)(nil))
-		log.Error("start")
-		c.Next()
-		log.Error("end")
-		mvc.Render()
+	return func(ctx martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
+		mvc := &DefaultMVC{
+			ctx:      ctx,
+			model:    &xModel{},
+			status:   http.StatusOK,
+			req:      req,
+			log:      log,
+			render:   NONE_RENDER,
+			isrender: true,
+			rev:      rv}
+
+		mvc.MapTo(mvc, (*IMVC)(nil))
+		mvc.Next()
+		if !mvc.isrender {
+			return
+		}
+		mvc.RunRender()
 	}
 }
 
