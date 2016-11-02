@@ -3,6 +3,7 @@ package xweb
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/cxuhua/xweb/martini"
 	"io"
@@ -278,30 +279,19 @@ func NewValidateModel(err error) *ValidateModel {
 }
 
 type IMVC interface {
-	GetView() string
 	SetView(string)
 	SetTemplate(string)
 	SetViewModel(string, IModel)
-
-	GetModel() IModel
 	SetModel(IModel)
-
-	GetRender() int
 	SetRender(int)
-
-	GetStatus() int
 	SetStatus(int)
-
 	Redirect(string)
-
 	SetCookie(cookie *http.Cookie)
-	GetCookie() []*http.Cookie
-
-	Skip(bool)
-	IsSkip() bool
 	Map(v interface{})
 	MapTo(v interface{}, t interface{})
 	Next()
+	Skip()
+	Render()
 }
 
 type DefaultMVC struct {
@@ -311,8 +301,90 @@ type DefaultMVC struct {
 	render  int
 	model   IModel
 	cookies []*http.Cookie
+	req     *http.Request
+	rev     Render
 	ctx     martini.Context
-	skip    bool
+}
+
+func (this *DefaultMVC) Skip() {
+	this.ctx.Skip()
+}
+
+func (this *DefaultMVC) autoView() string {
+	path := this.req.URL.Path
+	if path == "" {
+		return "index"
+	}
+	l := len(path)
+	if path[l-1] == '/' {
+		return path[1:] + "index"
+	}
+	return path[1:]
+}
+
+func (this *DefaultMVC) Render() {
+	defer this.model.Finished()
+	for ik, iv := range this.model.GetHeader() {
+		for _, vv := range iv {
+			this.rev.Header().Add(ik, vv)
+		}
+	}
+	for _, cv := range this.cookies {
+		this.rev.SetCookie(cv)
+	}
+	if this.render == 0 {
+		this.render = this.model.Render()
+	}
+	switch this.render {
+	case HTML_RENDER:
+		if this.view == "" {
+			this.view = this.autoView()
+		}
+		this.rev.HTML(this.status, this.view, this.model)
+	case JSON_RENDER:
+		this.rev.JSON(this.status, this.model)
+	case XML_RENDER:
+		this.rev.XML(this.status, this.model)
+	case SCRIPT_RENDER:
+		v, b := this.model.(*ScriptModel)
+		if !b {
+			panic("RENDER Model error:must set ScriptModel")
+		}
+		this.rev.Header().Set(ContentType, ContentHTML)
+		this.rev.Text(this.status, v.Script)
+	case TEXT_RENDER:
+		v, b := this.model.(*StringModel)
+		if !b {
+			panic("RENDER Model error:must set StringModel")
+		}
+		this.rev.Text(this.status, v.Text)
+	case DATA_RENDER:
+		v, b := this.model.(*BinaryModel)
+		if !b {
+			panic("RENDER Model error:must set BinaryModel")
+		}
+		this.rev.Data(this.status, v.Data)
+	case FILE_RENDER:
+		v, b := this.model.(*FileModel)
+		if !b {
+			panic("RENDER Model error:must set FileModel")
+		}
+		this.rev.File(v.Name, v.ModTime, v.File)
+	case TEMP_RENDER:
+		v, b := this.model.(*TempModel)
+		if !b {
+			panic("RENDER Model error:must set TempModel")
+		}
+		this.rev.TEMP(this.status, v.Template, v.Model)
+	case REDIRECT_RENDER:
+		v, b := this.model.(*RedirectModel)
+		if !b {
+			panic("RENDER Model error:must set RedirectModel")
+		}
+		this.rev.Redirect(v.Url)
+	default:
+		panic(errors.New(RenderToString(this.render) + " not process"))
+	}
 }
 
 func (this *DefaultMVC) Map(v interface{}) {
@@ -326,20 +398,8 @@ func (this *DefaultMVC) Next() {
 	this.ctx.Next()
 }
 
-func (this *DefaultMVC) Skip(v bool) {
-	this.skip = v
-}
-
-func (this *DefaultMVC) IsSkip() bool {
-	return this.skip
-}
-
 func (this *DefaultMVC) SetCookie(cookie *http.Cookie) {
 	this.cookies = append(this.cookies, cookie)
-}
-
-func (this *DefaultMVC) GetCookie() []*http.Cookie {
-	return this.cookies
 }
 
 func (this *DefaultMVC) Redirect(url string) {
@@ -352,16 +412,8 @@ func (this *DefaultMVC) String() string {
 	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v", this.status, this.view, RenderToString(this.render), reflect.TypeOf(this.model).Elem())
 }
 
-func (this *DefaultMVC) GetView() string {
-	return this.view
-}
-
 func (this *DefaultMVC) SetView(v string) {
 	this.view = v
-}
-
-func (this *DefaultMVC) GetModel() IModel {
-	return this.model
 }
 
 func (this *DefaultMVC) SetModel(v IModel) {
@@ -379,19 +431,8 @@ func (this *DefaultMVC) SetViewModel(v string, m IModel) {
 	this.render = HTML_RENDER
 }
 
-func (this *DefaultMVC) GetRender() int {
-	if this.render == 0 {
-		this.render = this.model.Render()
-	}
-	return this.render
-}
-
 func (this *DefaultMVC) SetRender(v int) {
 	this.render = v
-}
-
-func (this *DefaultMVC) GetStatus() int {
-	return this.status
 }
 
 func (this *DefaultMVC) SetStatus(v int) {

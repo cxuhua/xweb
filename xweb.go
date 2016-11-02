@@ -20,7 +20,7 @@ var (
 )
 
 const (
-	ValidateErrorCode = 10000     //数据校验失败返回
+	ValidateErrorCode = 10000     //数据校验失败返回code
 	HandlerSuffix     = "Handler" //处理组件必须的后缀
 	ModelSuffix       = "Model"   //创建model方法
 	DefaultHandler    = "Default" + HandlerSuffix
@@ -100,10 +100,6 @@ type HTTPDispatcher struct {
 	IDispatcher
 }
 
-func NewMVC(c martini.Context) IMVC {
-	return &DefaultMVC{ctx: c, model: &xModel{}, skip: false}
-}
-
 func (this *HTTPDispatcher) URL() string {
 	return ""
 }
@@ -122,12 +118,13 @@ func GetRemoteAddr(req *http.Request) string {
 	return req.RemoteAddr
 }
 
+//默认处理方法
 func (this *HTTPDispatcher) DefaultHandler(log *logging.Logger, c IMVC) {
 	log.Info("invoke default handler")
 }
 
 //日志打印调试Handler
-func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *logging.Logger) {
+func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *logging.Logger, c IMVC) {
 	log.Info("----------------------------Logger---------------------------")
 	log.Info("Remote:", GetRemoteAddr(req))
 	log.Info("Method:", req.Method)
@@ -139,46 +136,57 @@ func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *logging.Logger
 	log.Info("--------------------------------------------------------------")
 }
 
-func setKindValue(vk reflect.Kind, val string, sf reflect.Value) {
+func setKindValue(vk reflect.Kind, val string, sf reflect.Value) error {
 	switch vk {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if val == "" {
 			val = "0"
 		}
-		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
-			sf.SetInt(intVal)
+		intVal, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return err
 		}
+		sf.SetInt(intVal)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if val == "" {
 			val = "0"
 		}
-		if uintVal, err := strconv.ParseUint(val, 10, 64); err == nil {
-			sf.SetUint(uintVal)
+		uintVal, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return err
 		}
+		sf.SetUint(uintVal)
 	case reflect.Bool:
 		if val == "" {
 			val = "false"
 		}
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			sf.SetBool(boolVal)
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return err
 		}
+		sf.SetBool(boolVal)
 	case reflect.Float32:
 		if val == "" {
 			val = "0.0"
 		}
-		if floatVal, err := strconv.ParseFloat(val, 32); err == nil {
-			sf.SetFloat(floatVal)
+		floatVal, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			return err
 		}
+		sf.SetFloat(floatVal)
 	case reflect.Float64:
 		if val == "" {
 			val = "0.0"
 		}
-		if floatVal, err := strconv.ParseFloat(val, 64); err == nil {
-			sf.SetFloat(floatVal)
+		floatVal, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return err
 		}
+		sf.SetFloat(floatVal)
 	case reflect.String:
 		sf.SetString(val)
 	}
+	return nil
 }
 
 func MapFormBindType(v interface{}, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values, cookies url.Values) {
@@ -288,7 +296,7 @@ func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.P
 	if !ok {
 		panic(errors.New(t.Name() + "not imp URLArgs"))
 	}
-	UnmarshalURL(args, param, req)
+	UnmarshalURLCookie(args, param, req)
 	return args
 }
 
@@ -300,6 +308,7 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 	for k, v := range param {
 		uv.Add(k, v)
 	}
+	//
 	cv := url.Values{}
 	for _, v := range req.Cookies() {
 		cv.Add(v.Name, v.Value)
@@ -311,12 +320,12 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 		} else {
 			log.Error("parse multipart form error", err)
 		}
+		return
+	}
+	if err := req.ParseForm(); err == nil {
+		MapFormBindValue(v, req.Form, nil, uv, cv)
 	} else {
-		if err := req.ParseForm(); err == nil {
-			MapFormBindValue(v, req.Form, nil, uv, cv)
-		} else {
-			log.Error("parse form error", err)
-		}
+		log.Error("parse form error", err)
 	}
 }
 
@@ -331,7 +340,7 @@ func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.
 	return args
 }
 
-func UnmarshalURL(iv IArgs, param martini.Params, req *http.Request) {
+func UnmarshalURLCookie(iv IArgs, param martini.Params, req *http.Request) {
 	v := reflect.ValueOf(iv)
 	uv := req.URL.Query()
 	for k, v := range param {
@@ -358,7 +367,7 @@ func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.
 	if err := json.Unmarshal(data, args); err != nil {
 		log.Error(err)
 	}
-	UnmarshalURL(args, param, req)
+	UnmarshalURLCookie(args, param, req)
 	return args
 }
 
@@ -376,22 +385,23 @@ func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.P
 	if err := xml.Unmarshal(data, args); err != nil {
 		log.Error(err)
 	}
-	UnmarshalURL(args, param, req)
+	UnmarshalURLCookie(args, param, req)
 	return args
 }
 
-func (this *HttpContext) IsIArgs(v reflect.Value) (IArgs, bool) {
+func (this *HttpContext) IsIArgs(v reflect.Value) (a IArgs, ok bool) {
 	if !v.IsValid() {
 		return nil, false
 	}
 	if !v.CanAddr() {
 		return nil, false
 	}
-	if a, ok := v.Addr().Interface().(IArgs); !ok {
+	addr := v.Addr()
+	if !addr.IsValid() || !addr.CanInterface() {
 		return nil, false
-	} else {
-		return a, true
 	}
+	a, ok = addr.Interface().(IArgs)
+	return
 }
 
 func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool) {
@@ -401,7 +411,8 @@ func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool
 	if !v.CanAddr() {
 		return
 	}
-	if v = v.Addr(); !v.IsValid() {
+	v = v.Addr()
+	if !v.IsValid() || !v.CanInterface() {
 		return
 	}
 	av, ok = v.Interface().(IDispatcher)
@@ -485,6 +496,10 @@ var (
 	ErrorModel = errors.New("model nil")
 )
 
+//-> / -> index
+//-> /list -> list
+//-> /goods/list/info -> goods/list/info
+//-> /goods/ -> goods/index
 func (this *HttpContext) autoView(req *http.Request) string {
 	path := req.URL.Path
 	if path == "" {
@@ -497,114 +512,15 @@ func (this *HttpContext) autoView(req *http.Request) string {
 	return path[1:]
 }
 
-//输出html结束
-func (this *HttpContext) mvcRender(vs []reflect.Value, req *http.Request, mvc IMVC, render Render) {
-	m := mvc.GetModel()
-	defer m.Finished()
-	for ik, iv := range m.GetHeader() {
-		for _, vv := range iv {
-			render.Header().Add(ik, vv)
-		}
-	}
-	for _, cv := range mvc.GetCookie() {
-		render.SetCookie(cv)
-	}
-	s := mvc.GetStatus()
-	switch mvc.GetRender() {
-	case HTML_RENDER:
-		v := mvc.GetView()
-		if v == "" {
-			v = this.autoView(req)
-		}
-		render.HTML(s, v, m)
-	case JSON_RENDER:
-		render.JSON(s, m)
-	case XML_RENDER:
-		render.XML(s, m)
-	case SCRIPT_RENDER:
-		v, b := m.(*ScriptModel)
-		if !b {
-			panic("RENDER Model error:must set ScriptModel")
-		}
-		render.Header().Set(ContentType, ContentHTML)
-		render.Text(s, v.Script)
-	case TEXT_RENDER:
-		v, b := m.(*StringModel)
-		if !b {
-			panic("RENDER Model error:must set StringModel")
-		}
-		render.Text(s, v.Text)
-	case DATA_RENDER:
-		v, b := m.(*BinaryModel)
-		if !b {
-			panic("RENDER Model error:must set BinaryModel")
-		}
-		render.Data(s, v.Data)
-	case FILE_RENDER:
-		v, b := m.(*FileModel)
-		if !b {
-			panic("RENDER Model error:must set FileModel")
-		}
-		render.File(v.Name, v.ModTime, v.File)
-	case TEMP_RENDER:
-		v, b := m.(*TempModel)
-		if !b {
-			panic("RENDER Model error:must set TempModel")
-		}
-		render.TEMP(s, v.Template, v.Model)
-	case REDIRECT_RENDER:
-		v, b := m.(*RedirectModel)
-		if !b {
-			panic("RENDER Model error:must set RedirectModel")
-		}
-		render.Redirect(v.Url)
-	default:
-		panic(errors.New(RenderToString(mvc.GetRender()) + " not process"))
-	}
-}
-
-func (this *HttpContext) newHandler(hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
-	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
-		var vs []reflect.Value
-		var err error
-		mvc := NewMVC(c)
-		mvc.SetStatus(http.StatusOK)
-		if view != "" {
-			mvc.SetView(view)
-		}
-		if render != "" {
-			mvc.SetRender(StringToRender(render))
-		}
-		c.MapTo(mvc, (*IMVC)(nil))
-		if hv.IsValid() {
-			vs, err = c.Invoke(hv.Interface())
-		} else {
-			vs, err = c.Invoke(dv.Interface())
-		}
-		if err != nil {
-			panic(err)
-		}
-		//是否跳过渲染
-		if !mvc.IsSkip() {
-			this.mvcRender(vs, req, mvc, rv)
-		}
-	}
-}
-
 //mvc模式预处理
 func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
-	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
-		var vs []reflect.Value
+	return func(c martini.Context, mvc IMVC, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
 		var err error
-		mvc := NewMVC(c)
-		mvc.SetStatus(http.StatusOK)
 		mvc.SetView(view)
 		mvc.SetRender(StringToRender(render))
-		//map mvc
-		c.MapTo(mvc, (*IMVC)(nil))
 		args := this.newArgs(iv, req, param, log)
 		if args == nil {
 			panic(ErrorArgs)
@@ -619,20 +535,16 @@ func (this *HttpContext) mvcHandler(iv IArgs, hv reflect.Value, dv reflect.Value
 		c.Map(model)
 		mvc.SetModel(model)
 		if err = this.Validate(args); err != nil {
-			args.Validate(NewValidateModel(err), mvc)
+			err = args.Validate(NewValidateModel(err), mvc)
 		} else if fm := this.GetArgsHandler(args); fm != nil {
-			vs, err = c.Invoke(fm)
+			_, err = c.Invoke(fm)
 		} else if hv.IsValid() {
-			vs, err = c.Invoke(hv.Interface())
+			_, err = c.Invoke(hv.Interface())
 		} else {
-			vs, err = c.Invoke(dv.Interface())
+			_, err = c.Invoke(dv.Interface())
 		}
 		if err != nil {
 			panic(err)
-		}
-		//是否跳过渲染
-		if !mvc.IsSkip() {
-			this.mvcRender(vs, req, mvc, rv)
 		}
 	}
 }
@@ -664,7 +576,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		}
 		if d, b := this.IsIDispatcher(v); b {
 			if hv.IsValid() {
-				in = append(in, this.newHandler(hv, dv, view, render))
+				in = append(in, hv.Interface())
 			}
 			this.Group(d.URL()+url, func(r martini.Router) {
 				this.useRouter(r, d)
@@ -673,7 +585,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			this.useHandler(method, r, url, view, render, iv, in...)
 		} else if v.Kind() == reflect.Struct {
 			if hv.IsValid() {
-				in = append(in, this.newHandler(hv, dv, view, render))
+				in = append(in, hv.Interface())
 			}
 			this.Group(url, func(r martini.Router) {
 				this.useValue(method, r, c, v)
@@ -689,7 +601,19 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 	this.useValue(http.MethodGet, r, c, v.Elem())
 }
 
-func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
+func (this *HttpContext) NewMVCHandler() martini.Handler {
+	return func(c martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
+		mvc := &DefaultMVC{ctx: c, model: &xModel{}, status: http.StatusOK, req: req, rev: rv}
+		c.MapTo(mvc, (*IMVC)(nil))
+		log.Error("start")
+		c.Next()
+		log.Error("end")
+		mvc.Render()
+	}
+}
+
+func (this *HttpContext) UseDispatcher(c IDispatcher) {
+	in := []martini.Handler{this.NewMVCHandler()}
 	this.Group(c.URL(), func(r martini.Router) {
 		this.useRouter(r, c)
 	}, in...)

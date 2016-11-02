@@ -1,6 +1,8 @@
 package xweb
 
 import (
+	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"io/ioutil"
 	"mime/multipart"
@@ -25,6 +27,27 @@ func (this FormFile) Write(data []byte, pfunc func(string) string) (string, erro
 		return md5, nil
 	}
 	return md5, ioutil.WriteFile(path, data, 0666)
+}
+
+func (this FormFile) ToJson(v interface{}) error {
+	data, err := this.ReadAll()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+func (this FormFile) ToXml(v interface{}) error {
+	data, err := this.ReadAll()
+	if err != nil {
+		return err
+	}
+	return xml.Unmarshal(data, v)
+}
+
+func (this FormFile) ToString() (string, error) {
+	data, err := this.ReadAll()
+	return string(data), err
 }
 
 //read file data
@@ -55,7 +78,7 @@ type IArgs interface {
 	//是否校验参数
 	IsValidate() bool
 	//参数校验失败
-	Validate(*ValidateModel, IMVC)
+	Validate(*ValidateModel, IMVC) error
 	//参数解析类型
 	ReqType() int
 	//返回默认的输出模型
@@ -93,10 +116,11 @@ func (this *xArgs) IsValidate() bool {
 	return true
 }
 
-func (this *xArgs) Validate(m *ValidateModel, c IMVC) {
+func (this *xArgs) Validate(m *ValidateModel, c IMVC) error {
 	v := &StringModel{Text: m.ToTEXT()}
 	c.SetModel(v)
 	c.SetRender(TEXT_RENDER)
+	return nil
 }
 
 func (this *xArgs) HttpBody() ([]byte, error) {
@@ -118,9 +142,10 @@ type FORMArgs struct {
 	xArgs
 }
 
-func (this *FORMArgs) Validate(m *ValidateModel, c IMVC) {
+func (this *FORMArgs) Validate(m *ValidateModel, c IMVC) error {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
+	return nil
 }
 
 func (this *FORMArgs) ReqType() int {
@@ -135,9 +160,10 @@ type JSONArgs struct {
 	xArgs
 }
 
-func (this *JSONArgs) Validate(m *ValidateModel, c IMVC) {
+func (this *JSONArgs) Validate(m *ValidateModel, c IMVC) error {
 	c.SetModel(m)
 	c.SetRender(JSON_RENDER)
+	return nil
 }
 
 func (this *JSONArgs) ReqType() int {
@@ -152,9 +178,10 @@ type XMLArgs struct {
 	xArgs
 }
 
-func (this *XMLArgs) Validate(m *ValidateModel, c IMVC) {
+func (this *XMLArgs) Validate(m *ValidateModel, c IMVC) error {
 	c.SetModel(m)
 	c.SetRender(XML_RENDER)
+	return nil
 }
 
 func (this *XMLArgs) ReqType() int {

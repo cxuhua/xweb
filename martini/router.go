@@ -397,6 +397,11 @@ type routeContext struct {
 	handlers []Handler
 }
 
+//skip after handler
+func (r *routeContext) Skip() {
+	r.index += (len(r.handlers) + 1)
+}
+
 func (r *routeContext) Next() {
 	r.index += 1
 	r.run()
