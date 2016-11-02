@@ -136,7 +136,7 @@ func (this HttpResponse) ToForm(v interface{}) error {
 	if err != nil {
 		return err
 	}
-	MapFormType(v, fv, nil, nil)
+	MapFormBindType(v, fv, nil, nil, nil)
 	return nil
 }
 

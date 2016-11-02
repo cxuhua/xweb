@@ -281,6 +281,7 @@ type IMVC interface {
 	GetView() string
 	SetView(string)
 	SetTemplate(string)
+	SetViewModel(string, IModel)
 
 	GetModel() IModel
 	SetModel(IModel)
@@ -369,6 +370,12 @@ func (this *DefaultMVC) SetModel(v IModel) {
 
 func (this *DefaultMVC) SetTemplate(v string) {
 	this.view = v
+	this.render = HTML_RENDER
+}
+
+func (this *DefaultMVC) SetViewModel(v string, m IModel) {
+	this.view = v
+	this.model = m
 	this.render = HTML_RENDER
 }
 
