@@ -544,7 +544,7 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 			_, err = c.Invoke(dv.Interface())
 		}
 		if err != nil {
-			log.Error(err)
+			panic(err)
 		}
 	}
 }
