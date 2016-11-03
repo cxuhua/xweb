@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"reflect"
 )
@@ -73,8 +72,6 @@ const (
 )
 
 type IArgs interface {
-	//初始化
-	Init(*http.Request)
 	//是否校验参数
 	IsValidate() bool
 	//参数校验失败
@@ -83,21 +80,10 @@ type IArgs interface {
 	ReqType() int
 	//返回默认的输出模型
 	Model() IModel
-	//获得远程Ip地址
-	RemoteAddr() string
 }
 
 type xArgs struct {
 	IArgs
-	*http.Request
-}
-
-func (this *xArgs) Cookie(name string) (*http.Cookie, error) {
-	return this.Request.Cookie(name)
-}
-
-func (this *xArgs) Init(req *http.Request) {
-	this.Request = req
 }
 
 func (this *xArgs) Model() IModel {
@@ -106,10 +92,6 @@ func (this *xArgs) Model() IModel {
 
 func (this *xArgs) ReqType() int {
 	return AT_NONE
-}
-
-func (this *xArgs) RemoteAddr() string {
-	return GetRemoteAddr(this.Request)
 }
 
 func (this *xArgs) IsValidate() bool {
@@ -121,13 +103,6 @@ func (this *xArgs) Validate(m *ValidateModel, c IMVC) error {
 	c.SetModel(v)
 	c.SetRender(TEXT_RENDER)
 	return nil
-}
-
-func (this *xArgs) HttpBody() ([]byte, error) {
-	if this.Request == nil {
-		panic(errors.New("request nil"))
-	}
-	return GetBody(this.Request)
 }
 
 type URLArgs struct {

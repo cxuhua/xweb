@@ -487,7 +487,6 @@ func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Para
 	default:
 		panic(errors.New("args reqtype error"))
 	}
-	args.Init(req)
 	return args
 }
 
@@ -602,7 +601,11 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 }
 
 func (this *HttpContext) NewMVCHandler() martini.Handler {
-	return func(ctx martini.Context, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
+	return func(ctx martini.Context, rv Render, rw http.ResponseWriter, param martini.Params, req *http.Request, log *logging.Logger) {
+		mrw, ok := rw.(martini.ResponseWriter)
+		if !ok {
+			panic(errors.New("ResponseWriter not martini.ResponseWriter"))
+		}
 		mvc := &DefaultMVC{
 			ctx:      ctx,
 			model:    &xModel{},
@@ -611,6 +614,7 @@ func (this *HttpContext) NewMVCHandler() martini.Handler {
 			log:      log,
 			render:   NONE_RENDER,
 			isrender: true,
+			rw:       mrw,
 			rev:      rv}
 		mvc.MapTo(mvc, (*IMVC)(nil))
 		mvc.Next()

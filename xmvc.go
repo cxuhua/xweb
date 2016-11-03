@@ -9,6 +9,7 @@ import (
 	"github.com/cxuhua/xweb/martini"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -291,16 +292,28 @@ type IMVC interface {
 
 	SetCookie(cookie *http.Cookie)
 
+	//context
 	Map(v interface{})
 	MapTo(v interface{}, t interface{})
 	Next()
 	SkipNext()
+	// skip all handler
+	SkipAll()
+	// skip count
+	Skip(c int)
 	SkipRender(bool)
-
+	//render content
 	RunRender()
-
+	//logger
 	Logger() *logging.Logger
+	//http request
+	Cookie(name string) (*http.Cookie, error)
 	Request() *http.Request
+	RemoteAddr() string
+	URL() *url.URL
+	Header() http.Header
+	Method() string
+	Host() string
 }
 
 type DefaultMVC struct {
@@ -314,7 +327,32 @@ type DefaultMVC struct {
 	rev      Render
 	ctx      martini.Context
 	log      *logging.Logger
+	rw       martini.ResponseWriter
 	isrender bool
+}
+
+func (this *DefaultMVC) Method() string {
+	return this.req.Method
+}
+
+func (this *DefaultMVC) Host() string {
+	return this.req.Host
+}
+
+func (this *DefaultMVC) Header() http.Header {
+	return this.req.Header
+}
+
+func (this *DefaultMVC) Cookie(name string) (*http.Cookie, error) {
+	return this.req.Cookie(name)
+}
+
+func (this *DefaultMVC) URL() *url.URL {
+	return this.req.URL
+}
+
+func (this *DefaultMVC) RemoteAddr() string {
+	return GetRemoteAddr(this.req)
 }
 
 func (this *DefaultMVC) Render() Render {
@@ -327,6 +365,16 @@ func (this *DefaultMVC) Request() *http.Request {
 
 func (this *DefaultMVC) Logger() *logging.Logger {
 	return this.log
+}
+
+// skip all handler
+func (this *DefaultMVC) SkipAll() {
+	this.ctx.SkipAll()
+}
+
+// skip count
+func (this *DefaultMVC) Skip(c int) {
+	this.ctx.Skip(c)
 }
 
 func (this *DefaultMVC) SkipNext() {
@@ -349,8 +397,7 @@ func (this *DefaultMVC) SkipRender(v bool) {
 	this.isrender = v
 }
 
-func (this *DefaultMVC) RunRender() {
-	defer this.model.Finished()
+func (this *DefaultMVC) merageHeader() {
 	for ik, iv := range this.model.GetHeader() {
 		for _, vv := range iv {
 			this.rev.Header().Add(ik, vv)
@@ -359,6 +406,11 @@ func (this *DefaultMVC) RunRender() {
 	for _, cv := range this.cookies {
 		this.rev.SetCookie(cv)
 	}
+}
+
+func (this *DefaultMVC) RunRender() {
+	defer this.model.Finished()
+	this.merageHeader()
 	if this.render == NONE_RENDER {
 		this.render = this.model.Render()
 	}

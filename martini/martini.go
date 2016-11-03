@@ -145,8 +145,12 @@ type Context interface {
 	Next()
 	// Written returns whether or not the response for this context has been written.
 	Written() bool
-	// skip handler
+	// skip next handler
 	SkipNext()
+	// skip all handler
+	SkipAll()
+	// skip count
+	Skip(c int)
 }
 
 type context struct {
@@ -167,14 +171,23 @@ func (c *context) handler() Handler {
 	panic("invalid index for context handler")
 }
 
+//skip number handler
+func (c *context) Skip(num int) {
+	c.index += num
+}
+
 //skip after handler
 func (c *context) SkipNext() {
-	c.index += (len(c.handlers) + 1)
+	c.index++
+}
+
+func (r *context) SkipAll() {
+	r.index = len(r.handlers) + 1
 }
 
 //run after handler
 func (c *context) Next() {
-	c.index += 1
+	c.index++
 	c.run()
 }
 
