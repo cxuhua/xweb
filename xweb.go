@@ -535,8 +535,8 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		mvc.SetModel(model)
 		if err = this.Validate(args); err != nil {
 			err = args.Validate(NewValidateModel(err), mvc)
-		} else if fm := this.GetArgsHandler(args); fm != nil {
-			_, err = c.Invoke(fm)
+		} else if argsHandler := this.GetArgsHandler(args); argsHandler != nil {
+			_, err = c.Invoke(argsHandler)
 		} else if hv.IsValid() {
 			_, err = c.Invoke(hv.Interface())
 		} else {

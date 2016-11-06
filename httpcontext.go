@@ -6,6 +6,7 @@ import (
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"io"
+	"mime"
 	"net/http"
 	"reflect"
 	"sort"
@@ -15,14 +16,20 @@ import (
 
 var (
 	m            = NewHttpContext()
-	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:2006-01-02 15:04:05.000} %{longfunc} ▶ %{level:.4s} %{id}%{color:reset} %{message}`)
+	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.5s} %{id:.4d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
 )
 
+func AddExtType(ext string, typ string) {
+	mime.AddExtensionType(ext, typ)
+}
+
+func PrintURLS() {
+	m.PrintURLS(m.Logger())
+}
+
 func InitDefaultLogger(w io.Writer) {
-	lw := logging.NewLogBackend(w, LoggerPrefix, 0)
-	backend := logging.NewBackendFormatter(lw, LoggerFormat)
-	logging.SetBackend(backend)
+	m.InitDefaultLogger(w)
 }
 
 func ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -65,13 +72,11 @@ func UseRender(opts ...RenderOptions) {
 	m.UseRender(opts...)
 }
 
-func ListenAndServe(addr string, opts ...RenderOptions) error {
-	UseRender(opts...)
+func ListenAndServe(addr string) error {
 	return m.ListenAndServe(addr)
 }
 
-func ListenAndServeTLS(addr string, cert, key string, opts ...RenderOptions) error {
-	UseRender(opts...)
+func ListenAndServeTLS(addr string, cert, key string) error {
 	return m.ListenAndServeTLS(addr, cert, key)
 }
 
@@ -108,6 +113,12 @@ type HttpContext struct {
 	URLS      URLSlice
 }
 
+func (this *HttpContext) InitDefaultLogger(w io.Writer) {
+	lw := logging.NewLogBackend(w, LoggerPrefix, 0)
+	backend := logging.NewBackendFormatter(lw, LoggerFormat)
+	logging.SetBackend(backend)
+}
+
 func (this *HttpContext) UseRender(opts ...RenderOptions) {
 	this.Use(Renderer(opts...))
 }
@@ -136,26 +147,26 @@ func (this *HttpContext) Logger() *logging.Logger {
 	return ret
 }
 
-func (this *HttpContext) initLogger() *logging.Logger {
+func (this *HttpContext) InitLogger() *logging.Logger {
 	logger := this.Logger()
 	if logger == nil {
 		panic(errors.New("logger init error"))
 	}
-	this.printURLS(logger)
+	this.PrintURLS(logger)
 	return logger
 }
 
 func (this *HttpContext) ListenAndServe(addr string) error {
-	this.initLogger().Infof("http listening on %s (%s)\n", addr, martini.Env)
+	this.InitLogger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
-	this.initLogger().Infof("https listening on %s (%s)\n", addr, martini.Env)
+	this.InitLogger().Infof("https listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
-func (this *HttpContext) printURLS(log *logging.Logger) {
+func (this *HttpContext) PrintURLS(log *logging.Logger) {
 	this.URLS.Sort()
 	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
