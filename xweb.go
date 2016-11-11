@@ -93,11 +93,64 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 }
 
 type IDispatcher interface {
+	//最优先执行的
+	Before() martini.Handler
+	//地址前缀
 	URL() string
+	//最后执行的
+	After() martini.Handler
+	//当未设置模版时使用此方法获取模版路径
+	Template(url *url.URL) string
 }
 
+//默认http mvc dispatcher定义
 type HTTPDispatcher struct {
 	IDispatcher
+}
+
+// / -> index
+// /goods/ -> goods/index.tmpl
+// /goods/list -> goods/list.tmpl
+// /goods/list.html -> goods/list.html.tmpl
+func (this *HTTPDispatcher) Template(url *url.URL) string {
+	path := url.Path
+	if path == "" {
+		return "index"
+	}
+	l := len(path)
+	if path[l-1] == '/' {
+		return path[1:] + "index"
+	}
+	return path[1:]
+}
+
+//默认创建 mvc 变量
+func (this *HTTPDispatcher) Before() martini.Handler {
+	return func(ctx martini.Context, rv Render, rw http.ResponseWriter, param martini.Params, req *http.Request, log *logging.Logger) {
+		mrw, ok := rw.(martini.ResponseWriter)
+		if !ok {
+			panic(errors.New("ResponseWriter not martini.ResponseWriter"))
+		}
+		mvc := &DefaultMVC{
+			ctx:        ctx,
+			model:      &xModel{},
+			status:     http.StatusOK,
+			req:        req,
+			log:        log,
+			render:     NONE_RENDER,
+			isrender:   true,
+			rw:         mrw,
+			dispatcher: this,
+			rev:        rv}
+		mvc.MapTo(mvc, (*IMVC)(nil))
+		mvc.Next()
+		mvc.RunRender()
+	}
+}
+
+//默认执行 mvc 渲染,必须前置带有 IMVC map的中间件
+func (this *HTTPDispatcher) After() martini.Handler {
+	return nil
 }
 
 func (this *HTTPDispatcher) URL() string {
@@ -518,6 +571,7 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 	}
 	return func(c martini.Context, mvc IMVC, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
 		var err error
+		var vs []reflect.Value
 		mvc.SetView(view)
 		mvc.SetRender(StringToRender(render))
 		args := this.newArgs(iv, req, param, log)
@@ -533,19 +587,35 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		//map model
 		c.Map(model)
 		mvc.SetModel(model)
+		//参数校验和执行参数方法
 		if err = this.Validate(args); err != nil {
 			err = args.Validate(NewValidateModel(err), mvc)
 		} else if argsHandler := this.GetArgsHandler(args); argsHandler != nil {
-			_, err = c.Invoke(argsHandler)
+			vs, err = c.Invoke(argsHandler)
 		} else if hv.IsValid() {
-			_, err = c.Invoke(hv.Interface())
+			vs, err = c.Invoke(hv.Interface())
 		} else {
-			_, err = c.Invoke(dv.Interface())
+			vs, err = c.Invoke(dv.Interface())
 		}
+		//上一个中间件的返回值
+		mvc.SetValues(vs)
+		//执行出错了
 		if err != nil {
 			panic(err)
 		}
 	}
+}
+
+//加入多个中间件
+func (this *HttpContext) useMulHandler(in []martini.Handler, hs []string, sv reflect.Value) []martini.Handler {
+	for _, n := range hs {
+		hv := sv.MethodByName(n + HandlerSuffix)
+		if !hv.IsValid() {
+			continue
+		}
+		in = append(in, hv.Interface())
+	}
+	return in
 }
 
 func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatcher, vv reflect.Value) {
@@ -557,23 +627,34 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		url := f.Tag.Get("url")
 		view := f.Tag.Get("view")
 		render := strings.ToUpper(f.Tag.Get("render"))
+		//一个或多个handler
 		handler := f.Tag.Get("handler")
 		if handler == "" {
 			handler = f.Name
 		}
+		//多个前置处理使用 `,`分割
+		hs := strings.Split(f.Tag.Get("before"), ",")
+		//
 		method := f.Tag.Get("method")
 		if method == "" {
 			method = pmethod
 		}
 		method = strings.ToUpper(method)
+		//
 		in := []martini.Handler{}
 		hv := sv.MethodByName(handler + HandlerSuffix)
 		dv := sv.MethodByName(DefaultHandler)
 		iv, ab := this.IsIArgs(v)
 		if ab && url != "" {
+			if len(hs) > 0 {
+				in = this.useMulHandler(in, hs, sv)
+			}
 			in = append(in, this.handlerWithArgs(iv, hv, dv, view, render))
 		}
 		if d, b := this.IsIDispatcher(v); b {
+			if len(hs) > 0 {
+				in = this.useMulHandler(in, hs, sv)
+			}
 			if hv.IsValid() {
 				in = append(in, hv.Interface())
 			}
@@ -581,8 +662,15 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 				this.useRouter(r, d)
 			}, in...)
 		} else if ab {
+			//加入后置处理
+			if after := c.After(); after != nil {
+				in = append(in, after)
+			}
 			this.useHandler(method, r, url, view, render, iv, in...)
 		} else if v.Kind() == reflect.Struct {
+			if len(hs) > 0 {
+				in = this.useMulHandler(in, hs, sv)
+			}
 			if hv.IsValid() {
 				in = append(in, hv.Interface())
 			}
@@ -590,6 +678,10 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 				this.useValue(method, r, c, v)
 			}, in...)
 		} else {
+			//加入后置处理
+			if after := c.After(); after != nil {
+				in = append(in, after)
+			}
 			this.useHandler(method, r, url, view, render, iv, in...)
 		}
 	}
@@ -600,34 +692,8 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 	this.useValue(http.MethodGet, r, c, v.Elem())
 }
 
-func (this *HttpContext) NewMVCHandler() martini.Handler {
-	return func(ctx martini.Context, rv Render, rw http.ResponseWriter, param martini.Params, req *http.Request, log *logging.Logger) {
-		mrw, ok := rw.(martini.ResponseWriter)
-		if !ok {
-			panic(errors.New("ResponseWriter not martini.ResponseWriter"))
-		}
-		mvc := &DefaultMVC{
-			ctx:      ctx,
-			model:    &xModel{},
-			status:   http.StatusOK,
-			req:      req,
-			log:      log,
-			render:   NONE_RENDER,
-			isrender: true,
-			rw:       mrw,
-			rev:      rv}
-		mvc.MapTo(mvc, (*IMVC)(nil))
-		mvc.Next()
-		if !mvc.isrender {
-			return
-		}
-		mvc.RunRender()
-	}
-}
-
 func (this *HttpContext) UseDispatcher(c IDispatcher) {
-	in := []martini.Handler{this.NewMVCHandler()}
 	this.Group(c.URL(), func(r martini.Router) {
 		this.useRouter(r, c)
-	}, in...)
+	}, c.Before())
 }

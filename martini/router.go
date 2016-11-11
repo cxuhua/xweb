@@ -15,7 +15,6 @@ type Params map[string]string
 // Router is Martini's de-facto routing interface. Supports HTTP verbs, stacked handlers, and dependency injection.
 type Router interface {
 	Routes
-
 	// Group adds a group where related routes can be added.
 	Group(string, func(Router), ...Handler)
 	// Get adds a route for a HTTP GET request to the specified matching pattern.

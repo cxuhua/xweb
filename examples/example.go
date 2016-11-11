@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/cxuhua/xweb"
+	// "github.com/cxuhua/xweb/martini"
 	"os"
 )
 
@@ -69,19 +70,50 @@ type MainDispatcher struct {
 		// FormArgs 指定参数接收类
 		PostForm FormArgs `url:"/form" method:"POST"`
 	} `url:"/post" handler:"Logger"`
-	Header struct {
+	// 支持多个中间件嵌套
+	// Header2 struct {
+	// 	Header1 struct {
+	// 		Index IndexArgs `url:"/" view:"index"`
+	// 	}
+	// }
+	//或是这种格式
+	Header0 struct {
 		Index IndexArgs `url:"/" view:"index"`
-	}
+	} `before:"Header2,Header1"`
 }
 
-func (this *MainDispatcher) HeaderHandler(c xweb.IMVC) {
-	c.Logger().Error("header")
-	c.SetView("list")
-	c.SkipNext() //跳过后续的处理
+// //前置插件
+// func (this *MainDispatcher) Before() martini.Handler {
+// 	return this.HTTPDispatcher.Before()
+// 	return func(c xweb.IMVC) {
+// 		c.Logger().Error("before last", c)
+// 	}
+// }
+
+// //最终插件
+// func (this *MainDispatcher) After() martini.Handler {
+// 	return func(c xweb.IMVC) {
+// 		c.SkipRender(true)
+// 		c.Logger().Error("after last", c)
+// 	}
+// }
+
+func (this *MainDispatcher) Header1Handler(c xweb.IMVC) {
+	c.Logger().Error("header1")
+}
+
+func (this *MainDispatcher) Header2Handler(c xweb.IMVC) {
+	c.SetValue("UserInfo", map[string]string{"Name": "徐华"})
+	c.Logger().Error("header2")
+}
+
+func (this *MainDispatcher) Header0Handler(c xweb.IMVC) {
+	c.Logger().Error("header0")
 }
 
 func main() {
 	xweb.InitDefaultLogger(os.Stdout)
+	xweb.UseRender()
 	xweb.UseDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")
 	// log.Println(xweb.ListenAndServeTLS(":8010", "rockygame.cn.crt", "rockygame.cn.key"))

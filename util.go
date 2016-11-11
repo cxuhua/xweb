@@ -9,12 +9,17 @@ import (
 	"time"
 )
 
-//get 00:00:00 unix time
+// 获取当前时间
+func TimeNow() string {
+	return time.Now().Format("2006-01-02 15:04:05")
+}
+
+// 获取一天的开始时间
 func ZeroTime() time.Time {
 	return now.BeginningOfDay()
 }
 
-//auto uuid
+// 创建一个guid
 func GenId() string {
 	t := time.Now()
 	hour, min, sec := t.Clock()

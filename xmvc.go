@@ -290,6 +290,7 @@ type IMVC interface {
 
 	Redirect(string)
 
+	//设置cookie
 	SetCookie(cookie *http.Cookie)
 
 	//context
@@ -297,7 +298,7 @@ type IMVC interface {
 	MapTo(v interface{}, t interface{})
 	Next()
 	SkipNext()
-	// skip all handler
+	// skip all handler, and run render
 	SkipAll()
 	// skip count
 	Skip(c int)
@@ -314,21 +315,40 @@ type IMVC interface {
 	Header() http.Header
 	Method() string
 	Host() string
+	//保存上一个中间件的返回值
+	SetValues([]reflect.Value)
+	Values() []reflect.Value
+	//Set render value
+	SetValue(string, interface{})
 }
 
 type DefaultMVC struct {
 	IMVC
-	status   int
-	view     string
-	render   int
-	model    IModel
-	cookies  []*http.Cookie
-	req      *http.Request
-	rev      Render
-	ctx      martini.Context
-	log      *logging.Logger
-	rw       martini.ResponseWriter
-	isrender bool
+	status     int
+	view       string
+	render     int
+	model      IModel
+	cookies    []*http.Cookie
+	req        *http.Request
+	rev        Render
+	ctx        martini.Context
+	log        *logging.Logger
+	rw         martini.ResponseWriter
+	isrender   bool
+	values     []reflect.Value
+	dispatcher IDispatcher
+}
+
+func (this *DefaultMVC) SetValue(key string, value interface{}) {
+	this.rev.SetValue(key, value)
+}
+
+func (this *DefaultMVC) Values() []reflect.Value {
+	return this.values
+}
+
+func (this *DefaultMVC) SetValues(vs []reflect.Value) {
+	this.values = vs
 }
 
 func (this *DefaultMVC) Method() string {
@@ -367,7 +387,7 @@ func (this *DefaultMVC) Logger() *logging.Logger {
 	return this.log
 }
 
-// skip all handler
+// 跳过所有中间件并执行默认render
 func (this *DefaultMVC) SkipAll() {
 	this.ctx.SkipAll()
 }
@@ -381,23 +401,11 @@ func (this *DefaultMVC) SkipNext() {
 	this.ctx.SkipNext()
 }
 
-func (this *DefaultMVC) autoView() string {
-	path := this.req.URL.Path
-	if path == "" {
-		return "index"
-	}
-	l := len(path)
-	if path[l-1] == '/' {
-		return path[1:] + "index"
-	}
-	return path[1:]
-}
-
 func (this *DefaultMVC) SkipRender(v bool) {
-	this.isrender = v
+	this.isrender = !v
 }
 
-func (this *DefaultMVC) merageHeader() {
+func (this *DefaultMVC) merageHeaderAndCookie() {
 	for ik, iv := range this.model.GetHeader() {
 		for _, vv := range iv {
 			this.rev.Header().Add(ik, vv)
@@ -408,62 +416,91 @@ func (this *DefaultMVC) merageHeader() {
 	}
 }
 
+var (
+	rendersFunc = map[int]func(this *DefaultMVC){
+		// html渲染输出
+		HTML_RENDER: func(this *DefaultMVC) {
+			if this.view == "" {
+				this.view = this.dispatcher.Template(this.req.URL)
+			}
+			this.rev.HTML(this.status, this.view, this.model)
+		},
+		// json渲染输出
+		JSON_RENDER: func(this *DefaultMVC) {
+			this.rev.JSON(this.status, this.model)
+		},
+		// xml渲染输出
+		XML_RENDER: func(this *DefaultMVC) {
+			this.rev.XML(this.status, this.model)
+		},
+		// 脚本渲染输出
+		SCRIPT_RENDER: func(this *DefaultMVC) {
+			v, b := this.model.(*ScriptModel)
+			if !b {
+				panic("RENDER Model error:must set ScriptModel")
+			}
+			this.rev.Header().Set(ContentType, ContentHTML)
+			this.rev.Text(this.status, v.Script)
+		},
+		// 文本渲染输出
+		TEXT_RENDER: func(this *DefaultMVC) {
+			v, b := this.model.(*StringModel)
+			if !b {
+				panic("RENDER Model error:must set StringModel")
+			}
+			this.rev.Text(this.status, v.Text)
+		},
+		// 二进制渲染输出
+		DATA_RENDER: func(this *DefaultMVC) {
+			v, b := this.model.(*BinaryModel)
+			if !b {
+				panic("RENDER Model error:must set BinaryModel")
+			}
+			this.rev.Data(this.status, v.Data)
+		},
+		// 文件下载
+		FILE_RENDER: func(this *DefaultMVC) {
+			v, b := this.model.(*FileModel)
+			if !b {
+				panic("RENDER Model error:must set FileModel")
+			}
+			this.rev.File(v.Name, v.ModTime, v.File)
+		},
+		// 模版内容+数据渲染输出
+		TEMP_RENDER: func(this *DefaultMVC) {
+			v, b := this.model.(*TempModel)
+			if !b {
+				panic("RENDER Model error:must set TempModel")
+			}
+			this.rev.TEMP(this.status, v.Template, v.Model)
+		},
+		// 重定向
+		REDIRECT_RENDER: func(this *DefaultMVC) {
+			v, b := this.model.(*RedirectModel)
+			if !b {
+				panic("RENDER Model error:must set RedirectModel")
+			}
+			this.rev.Redirect(v.Url)
+		},
+	}
+)
+
 func (this *DefaultMVC) RunRender() {
+	if !this.isrender {
+		return
+	}
 	defer this.model.Finished()
-	this.merageHeader()
+	//合并http 头
+	this.merageHeaderAndCookie()
+	//如果未设置渲染方式从model获取
 	if this.render == NONE_RENDER {
 		this.render = this.model.Render()
 	}
-	switch this.render {
-	case HTML_RENDER:
-		if this.view == "" {
-			this.view = this.autoView()
-		}
-		this.rev.HTML(this.status, this.view, this.model)
-	case JSON_RENDER:
-		this.rev.JSON(this.status, this.model)
-	case XML_RENDER:
-		this.rev.XML(this.status, this.model)
-	case SCRIPT_RENDER:
-		v, b := this.model.(*ScriptModel)
-		if !b {
-			panic("RENDER Model error:must set ScriptModel")
-		}
-		this.rev.Header().Set(ContentType, ContentHTML)
-		this.rev.Text(this.status, v.Script)
-	case TEXT_RENDER:
-		v, b := this.model.(*StringModel)
-		if !b {
-			panic("RENDER Model error:must set StringModel")
-		}
-		this.rev.Text(this.status, v.Text)
-	case DATA_RENDER:
-		v, b := this.model.(*BinaryModel)
-		if !b {
-			panic("RENDER Model error:must set BinaryModel")
-		}
-		this.rev.Data(this.status, v.Data)
-	case FILE_RENDER:
-		v, b := this.model.(*FileModel)
-		if !b {
-			panic("RENDER Model error:must set FileModel")
-		}
-		this.rev.File(v.Name, v.ModTime, v.File)
-	case TEMP_RENDER:
-		v, b := this.model.(*TempModel)
-		if !b {
-			panic("RENDER Model error:must set TempModel")
-		}
-		this.rev.TEMP(this.status, v.Template, v.Model)
-	case REDIRECT_RENDER:
-		v, b := this.model.(*RedirectModel)
-		if !b {
-			panic("RENDER Model error:must set RedirectModel")
-		}
-		this.rev.Redirect(v.Url)
-	default:
-		panic(errors.New(RenderToString(this.render) + " not process"))
+	if f, b := rendersFunc[this.render]; b {
+		f(this)
+		return
 	}
+	panic(errors.New(RenderToString(this.render) + " not process"))
 }
 
 func (this *DefaultMVC) Map(v interface{}) {
@@ -489,7 +526,7 @@ func (this *DefaultMVC) Redirect(url string) {
 }
 
 func (this *DefaultMVC) String() string {
-	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v", this.status, this.view, RenderToString(this.render), reflect.TypeOf(this.model).Elem())
+	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v,IsRender:%v", this.status, this.view, RenderToString(this.render), reflect.TypeOf(this.model).Elem(), this.isrender)
 }
 
 func (this *DefaultMVC) SetView(v string) {

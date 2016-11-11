@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"github.com/oxtoacart/bpool"
 	"html/template"
@@ -75,6 +77,8 @@ type Render interface {
 	Header() http.Header
 	// SetCookie
 	SetCookie(cookie *http.Cookie)
+	// SetValue
+	SetValue(string, interface{})
 }
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering
@@ -128,8 +132,9 @@ func Renderer(options ...RenderOptions) martini.Handler {
 	cs := prepareCharset(opt.Charset)
 	t := compile(opt)
 	bufpool = bpool.NewBufferPool(64)
-	return func(res http.ResponseWriter, req *http.Request, c martini.Context) {
+	return func(res http.ResponseWriter, req *http.Request, c martini.Context, log *logging.Logger) {
 		var tc *template.Template
+		tv := map[string]interface{}{}
 		if martini.Env == martini.Dev {
 			// recompile for easy development
 			tc = compile(opt)
@@ -137,7 +142,26 @@ func Renderer(options ...RenderOptions) martini.Handler {
 			// use a clone of the initial template
 			tc, _ = t.Clone()
 		}
-		c.MapTo(&renderer{res, req, tc, opt, cs}, (*Render)(nil))
+		tc.Funcs(template.FuncMap{
+			"import": func(kv ...string) (template.HTML, error) {
+				if len(kv) == 0 {
+					return "", errors.New("args error")
+				}
+				name := "" //template name
+				key := ""  //binding key,data from render values
+				buf := bufpool.Get()
+				if len(kv) > 0 {
+					name = kv[0]
+				}
+				if len(kv) > 1 {
+					key = kv[1]
+				}
+				err := tc.ExecuteTemplate(buf, name, tv[key])
+				log.Info("import template data with", name, "and key:", key)
+				return template.HTML(buf.String()), err
+			},
+		})
+		c.MapTo(&renderer{res, req, tc, opt, cs, tv}, (*Render)(nil))
 	}
 }
 
@@ -175,15 +199,12 @@ func compile(options RenderOptions) *template.Template {
 	t.Delims(options.Delims.Left, options.Delims.Right)
 	// parse an initial template in case we don't have any
 	template.Must(t.Parse("Martini"))
-
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		r, err := filepath.Rel(dir, path)
 		if err != nil {
 			return err
 		}
-
 		ext := getExt(r)
-
 		for _, extension := range options.Extensions {
 			if ext == extension {
 
@@ -194,21 +215,19 @@ func compile(options RenderOptions) *template.Template {
 
 				name := (r[0 : len(r)-len(ext)])
 				tmpl := t.New(filepath.ToSlash(name))
-
+				//for skip error
+				tmpl.Funcs(template.FuncMap{"import": func() string { return "" }})
 				// add our funcmaps
 				for _, funcs := range options.Funcs {
 					tmpl.Funcs(funcs)
 				}
-
 				// Bomb out if parse fails. We don't want any silent server starts.
 				template.Must(tmpl.Funcs(helperFuncs).Parse(string(buf)))
 				break
 			}
 		}
-
 		return nil
 	})
-
 	return t
 }
 
@@ -225,6 +244,12 @@ type renderer struct {
 	t               *template.Template
 	opt             RenderOptions
 	compiledCharset string
+	tv              map[string]interface{}
+}
+
+func (this *renderer) SetValue(key string, value interface{}) {
+	this.tv[key] = value
+
 }
 
 func (r *renderer) SetCookie(cookie *http.Cookie) {
