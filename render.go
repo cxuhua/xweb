@@ -143,21 +143,16 @@ func Renderer(options ...RenderOptions) martini.Handler {
 			tc, _ = t.Clone()
 		}
 		tc.Funcs(template.FuncMap{
-			"import": func(kv ...string) (template.HTML, error) {
-				if len(kv) == 0 {
-					return "", errors.New("args error")
+			"import": func(name string, kv ...string) (template.HTML, error) {
+				if name == "" {
+					return "", errors.New("name args must set")
 				}
-				name := "" //template name
-				key := ""  //binding key,data from render values
+				var vv interface{} = nil
 				buf := bufpool.Get()
 				if len(kv) > 0 {
-					name = kv[0]
+					vv = tv[kv[0]]
 				}
-				if len(kv) > 1 {
-					key = kv[1]
-				}
-				err := tc.ExecuteTemplate(buf, name, tv[key])
-				log.Info("import template data with", name, "and key:", key)
+				err := tc.ExecuteTemplate(buf, name, vv)
 				return template.HTML(buf.String()), err
 			},
 			"value": func(key string) interface{} {
