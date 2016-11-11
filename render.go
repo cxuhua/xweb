@@ -160,6 +160,9 @@ func Renderer(options ...RenderOptions) martini.Handler {
 				log.Info("import template data with", name, "and key:", key)
 				return template.HTML(buf.String()), err
 			},
+			"value": func(key string) interface{} {
+				return tv[key]
+			},
 		})
 		c.MapTo(&renderer{res, req, tc, opt, cs, tv}, (*Render)(nil))
 	}
@@ -216,7 +219,10 @@ func compile(options RenderOptions) *template.Template {
 				name := (r[0 : len(r)-len(ext)])
 				tmpl := t.New(filepath.ToSlash(name))
 				//for skip error
-				tmpl.Funcs(template.FuncMap{"import": func() string { return "" }})
+				tmpl.Funcs(template.FuncMap{
+					"import": func() interface{} { return nil },
+					"value":  func() interface{} { return nil },
+				})
 				// add our funcmaps
 				for _, funcs := range options.Funcs {
 					tmpl.Funcs(funcs)

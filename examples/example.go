@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/cxuhua/xweb"
-	// "github.com/cxuhua/xweb/martini"
+	"github.com/cxuhua/xweb/martini"
 	"os"
 )
 
@@ -82,13 +82,10 @@ type MainDispatcher struct {
 	} `before:"Header2,Header1"`
 }
 
-// //前置插件
-// func (this *MainDispatcher) Before() martini.Handler {
-// 	return this.HTTPDispatcher.Before()
-// 	return func(c xweb.IMVC) {
-// 		c.Logger().Error("before last", c)
-// 	}
-// }
+//前置插件
+func (this *MainDispatcher) Before() martini.Handler {
+	return this.HTTPDispatcher.Before()
+}
 
 // //最终插件
 // func (this *MainDispatcher) After() martini.Handler {
