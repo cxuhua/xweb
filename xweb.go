@@ -99,8 +99,6 @@ type IDispatcher interface {
 	URL() string
 	//最后执行的
 	After() martini.Handler
-	//当未设置模版时使用此方法获取模版路径
-	Template(url *url.URL) string
 }
 
 //默认http mvc dispatcher定义
@@ -108,45 +106,33 @@ type HTTPDispatcher struct {
 	IDispatcher
 }
 
-// / -> index
-// /goods/ -> goods/index.tmpl
-// /goods/list -> goods/list.tmpl
-// /goods/list.html -> goods/list.html.tmpl
-func (this *HTTPDispatcher) Template(url *url.URL) string {
-	path := url.Path
-	if path == "" {
-		return "index"
-	}
-	l := len(path)
-	if path[l-1] == '/' {
-		return path[1:] + "index"
-	}
-	return path[1:]
-}
-
-//默认创建 mvc 变量
-func (this *HTTPDispatcher) Before() martini.Handler {
+// must use render
+func MVCHandler() martini.Handler {
 	return func(ctx martini.Context, rev Render, rw http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		mrw, ok := rw.(martini.ResponseWriter)
 		if !ok {
 			panic(errors.New("ResponseWriter not martini.ResponseWriter"))
 		}
 		mvc := &DefaultMVC{
-			ctx:        ctx,
-			model:      &xModel{},
-			status:     http.StatusOK,
-			req:        req,
-			log:        log,
-			render:     NONE_RENDER,
-			isrender:   true,
-			rw:         mrw,
-			dispatcher: this,
-			rev:        rev,
+			ctx:      ctx,
+			model:    &xModel{},
+			status:   http.StatusOK,
+			req:      req,
+			log:      log,
+			render:   NONE_RENDER,
+			isrender: true,
+			rw:       mrw,
+			rev:      rev,
 		}
 		mvc.MapTo(mvc, (*IMVC)(nil))
 		mvc.Next()
 		mvc.RunRender()
 	}
+}
+
+//默认创建 mvc 变量
+func (this *HTTPDispatcher) Before() martini.Handler {
+	return nil
 }
 
 //默认执行 mvc 渲染,必须前置带有 IMVC map的中间件
@@ -695,8 +681,12 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 	this.useValue(http.MethodGet, r, c, v.Elem())
 }
 
-func (this *HttpContext) UseDispatcher(c IDispatcher) {
+func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
+	//前置处理
+	if b := c.Before(); b != nil {
+		in = append(in, b)
+	}
 	this.Group(c.URL(), func(r martini.Router) {
 		this.useRouter(r, c)
-	}, c.Before())
+	}, in...)
 }

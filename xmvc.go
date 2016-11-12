@@ -323,18 +323,17 @@ type IMVC interface {
 
 type DefaultMVC struct {
 	IMVC
-	status     int
-	view       string
-	render     int
-	model      IModel
-	cookies    []*http.Cookie
-	req        *http.Request
-	rev        Render
-	ctx        martini.Context
-	log        *logging.Logger
-	rw         martini.ResponseWriter
-	isrender   bool
-	dispatcher IDispatcher
+	status   int
+	view     string
+	render   int
+	model    IModel
+	cookies  []*http.Cookie
+	req      *http.Request
+	rev      Render
+	ctx      martini.Context
+	log      *logging.Logger
+	rw       martini.ResponseWriter
+	isrender bool
 }
 
 func (this *DefaultMVC) SetValue(key string, value interface{}) {
@@ -410,74 +409,21 @@ func (this *DefaultMVC) merageHeaderAndCookie() {
 	}
 }
 
-var (
-	RendersMap = map[int]func(this *DefaultMVC){
-		// html渲染输出
-		HTML_RENDER: func(this *DefaultMVC) {
-			if this.view == "" {
-				this.view = this.dispatcher.Template(this.req.URL)
-			}
-			this.rev.HTML(this.status, this.view, this.model)
-		},
-		// json渲染输出
-		JSON_RENDER: func(this *DefaultMVC) {
-			this.rev.JSON(this.status, this.model)
-		},
-		// xml渲染输出
-		XML_RENDER: func(this *DefaultMVC) {
-			this.rev.XML(this.status, this.model)
-		},
-		// 脚本渲染输出
-		SCRIPT_RENDER: func(this *DefaultMVC) {
-			v, b := this.model.(*ScriptModel)
-			if !b {
-				panic("RENDER Model error:must set ScriptModel")
-			}
-			this.rev.Header().Set(ContentType, ContentHTML)
-			this.rev.Text(this.status, v.Script)
-		},
-		// 文本渲染输出
-		TEXT_RENDER: func(this *DefaultMVC) {
-			v, b := this.model.(*StringModel)
-			if !b {
-				panic("RENDER Model error:must set StringModel")
-			}
-			this.rev.Text(this.status, v.Text)
-		},
-		// 二进制渲染输出
-		DATA_RENDER: func(this *DefaultMVC) {
-			v, b := this.model.(*BinaryModel)
-			if !b {
-				panic("RENDER Model error:must set BinaryModel")
-			}
-			this.rev.Data(this.status, v.Data)
-		},
-		// 文件下载
-		FILE_RENDER: func(this *DefaultMVC) {
-			v, b := this.model.(*FileModel)
-			if !b {
-				panic("RENDER Model error:must set FileModel")
-			}
-			this.rev.File(v.Name, v.ModTime, v.File)
-		},
-		// 模版内容+数据渲染输出
-		TEMP_RENDER: func(this *DefaultMVC) {
-			v, b := this.model.(*TempModel)
-			if !b {
-				panic("RENDER Model error:must set TempModel")
-			}
-			this.rev.TEMP(this.status, v.Template, v.Model)
-		},
-		// 重定向
-		REDIRECT_RENDER: func(this *DefaultMVC) {
-			v, b := this.model.(*RedirectModel)
-			if !b {
-				panic("RENDER Model error:must set RedirectModel")
-			}
-			this.rev.Redirect(v.Url)
-		},
+// / -> index
+// /goods/ -> goods/index.tmpl
+// /goods/list -> goods/list.tmpl
+// /goods/list.html -> goods/list.html.tmpl
+func (this *DefaultMVC) template(url *url.URL) string {
+	path := url.Path
+	if path == "" {
+		return "index"
 	}
-)
+	l := len(path)
+	if path[l-1] == '/' {
+		return path[1:] + "index"
+	}
+	return path[1:]
+}
 
 func (this *DefaultMVC) RunRender() {
 	if !this.isrender {
@@ -491,12 +437,64 @@ func (this *DefaultMVC) RunRender() {
 		this.render = this.model.Render()
 	}
 	//执行不同类型的渲染
-	f, b := RendersMap[this.render]
-	if !b {
+	switch this.render {
+	case HTML_RENDER:
+		if this.view == "" {
+			this.view = this.template(this.req.URL)
+		}
+		this.rev.HTML(this.status, this.view, this.model)
+	// json渲染输出
+	case JSON_RENDER:
+		this.rev.JSON(this.status, this.model)
+	// xml渲染输出
+	case XML_RENDER:
+		this.rev.XML(this.status, this.model)
+	// 脚本渲染输出
+	case SCRIPT_RENDER:
+		v, b := this.model.(*ScriptModel)
+		if !b {
+			panic("RENDER Model error:must set ScriptModel")
+		}
+		this.rev.Header().Set(ContentType, ContentHTML)
+		this.rev.Text(this.status, v.Script)
+	// 文本渲染输出
+	case TEXT_RENDER:
+		v, b := this.model.(*StringModel)
+		if !b {
+			panic("RENDER Model error:must set StringModel")
+		}
+		this.rev.Text(this.status, v.Text)
+	// 二进制渲染输出
+	case DATA_RENDER:
+		v, b := this.model.(*BinaryModel)
+		if !b {
+			panic("RENDER Model error:must set BinaryModel")
+		}
+		this.rev.Data(this.status, v.Data)
+	// 文件下载
+	case FILE_RENDER:
+		v, b := this.model.(*FileModel)
+		if !b {
+			panic("RENDER Model error:must set FileModel")
+		}
+		this.rev.File(v.Name, v.ModTime, v.File)
+	// 模版内容+数据渲染输出
+	case TEMP_RENDER:
+		v, b := this.model.(*TempModel)
+		if !b {
+			panic("RENDER Model error:must set TempModel")
+		}
+		this.rev.TEMP(this.status, v.Template, v.Model)
+	// 重定向
+	case REDIRECT_RENDER:
+		v, b := this.model.(*RedirectModel)
+		if !b {
+			panic("RENDER Model error:must set RedirectModel")
+		}
+		this.rev.Redirect(v.Url)
+	default:
 		panic(errors.New(RenderToString(this.render) + " not process"))
-		return
 	}
-	f(this)
 }
 
 func (this *DefaultMVC) Map(v interface{}) {
