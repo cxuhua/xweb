@@ -22,6 +22,7 @@ import (
 const (
 	MultipartFormData = "multipart/form-data"
 	ContentURLEncoded = "application/x-www-form-urlencoded"
+	ContentExpires    = "Expires"
 	ContentType       = "Content-Type"
 	ContentLength     = "Content-Length"
 	ContentBinary     = "application/octet-stream"
