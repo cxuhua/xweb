@@ -70,7 +70,6 @@ func Use(h martini.Handler) {
 
 func UseRender(opts ...RenderOptions) {
 	m.UseRender(opts...)
-	m.Use(MVCHandler())
 }
 
 func ListenAndServe(addr string) error {

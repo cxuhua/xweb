@@ -106,8 +106,8 @@ type HTTPDispatcher struct {
 	IDispatcher
 }
 
-// must use render
-func MVCHandler() martini.Handler {
+//默认创建 mvc 变量
+func (this *HTTPDispatcher) Before() martini.Handler {
 	return func(ctx martini.Context, rev Render, rw http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		mrw, ok := rw.(martini.ResponseWriter)
 		if !ok {
@@ -128,11 +128,6 @@ func MVCHandler() martini.Handler {
 		mvc.Next()
 		mvc.RunRender()
 	}
-}
-
-//默认创建 mvc 变量
-func (this *HTTPDispatcher) Before() martini.Handler {
-	return nil
 }
 
 //默认执行 mvc 渲染,必须前置带有 IMVC map的中间件
@@ -551,7 +546,6 @@ func (this *HttpContext) autoView(req *http.Request) string {
 	return path[1:]
 }
 
-//mvc模式预处理
 func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
