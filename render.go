@@ -77,8 +77,10 @@ type Render interface {
 	Header() http.Header
 	// SetCookie
 	SetCookie(cookie *http.Cookie)
-	// SetValue
+	// SetValue save at context
 	SetValue(string, interface{})
+	// get contect valu
+	GetValue(key string) interface{}
 }
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering
@@ -142,6 +144,7 @@ func Renderer(options ...RenderOptions) martini.Handler {
 			// use a clone of the initial template
 			tc, _ = t.Clone()
 		}
+		// 加入动态方法
 		tc.Funcs(template.FuncMap{
 			"import": func(name string, kv ...string) (template.HTML, error) {
 				if name == "" {
@@ -151,6 +154,9 @@ func Renderer(options ...RenderOptions) martini.Handler {
 				buf := bufpool.Get()
 				if len(kv) > 0 {
 					vv = tv[kv[0]]
+				}
+				if vv == nil {
+					log.Warning("import template value is nil")
 				}
 				err := tc.ExecuteTemplate(buf, name, vv)
 				return template.HTML(buf.String()), err
@@ -167,7 +173,6 @@ func prepareCharset(charset string) string {
 	if len(charset) != 0 {
 		return "; charset=" + charset
 	}
-
 	return "; charset=" + defaultCharset
 }
 
@@ -250,7 +255,10 @@ type renderer struct {
 
 func (this *renderer) SetValue(key string, value interface{}) {
 	this.tv[key] = value
+}
 
+func (this *renderer) GetValue(key string) interface{} {
+	return this.tv[key]
 }
 
 func (r *renderer) SetCookie(cookie *http.Cookie) {

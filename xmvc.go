@@ -315,11 +315,10 @@ type IMVC interface {
 	Header() http.Header
 	Method() string
 	Host() string
-	//保存上一个中间件的返回值
-	SetValues([]reflect.Value)
-	Values() []reflect.Value
 	//Set render value
 	SetValue(string, interface{})
+	//get render value
+	GetValue(key string) interface{}
 }
 
 type DefaultMVC struct {
@@ -335,7 +334,6 @@ type DefaultMVC struct {
 	log        *logging.Logger
 	rw         martini.ResponseWriter
 	isrender   bool
-	values     []reflect.Value
 	dispatcher IDispatcher
 }
 
@@ -343,12 +341,8 @@ func (this *DefaultMVC) SetValue(key string, value interface{}) {
 	this.rev.SetValue(key, value)
 }
 
-func (this *DefaultMVC) Values() []reflect.Value {
-	return this.values
-}
-
-func (this *DefaultMVC) SetValues(vs []reflect.Value) {
-	this.values = vs
+func (this *DefaultMVC) GetValue(key string) interface{} {
+	return this.rev.GetValue(key)
 }
 
 func (this *DefaultMVC) Method() string {
@@ -417,7 +411,7 @@ func (this *DefaultMVC) merageHeaderAndCookie() {
 }
 
 var (
-	rendersFunc = map[int]func(this *DefaultMVC){
+	RendersMap = map[int]func(this *DefaultMVC){
 		// html渲染输出
 		HTML_RENDER: func(this *DefaultMVC) {
 			if this.view == "" {
@@ -496,11 +490,13 @@ func (this *DefaultMVC) RunRender() {
 	if this.render == NONE_RENDER {
 		this.render = this.model.Render()
 	}
-	if f, b := rendersFunc[this.render]; b {
-		f(this)
+	//执行不同类型的渲染
+	f, b := RendersMap[this.render]
+	if !b {
+		panic(errors.New(RenderToString(this.render) + " not process"))
 		return
 	}
-	panic(errors.New(RenderToString(this.render) + " not process"))
+	f(this)
 }
 
 func (this *DefaultMVC) Map(v interface{}) {

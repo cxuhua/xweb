@@ -126,7 +126,7 @@ func (this *HTTPDispatcher) Template(url *url.URL) string {
 
 //默认创建 mvc 变量
 func (this *HTTPDispatcher) Before() martini.Handler {
-	return func(ctx martini.Context, rv Render, rw http.ResponseWriter, param martini.Params, req *http.Request, log *logging.Logger) {
+	return func(ctx martini.Context, rev Render, rw http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		mrw, ok := rw.(martini.ResponseWriter)
 		if !ok {
 			panic(errors.New("ResponseWriter not martini.ResponseWriter"))
@@ -141,7 +141,8 @@ func (this *HTTPDispatcher) Before() martini.Handler {
 			isrender:   true,
 			rw:         mrw,
 			dispatcher: this,
-			rev:        rv}
+			rev:        rev,
+		}
 		mvc.MapTo(mvc, (*IMVC)(nil))
 		mvc.Next()
 		mvc.RunRender()
@@ -590,15 +591,17 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		//参数校验和执行参数方法
 		if err = this.Validate(args); err != nil {
 			err = args.Validate(NewValidateModel(err), mvc)
-		} else if argsHandler := this.GetArgsHandler(args); argsHandler != nil {
-			vs, err = c.Invoke(argsHandler)
+		} else if ah := this.GetArgsHandler(args); ah != nil {
+			vs, err = c.Invoke(ah)
 		} else if hv.IsValid() {
 			vs, err = c.Invoke(hv.Interface())
 		} else {
 			vs, err = c.Invoke(dv.Interface())
 		}
 		//上一个中间件的返回值
-		mvc.SetValues(vs)
+		if len(vs) > 0 {
+			log.Info(vs)
+		}
 		//执行出错了
 		if err != nil {
 			panic(err)

@@ -100,7 +100,9 @@ func (this *MainDispatcher) Header1Handler(c xweb.IMVC) {
 }
 
 func (this *MainDispatcher) Header2Handler(c xweb.IMVC) {
+	//设置一个值保存在上下文
 	c.SetValue("UserInfo", map[string]string{"Name": "徐华"})
+	//
 	c.Logger().Error("header2")
 }
 
