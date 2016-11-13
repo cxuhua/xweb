@@ -351,6 +351,16 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 	//
 	if strings.Contains(ct, MultipartFormData) {
 		if err := req.ParseMultipartForm(FormMaxMemory); err == nil {
+			if martini.Env == martini.Dev {
+				log.Info("Recv MultipartFormData Value:")
+				for k, v := range req.MultipartForm.Value {
+					log.Info(k, ":", v)
+				}
+				log.Info("Recv MultipartFormData File:")
+				for k, v := range req.MultipartForm.File {
+					log.Info(k, ":", v)
+				}
+			}
 			MapFormBindValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv, cv)
 		} else {
 			log.Error("parse multipart form error", err)
@@ -358,6 +368,12 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 		return
 	}
 	if err := req.ParseForm(); err == nil {
+		if martini.Env == martini.Dev {
+			log.Info("Recv FormData:")
+			for k, v := range req.Form {
+				log.Info(k, ":", v)
+			}
+		}
 		MapFormBindValue(v, req.Form, nil, uv, cv)
 	} else {
 		log.Error("parse form error", err)
@@ -399,6 +415,9 @@ func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.
 	if err != nil {
 		log.Error(err)
 	}
+	if martini.Env == martini.Dev {
+		log.Info("Recv JSON:", string(data))
+	}
 	if err := json.Unmarshal(data, args); err != nil {
 		log.Error(err)
 	}
@@ -416,6 +435,9 @@ func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.P
 	data, err := this.GetBody(req)
 	if err != nil {
 		log.Error(err)
+	}
+	if martini.Env == martini.Dev {
+		log.Info("Recv XML:", string(data))
 	}
 	if err := xml.Unmarshal(data, args); err != nil {
 		log.Error(err)
@@ -676,7 +698,6 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 }
 
 func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
-	//前置处理
 	if b := c.Before(); b != nil {
 		in = append(in, b)
 	}
