@@ -315,10 +315,6 @@ type IMVC interface {
 	Header() http.Header
 	Method() string
 	Host() string
-	//Set render value
-	SetValue(string, interface{})
-	//get render value
-	GetValue(key string) interface{}
 }
 
 type DefaultMVC struct {
@@ -334,14 +330,6 @@ type DefaultMVC struct {
 	log      *logging.Logger
 	rw       martini.ResponseWriter
 	isrender bool
-}
-
-func (this *DefaultMVC) SetValue(key string, value interface{}) {
-	this.rev.SetValue(key, value)
-}
-
-func (this *DefaultMVC) GetValue(key string) interface{} {
-	return this.rev.GetValue(key)
 }
 
 func (this *DefaultMVC) Method() string {

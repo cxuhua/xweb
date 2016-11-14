@@ -78,10 +78,6 @@ type Render interface {
 	Header() http.Header
 	// SetCookie
 	SetCookie(cookie *http.Cookie)
-	// SetValue save at context
-	SetValue(string, interface{})
-	// get contect valu
-	GetValue(key string) interface{}
 }
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering
@@ -137,7 +133,6 @@ func Renderer(options ...RenderOptions) martini.Handler {
 	bufpool = bpool.NewBufferPool(64)
 	return func(res http.ResponseWriter, req *http.Request, c martini.Context, log *logging.Logger) {
 		var tc *template.Template
-		tv := map[string]interface{}{}
 		if martini.Env == martini.Dev {
 			// recompile for easy development
 			tc = compile(opt)
@@ -145,28 +140,40 @@ func Renderer(options ...RenderOptions) martini.Handler {
 			// use a clone of the initial template
 			tc, _ = t.Clone()
 		}
+		getValueFunc := func(name string) (interface{}, error) {
+			if name == "" {
+				return nil, errors.New("name args must set")
+			}
+			typ, ok := c.GetType(name)
+			if !ok {
+				return nil, errors.New(name + " type not map join context")
+			}
+			vv := c.Get(typ)
+			if !vv.IsValid() {
+				return nil, errors.New(name + " type value not valid")
+			}
+			return vv.Interface(), nil
+		}
 		// 加入动态方法
 		tc.Funcs(template.FuncMap{
 			"import": func(name string, kv ...string) (template.HTML, error) {
-				if name == "" {
-					return "", errors.New("name args must set")
+				vv, err := getValueFunc(name)
+				if err != nil {
+					return "", err
 				}
-				var vv interface{} = nil
 				buf := bufpool.Get()
-				if len(kv) > 0 {
-					vv = tv[kv[0]]
-				}
-				if vv == nil {
-					log.Warning("import template value is nil")
-				}
-				err := tc.ExecuteTemplate(buf, name, vv)
+				err = tc.ExecuteTemplate(buf, name, vv)
 				return template.HTML(buf.String()), err
 			},
-			"value": func(key string) interface{} {
-				return tv[key]
+			"value": func(name string) interface{} {
+				vv, err := getValueFunc(name)
+				if err != nil {
+					return err
+				}
+				return vv
 			},
 		})
-		c.MapTo(&renderer{res, req, tc, opt, cs, tv}, (*Render)(nil))
+		c.MapTo(&renderer{res, req, tc, opt, cs}, (*Render)(nil))
 	}
 }
 
@@ -251,15 +258,6 @@ type renderer struct {
 	t               *template.Template
 	opt             RenderOptions
 	compiledCharset string
-	tv              map[string]interface{}
-}
-
-func (this *renderer) SetValue(key string, value interface{}) {
-	this.tv[key] = value
-}
-
-func (this *renderer) GetValue(key string) interface{} {
-	return this.tv[key]
 }
 
 func (r *renderer) SetCookie(cookie *http.Cookie) {

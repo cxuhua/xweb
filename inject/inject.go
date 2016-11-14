@@ -50,9 +50,12 @@ type TypeMapper interface {
 	// Returns the Value that is mapped to the current type. Returns a zeroed Value if
 	// the Type has not been mapped.
 	Get(reflect.Type) reflect.Value
+	// Get type with type string
+	GetType(string) (reflect.Type, bool)
 }
 
 type injector struct {
+	types  map[string]reflect.Type
 	values map[reflect.Type]reflect.Value
 	parent Injector
 }
@@ -77,6 +80,7 @@ func InterfaceOf(value interface{}) reflect.Type {
 func New() Injector {
 	return &injector{
 		values: make(map[reflect.Type]reflect.Value),
+		types:  make(map[string]reflect.Type),
 	}
 }
 
@@ -136,23 +140,41 @@ func (inj *injector) Apply(val interface{}) error {
 	return nil
 }
 
+// Get map type key
+func (i *injector) typeKey(typ reflect.Type) string {
+	return typ.String()
+}
+
 // Maps the concrete value of val to its dynamic type using reflect.TypeOf,
 // It returns the TypeMapper registered in.
 func (i *injector) Map(val interface{}) TypeMapper {
-	i.values[reflect.TypeOf(val)] = reflect.ValueOf(val)
+	typ := reflect.TypeOf(val)
+	key := i.typeKey(typ)
+	i.values[typ] = reflect.ValueOf(val)
+	i.types[key] = typ
 	return i
 }
 
 func (i *injector) MapTo(val interface{}, ifacePtr interface{}) TypeMapper {
-	i.values[InterfaceOf(ifacePtr)] = reflect.ValueOf(val)
+	typ := InterfaceOf(ifacePtr)
+	key := i.typeKey(typ)
+	i.values[typ] = reflect.ValueOf(val)
+	i.types[key] = typ
 	return i
 }
 
 // Maps the given reflect.Type to the given reflect.Value and returns
 // the Typemapper the mapping has been registered in.
 func (i *injector) Set(typ reflect.Type, val reflect.Value) TypeMapper {
+	key := i.typeKey(typ)
+	i.types[key] = typ
 	i.values[typ] = val
 	return i
+}
+
+func (i *injector) GetType(name string) (reflect.Type, bool) {
+	typ, ok := i.types[name]
+	return typ, ok
 }
 
 func (i *injector) Get(t reflect.Type) reflect.Value {
