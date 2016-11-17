@@ -28,7 +28,7 @@ func PrintURLS() {
 	m.PrintURLS(m.Logger())
 }
 
-func InitDefaultLogger(w io.Writer) {
+func InitLogger(w io.Writer) {
 	m.InitDefaultLogger(w)
 }
 
@@ -81,7 +81,7 @@ func ListenAndServeTLS(addr string, cert, key string) error {
 }
 
 func Logger() *logging.Logger {
-	return m.Logger()
+	return m.GetLogger()
 }
 
 type URLS struct {

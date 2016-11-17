@@ -58,6 +58,11 @@ func (m *Martini) Action(handler Handler) {
 }
 
 // Logger sets the logger
+func (m *Martini) GetLogger() *logging.Logger {
+	return m.logger
+}
+
+// Logger sets the logger
 func (m *Martini) Logger(logger *logging.Logger) {
 	m.logger = logger
 	m.Map(m.logger)
