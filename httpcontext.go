@@ -8,7 +8,6 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"reflect"
 	"sort"
 )
 
@@ -16,7 +15,7 @@ import (
 
 var (
 	m            = NewHttpContext()
-	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.5s} %{id:.4d}%{color:reset} %{message}`)
+	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
 )
 
@@ -135,16 +134,7 @@ func (this *HttpContext) Validate(v IArgs) error {
 }
 
 func (this *HttpContext) Logger() *logging.Logger {
-	t := reflect.TypeOf((*logging.Logger)(nil))
-	v := this.Injector.Get(t)
-	if !v.IsValid() {
-		panic(errors.New("get logger error"))
-	}
-	ret, ok := v.Interface().(*logging.Logger)
-	if !ok || ret == nil {
-		panic(errors.New("get logger error"))
-	}
-	return ret
+	return this.GetLogger()
 }
 
 func (this *HttpContext) InitLogger() *logging.Logger {
