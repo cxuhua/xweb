@@ -182,6 +182,24 @@ func (l *Logger) Fatalf(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
+func (l *Logger) Fatalln(args ...interface{}) {
+	l.log(CRITICAL, nil, args...)
+	l.Fatal("\n")
+}
+
+func (l *Logger) Print(args ...interface{}) {
+	l.log(INFO, nil, args...)
+}
+
+func (l *Logger) Printf(format string, args ...interface{}) {
+	l.log(INFO, &format, args...)
+}
+
+func (l *Logger) Println(args ...interface{}) {
+	l.log(INFO, nil, args...)
+	l.Print("\n")
+}
+
 // Panic is equivalent to l.Critical(fmt.Sprint()) followed by a call to panic().
 func (l *Logger) Panic(args ...interface{}) {
 	l.log(CRITICAL, nil, args...)
