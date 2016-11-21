@@ -1,7 +1,6 @@
 package xweb
 
 import (
-	"errors"
 	"fmt"
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
@@ -21,10 +20,6 @@ var (
 
 func AddExtType(ext string, typ string) {
 	mime.AddExtensionType(ext, typ)
-}
-
-func PrintURLS() {
-	m.PrintURLS(m.Logger())
 }
 
 func InitLogger(w io.Writer) {
@@ -137,26 +132,20 @@ func (this *HttpContext) Logger() *logging.Logger {
 	return this.GetLogger()
 }
 
-func (this *HttpContext) InitLogger() *logging.Logger {
-	logger := this.Logger()
-	if logger == nil {
-		panic(errors.New("logger init error"))
-	}
-	this.PrintURLS(logger)
-	return logger
-}
-
 func (this *HttpContext) ListenAndServe(addr string) error {
-	this.InitLogger().Infof("http listening on %s (%s)\n", addr, martini.Env)
+	this.PrintURLS()
+	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
-	this.InitLogger().Infof("https listening on %s (%s)\n", addr, martini.Env)
+	this.PrintURLS()
+	this.Logger().Infof("https listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
-func (this *HttpContext) PrintURLS(log *logging.Logger) {
+func (this *HttpContext) PrintURLS() {
+	log := this.GetLogger()
 	this.URLS.Sort()
 	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
