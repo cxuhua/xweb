@@ -5,8 +5,10 @@ import (
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"io"
+	"io/ioutil"
 	"mime"
 	"net/http"
+	"os"
 	"sort"
 )
 
@@ -17,6 +19,11 @@ var (
 	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
 )
+
+func WritePID() {
+	pid := fmt.Sprintf("%v", os.Getpid())
+	ioutil.WriteFile("pid", []byte(pid), 0666)
+}
 
 func AddExtType(ext string, typ string) {
 	mime.AddExtensionType(ext, typ)
