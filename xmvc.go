@@ -315,6 +315,8 @@ type IMVC interface {
 	Header() http.Header
 	Method() string
 	Host() string
+	//error put
+	Error(string, ...interface{})
 }
 
 type DefaultMVC struct {
@@ -330,6 +332,14 @@ type DefaultMVC struct {
 	log      *logging.Logger
 	rw       martini.ResponseWriter
 	isrender bool
+}
+
+//error put
+func (this *DefaultMVC) Error(format string, args ...interface{}) {
+	m := NewStringModel()
+	m.Text = fmt.Sprintf(format, args...)
+	this.SetStatus(http.StatusInternalServerError)
+	this.SetModel(m)
 }
 
 func (this *DefaultMVC) Method() string {

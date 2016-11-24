@@ -111,7 +111,7 @@ func (this *MainDispatcher) Header0Handler(c xweb.IMVC) {
 }
 
 func main() {
-	xweb.InitDefaultLogger(os.Stdout)
+	xweb.InitLogger(os.Stdout)
 	xweb.UseRender()
 	xweb.UseDispatcher(new(MainDispatcher))
 	xweb.ListenAndServe(":8010")
