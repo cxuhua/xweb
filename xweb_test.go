@@ -96,7 +96,7 @@ func (this *WebSuite) TestMapFormValue(c *C) {
 		Sub *Sub
 	}
 	tf := &TF{}
-	MapFormValue(reflect.ValueOf(tf), form, files, urls, nil)
+	MapFormBindValue(reflect.ValueOf(tf), form, files, urls, nil)
 	c.Log(tf)
 	c.Assert(tf.A, Equals, 1)
 	c.Assert(tf.B, Equals, "bb")

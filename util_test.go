@@ -3,6 +3,7 @@ package xweb
 import (
 	"fmt"
 	. "gopkg.in/check.v1"
+	"log"
 	"strconv"
 	"time"
 )
@@ -18,6 +19,10 @@ func (this *UtilSuite) SetUpSuite(c *C) {
 
 func (this *UtilSuite) TearDownSuite(c *C) {
 
+}
+
+func (this *UtilSuite) TestRandNumber(c *C) {
+	log.Println(RandNumber(4))
 }
 
 func (this *UtilSuite) TestZeroTime(c *C) {

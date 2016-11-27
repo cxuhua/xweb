@@ -94,11 +94,11 @@ func FormFileBytes(fh *multipart.FileHeader) ([]byte, error) {
 
 type IDispatcher interface {
 	//最优先执行的
-	Before() martini.Handler
+	BeforeHandler() martini.Handler
 	//地址前缀
 	URL() string
 	//最后执行的
-	After() martini.Handler
+	AfterHandler() martini.Handler
 }
 
 //默认http mvc dispatcher定义
@@ -106,8 +106,8 @@ type HTTPDispatcher struct {
 	IDispatcher
 }
 
-//默认创建 mvc 变量
-func (this *HTTPDispatcher) Before() martini.Handler {
+// 前置通用处理
+func (this *HTTPDispatcher) BeforeHandler() martini.Handler {
 	return func(ctx martini.Context, rev Render, rw http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		mrw, ok := rw.(martini.ResponseWriter)
 		if !ok {
@@ -130,11 +130,12 @@ func (this *HTTPDispatcher) Before() martini.Handler {
 	}
 }
 
-//默认执行 mvc 渲染,必须前置带有 IMVC map的中间件
-func (this *HTTPDispatcher) After() martini.Handler {
+// 后置通用处理
+func (this *HTTPDispatcher) AfterHandler() martini.Handler {
 	return nil
 }
 
+// URL前缀
 func (this *HTTPDispatcher) URL() string {
 	return ""
 }
@@ -668,7 +669,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			}, in...)
 		} else if ab {
 			//加入后置处理
-			if after := c.After(); after != nil {
+			if after := c.AfterHandler(); after != nil {
 				in = append(in, after)
 			}
 			this.useHandler(method, r, url, view, render, iv, in...)
@@ -684,7 +685,7 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			}, in...)
 		} else {
 			//加入后置处理
-			if after := c.After(); after != nil {
+			if after := c.AfterHandler(); after != nil {
 				in = append(in, after)
 			}
 			this.useHandler(method, r, url, view, render, iv, in...)
@@ -698,7 +699,7 @@ func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 }
 
 func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
-	if b := c.Before(); b != nil {
+	if b := c.BeforeHandler(); b != nil {
 		in = append(in, b)
 	}
 	this.Group(c.URL(), func(r martini.Router) {

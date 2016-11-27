@@ -154,7 +154,6 @@ func Renderer(options ...RenderOptions) martini.Handler {
 			}
 			return vv.Interface(), nil
 		}
-		// 加入动态方法
 		tc.Funcs(template.FuncMap{
 			"import": func(name string, kv ...string) (template.HTML, error) {
 				vv, err := getValueFunc(name)

@@ -64,15 +64,12 @@ type injector struct {
 // It panics if value is not an pointer to an interface.
 func InterfaceOf(value interface{}) reflect.Type {
 	t := reflect.TypeOf(value)
-
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-
 	if t.Kind() != reflect.Interface {
 		panic("Called inject.InterfaceOf with a value that is not a pointer to an interface. (*MyInterface)(nil)")
 	}
-
 	return t
 }
 
@@ -91,7 +88,6 @@ func New() Injector {
 // It panics if f is not a function
 func (inj *injector) Invoke(f interface{}) ([]reflect.Value, error) {
 	t := reflect.TypeOf(f)
-
 	var in = make([]reflect.Value, t.NumIn()) //Panic if t is not kind of Func
 	for i := 0; i < t.NumIn(); i++ {
 		argType := t.In(i)
@@ -99,10 +95,8 @@ func (inj *injector) Invoke(f interface{}) ([]reflect.Value, error) {
 		if !val.IsValid() {
 			return nil, fmt.Errorf("Value not found for type %v", argType)
 		}
-
 		in[i] = val
 	}
-
 	return reflect.ValueOf(f).Call(in), nil
 }
 
@@ -111,17 +105,13 @@ func (inj *injector) Invoke(f interface{}) ([]reflect.Value, error) {
 // Returns an error if the injection fails.
 func (inj *injector) Apply(val interface{}) error {
 	v := reflect.ValueOf(val)
-
 	for v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
-
 	if v.Kind() != reflect.Struct {
 		return nil // Should not panic here ?
 	}
-
 	t := v.Type()
-
 	for i := 0; i < v.NumField(); i++ {
 		f := v.Field(i)
 		structField := t.Field(i)
@@ -131,12 +121,9 @@ func (inj *injector) Apply(val interface{}) error {
 			if !v.IsValid() {
 				return fmt.Errorf("Value not found for type %v", ft)
 			}
-
 			f.Set(v)
 		}
-
 	}
-
 	return nil
 }
 
@@ -179,11 +166,9 @@ func (i *injector) GetType(name string) (reflect.Type, bool) {
 
 func (i *injector) Get(t reflect.Type) reflect.Value {
 	val := i.values[t]
-
 	if val.IsValid() {
 		return val
 	}
-
 	// no concrete types found, try to find implementors
 	// if t is an interface
 	if t.Kind() == reflect.Interface {
@@ -194,14 +179,11 @@ func (i *injector) Get(t reflect.Type) reflect.Value {
 			}
 		}
 	}
-
 	// Still no type found, try to look it up on the parent
 	if !val.IsValid() && i.parent != nil {
 		val = i.parent.Get(t)
 	}
-
 	return val
-
 }
 
 func (i *injector) SetParent(parent Injector) {

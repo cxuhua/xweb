@@ -19,6 +19,20 @@ func ZeroTime() time.Time {
 	return now.BeginningOfDay()
 }
 
+// 随机获取0-9数字，l为长度
+func RandNumber(l int) string {
+	max := big.NewInt(10)
+	ret := ""
+	for i := 0; i < l; i++ {
+		r, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			panic(err)
+		}
+		ret += fmt.Sprintf("%d", r.Uint64())
+	}
+	return ret
+}
+
 // 创建一个guid
 func GenId() string {
 	t := time.Now()
