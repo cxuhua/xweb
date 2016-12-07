@@ -25,6 +25,11 @@ func WritePID() {
 	ioutil.WriteFile("pid", []byte(pid), 0666)
 }
 
+func WritePIDFile(file string) {
+	pid := fmt.Sprintf("%v", os.Getpid())
+	ioutil.WriteFile(file, []byte(pid), 0666)
+}
+
 func AddExtType(ext string, typ string) {
 	mime.AddExtensionType(ext, typ)
 }

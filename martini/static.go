@@ -126,7 +126,9 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 		}
 
 		// Add an Expires header to the static content
-		if opt.Expires != nil {
+		if Env == Dev {
+			res.Header().Set("Cache-Control", "no-cache")
+		} else if opt.Expires != nil {
 			res.Header().Set("Expires", opt.Expires())
 		}
 
