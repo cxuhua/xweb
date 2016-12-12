@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -202,10 +203,23 @@ type HTTPModel struct {
 	JSONModel `bson:"-" json:"-" xml:"-"`
 	Code      int    `bson:"code" json:"code" xml:"code"`
 	Error     string `bson:"error,omitempty" json:"error,omitempty" xml:"error,omitempty"`
+	File      string `bson:"file,omitempty" json:"file,omitempty" xml:"file,omitempty"`
+}
+
+func (this *HTTPModel) SetCode(code int) {
+	this.Code = code
+	if this.Code == 0 {
+		return
+	}
+	_, file, line, _ := runtime.Caller(1)
+	this.File = fmt.Sprintf("%s:%d", file, line)
 }
 
 func (this *HTTPModel) SetError(code int, err interface{}) {
 	this.Code = code
+	if err == nil {
+		return
+	}
 	switch err.(type) {
 	case string:
 		this.Error = err.(string)
@@ -214,6 +228,8 @@ func (this *HTTPModel) SetError(code int, err interface{}) {
 	default:
 		this.Error = fmt.Sprintf("%v", err)
 	}
+	_, file, line, _ := runtime.Caller(1)
+	this.File = fmt.Sprintf("%s:%d", file, line)
 }
 
 func (this *HTTPModel) Finished() {
