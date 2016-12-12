@@ -204,6 +204,18 @@ type HTTPModel struct {
 	Error     string `bson:"error,omitempty" json:"error,omitempty" xml:"error,omitempty"`
 }
 
+func (this *HTTPModel) SetError(code int, err interface{}) {
+	this.Code = code
+	switch err.(type) {
+	case string:
+		this.Error = err.(string)
+	case error:
+		this.Error = err.(error).Error()
+	default:
+		this.Error = fmt.Sprintf("%v", err)
+	}
+}
+
 func (this *HTTPModel) Finished() {
 
 }
