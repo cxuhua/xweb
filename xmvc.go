@@ -211,8 +211,10 @@ func (this *HTTPModel) SetCode(code int) {
 	if this.Code == 0 {
 		return
 	}
-	_, file, line, _ := runtime.Caller(1)
-	this.File = fmt.Sprintf("%s:%d", file, line)
+	if martini.Env == martini.Dev {
+		_, file, line, _ := runtime.Caller(1)
+		this.File = fmt.Sprintf("%s:%d", file, line)
+	}
 }
 
 func (this *HTTPModel) SetError(code int, err interface{}) {
@@ -228,8 +230,10 @@ func (this *HTTPModel) SetError(code int, err interface{}) {
 	default:
 		this.Error = fmt.Sprintf("%v", err)
 	}
-	_, file, line, _ := runtime.Caller(1)
-	this.File = fmt.Sprintf("%s:%d", file, line)
+	if martini.Env == martini.Dev {
+		_, file, line, _ := runtime.Caller(1)
+		this.File = fmt.Sprintf("%s:%d", file, line)
+	}
 }
 
 func (this *HTTPModel) Finished() {

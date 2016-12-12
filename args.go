@@ -146,7 +146,7 @@ func (this *JSONArgs) ReqType() int {
 }
 
 func (this *JSONArgs) Model() IModel {
-	return &HTTPModel{}
+	return NewHTTPSuccess()
 }
 
 type XMLArgs struct {
@@ -164,5 +164,5 @@ func (this *XMLArgs) ReqType() int {
 }
 
 func (this *XMLArgs) Model() IModel {
-	return &HTTPModel{}
+	return NewHTTPSuccess()
 }
