@@ -217,6 +217,15 @@ func (this *HTTPModel) SetCode(code int) {
 	}
 }
 
+func (this *HTTPModel) SetFormat(code int, format string, args ...interface{}) {
+	this.Code = code
+	this.Error = fmt.Sprintf(format, args...)
+	if martini.Env == martini.Dev {
+		_, file, line, _ := runtime.Caller(1)
+		this.File = fmt.Sprintf("%s:%d", file, line)
+	}
+}
+
 func (this *HTTPModel) SetError(code int, err interface{}) {
 	this.Code = code
 	if err == nil {
