@@ -78,20 +78,20 @@ func UseRender(opts ...RenderOptions) {
 	m.UseRender(opts...)
 }
 
+func Serve(addr string) error {
+	return m.ListenAndServe(addr)
+}
+
 func ListenAndServe(addr string) error {
 	return m.ListenAndServe(addr)
 }
 
-func Serve(addr string) error {
-	return m.Serve(addr)
+func ServeTLS(addr string, cert, key string) error {
+	return m.ListenAndServeTLS(addr, cert, key)
 }
 
 func ListenAndServeTLS(addr string, cert, key string) error {
 	return m.ListenAndServeTLS(addr, cert, key)
-}
-
-func ServeTLS(addr string, cert, key string) error {
-	return m.ServeTLS(addr, cert, key)
 }
 
 func Logger() *logging.Logger {
@@ -158,19 +158,7 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 	return http.ListenAndServe(addr, this)
 }
 
-func (this *HttpContext) Serve(addr string) error {
-	this.PrintURLS()
-	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
-	return http.ListenAndServe(addr, this)
-}
-
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
-	this.PrintURLS()
-	this.Logger().Infof("https listening on %s (%s)\n", addr, martini.Env)
-	return http.ListenAndServeTLS(addr, cert, key, this)
-}
-
-func (this *HttpContext) ServeTLS(addr string, cert, key string) error {
 	this.PrintURLS()
 	this.Logger().Infof("https listening on %s (%s)\n", addr, martini.Env)
 	return http.ListenAndServeTLS(addr, cert, key, this)
