@@ -485,10 +485,13 @@ func (this *DefaultMVC) template(url *url.URL) string {
 }
 
 func (this *DefaultMVC) RunRender() {
+	//
+	if this.model != nil {
+		defer this.model.Finished()
+	}
 	if !this.isrender {
 		return
 	}
-	defer this.model.Finished()
 	//合并http 头
 	this.merageHeaderAndCookie()
 	//如果未设置渲染方式从model获取

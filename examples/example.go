@@ -7,14 +7,12 @@ import (
 	// "github.com/cxuhua/xweb/martini"
 	// "errors"
 	// "io/ioutil"
-	"log"
+	// "log"
 	"os"
 )
 
 func (this *MessageReq) Handler(m *xweb.ProtoModel) (*MessageRep, error) {
-	m.Header.Set("do", "112")
-	log.Println(this, "哈哈")
-	return &MessageRep{}, xweb.ProtoError(123, "error message")
+	return &MessageRep{Id: "111", Count: 33}, nil
 }
 
 //返回json数据模型
@@ -73,9 +71,6 @@ func (this *IndexArgs) Handler(c xweb.IMVC) {
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
-	// proto buf test
-	Test MessageReq `url:"/proto" method:"GET"`
-
 	//Group中间件制定使用handler:"Logger"否则使用GroupHandler
 	Group struct {
 		// url 指定访问路径
@@ -91,22 +86,10 @@ type MainDispatcher struct {
 	// }
 	//或是这种格式
 	Header0 struct {
-		Index IndexArgs `url:"/" view:"index"`
+		Test  MessageReq `url:"/proto"`
+		Index IndexArgs  `url:"/" view:"index"`
 	} `before:"Header2,Header1"`
 }
-
-//前置插件
-// func (this *MainDispatcher) Before() martini.Handler {
-// 	return this.HTTPDispatcher.Before()
-// }
-
-// //最终插件
-// func (this *MainDispatcher) After() martini.Handler {
-// 	return func(c xweb.IMVC) {
-// 		c.SkipRender(true)
-// 		c.Logger().Error("after last", c)
-// 	}
-// }
 
 func (this *MainDispatcher) Header1Handler(c xweb.IMVC) {
 	c.Logger().Error("header1")

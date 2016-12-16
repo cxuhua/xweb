@@ -54,6 +54,7 @@ var (
 		"FILE":     FILE_RENDER,
 		"TEMP":     TEMP_RENDER,
 		"REDIRECT": REDIRECT_RENDER,
+		"PROTO":    PROTO_RENDER,
 	}
 	rmap = map[int]string{
 		HTML_RENDER:     "HTML",
@@ -65,6 +66,7 @@ var (
 		FILE_RENDER:     "FILE",
 		TEMP_RENDER:     "TEMP",
 		REDIRECT_RENDER: "REDIRECT",
+		PROTO_RENDER:    "PROTO",
 	}
 )
 
