@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
+	"github.com/golang/protobuf/proto"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -37,6 +40,7 @@ const (
 	FILE_RENDER
 	TEMP_RENDER
 	REDIRECT_RENDER
+	PROTO_RENDER
 )
 
 var (
@@ -462,6 +466,21 @@ func (this *HttpContext) IsIArgs(v reflect.Value) (a IArgs, ok bool) {
 	return
 }
 
+func (this *HttpContext) IsProto(v reflect.Value) (a proto.Message, ok bool) {
+	if !v.IsValid() {
+		return nil, false
+	}
+	if !v.CanAddr() {
+		return nil, false
+	}
+	addr := v.Addr()
+	if !addr.IsValid() || !addr.CanInterface() {
+		return nil, false
+	}
+	a, ok = addr.Interface().(proto.Message)
+	return
+}
+
 func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool) {
 	if !v.IsValid() {
 		return
@@ -477,9 +496,25 @@ func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool
 	return
 }
 
-func (this *HttpContext) useHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
+func (this *HttpContext) useProtoHandler(r martini.Router, url string, in ...martini.Handler) {
 	if len(in) == 0 || url == "" {
 		return
+	}
+	rv := r.Post(url, in...)
+	urls := URLS{}
+	urls.Method = rv.Method()
+	urls.Pattern = rv.Pattern()
+	urls.View = "{PROTO}"
+	urls.Render = "{PROTO}"
+	this.URLS = append(this.URLS, urls)
+}
+
+func (this *HttpContext) useHttpHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
+	if len(in) == 0 || url == "" {
+		return
+	}
+	if view == "" {
+		view = "{AUTO}"
 	}
 	var rv martini.Route = nil
 	switch method {
@@ -522,6 +557,15 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 	}
 }
 
+func (this *HttpContext) GetProtoHandler(args proto.Message) interface{} {
+	v := reflect.ValueOf(args)
+	if hv := v.MethodByName(HandlerSuffix); hv.IsValid() {
+		return hv.Interface()
+	} else {
+		return nil
+	}
+}
+
 func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
 	v := reflect.ValueOf(args)
 	if hv := v.MethodByName(ModelSuffix); hv.IsValid() {
@@ -542,6 +586,8 @@ func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Para
 		args = this.newJSONArgs(iv, req, param, log)
 	case AT_XML:
 		args = this.newXMLArgs(iv, req, param, log)
+	case AT_PROTO:
+		return iv
 	default:
 		panic(errors.New("args reqtype error"))
 	}
@@ -567,6 +613,91 @@ func (this *HttpContext) autoView(req *http.Request) string {
 		return path[1:] + "index"
 	}
 	return path[1:]
+}
+
+func (this *HttpContext) handlerProtoArgs(mvc IMVC, iv IArgs) {
+	log.Println(iv)
+}
+
+func (this *HttpContext) newProtoMessage(iv proto.Message, req *http.Request, param martini.Params, log *logging.Logger) (proto.Message, error) {
+	t := reflect.TypeOf(iv).Elem()
+	v := reflect.New(t)
+	args, ok := v.Interface().(proto.Message)
+	if !ok {
+		return nil, errors.New(t.Name() + "not imp proto.Message")
+	}
+	buf, err := this.GetBody(req)
+	if err != nil {
+		return nil, err
+	}
+	if martini.Env == martini.Dev {
+		log.Info("Recv PROTO Data:", len(buf))
+	}
+	if err := proto.Unmarshal(buf, args); err != nil {
+		return nil, err
+	}
+	return args, nil
+}
+
+func (this *HttpContext) handlerWithProto(iv proto.Message, hv reflect.Value, dv reflect.Value) martini.Handler {
+	if !dv.IsValid() {
+		panic(errors.New("DefaultHandler miss"))
+	}
+	return func(c martini.Context, mvc IMVC, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
+		mvc.SetView("")
+		args, err := this.newProtoMessage(iv, req, param, log)
+		if err != nil {
+			mvc.Error(err.Error())
+			return
+		}
+		m := NewProtoModel()
+		c.Map(m)
+		ah := this.GetProtoHandler(args)
+		if ah == nil {
+			panic(errors.New("proto message miss handler method:" + reflect.ValueOf(iv).Type().String()))
+		}
+		vs, err := c.Invoke(ah)
+		if err != nil {
+			panic(err)
+		}
+		if len(vs) != 2 {
+			panic(errors.New("proto handler return args error"))
+		}
+		// 处理错误
+		if !vs[1].IsNil() {
+			m := NewStringModel()
+			if err, ok := vs[1].Interface().(*protoError); ok && err != nil {
+				m.Text = err.Error()
+				m.Header.Set("code", err.GetCode())
+			} else if err, ok := vs[1].Interface().(error); ok && err != nil {
+				m.Text = err.Error()
+				m.Header.Set("code", "1")
+			} else {
+				m.Text = fmt.Sprintf("%v", vs[1].Interface())
+				m.Header.Set("code", "2")
+			}
+			mvc.SetModel(m)
+			return
+		}
+		// 没有返回值
+		if vs[0].IsNil() {
+			mvc.SkipRender(true)
+			return
+		}
+		// 返回protobuf二进制
+		msg, ok := vs[0].Interface().(proto.Message)
+		if !ok {
+			panic(errors.New("proto return must is proto message"))
+		}
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			panic(err)
+		}
+		// 正确的返回 code == "0"
+		m.Data = data
+		m.Header.Set("code", "0")
+		mvc.SetModel(m)
+	}
 }
 
 func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
@@ -601,7 +732,6 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		} else {
 			vs, err = c.Invoke(dv.Interface())
 		}
-		//上一个中间件的返回值
 		if len(vs) > 0 {
 			log.Info(vs)
 		}
@@ -650,8 +780,14 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		in := []martini.Handler{}
 		hv := sv.MethodByName(handler + HandlerSuffix)
 		dv := sv.MethodByName(DefaultHandler)
+		pv, pb := this.IsProto(v)
 		iv, ab := this.IsIArgs(v)
-		if ab && url != "" {
+		if pb && url != "" {
+			if len(hs) > 0 {
+				in = this.useMulHandler(in, hs, sv)
+			}
+			in = append(in, this.handlerWithProto(pv, hv, dv))
+		} else if ab && url != "" {
 			if len(hs) > 0 {
 				in = this.useMulHandler(in, hs, sv)
 			}
@@ -667,12 +803,18 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			this.Group(d.URL()+url, func(r martini.Router) {
 				this.useRouter(r, d)
 			}, in...)
+		} else if pb {
+			//加入后置处理
+			if after := c.AfterHandler(); after != nil {
+				in = append(in, after)
+			}
+			this.useProtoHandler(r, url, in...)
 		} else if ab {
 			//加入后置处理
 			if after := c.AfterHandler(); after != nil {
 				in = append(in, after)
 			}
-			this.useHandler(method, r, url, view, render, iv, in...)
+			this.useHttpHandler(method, r, url, view, render, iv, in...)
 		} else if v.Kind() == reflect.Struct {
 			if len(hs) > 0 {
 				in = this.useMulHandler(in, hs, sv)
@@ -683,12 +825,6 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			this.Group(url, func(r martini.Router) {
 				this.useValue(method, r, c, v)
 			}, in...)
-		} else {
-			//加入后置处理
-			if after := c.AfterHandler(); after != nil {
-				in = append(in, after)
-			}
-			this.useHandler(method, r, url, view, render, iv, in...)
 		}
 	}
 }

@@ -169,9 +169,6 @@ func (this *HttpContext) PrintURLS() {
 	this.URLS.Sort()
 	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
-		if u.View == "" {
-			u.View = `{AUTO}`
-		}
 		if len(u.Method) > mc {
 			mc = len(u.Method)
 		}
@@ -190,9 +187,6 @@ func (this *HttpContext) PrintURLS() {
 	}
 	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, vc, rc)
 	for _, u := range this.URLS {
-		if u.View == "" {
-			u.View = `{AUTO}`
-		}
 		log.Infof(fs, u.Method, u.Pattern, u.View, u.Render)
 	}
 }

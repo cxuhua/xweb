@@ -25,6 +25,7 @@ const (
 	ContentExpires    = "Expires"
 	ContentType       = "Content-Type"
 	ContentLength     = "Content-Length"
+	ProtobufType      = "application/protobuf"
 	ContentBinary     = "application/octet-stream"
 	ContentText       = "text/plain"
 	ContentJSON       = "application/json"

@@ -3,9 +3,19 @@ package main
 import (
 	"fmt"
 	"github.com/cxuhua/xweb"
-	"github.com/cxuhua/xweb/martini"
+	// "github.com/golang/protobuf/proto"
+	// "github.com/cxuhua/xweb/martini"
+	// "errors"
+	// "io/ioutil"
+	"log"
 	"os"
 )
+
+func (this *MessageReq) Handler(m *xweb.ProtoModel) (*MessageRep, error) {
+	m.Header.Set("do", "112")
+	log.Println(this, "哈哈")
+	return &MessageRep{}, xweb.ProtoError(123, "error message")
+}
 
 //返回json数据模型
 type FormModel struct {
@@ -63,6 +73,9 @@ func (this *IndexArgs) Handler(c xweb.IMVC) {
 
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
+	// proto buf test
+	Test MessageReq `url:"/proto" method:"GET"`
+
 	//Group中间件制定使用handler:"Logger"否则使用GroupHandler
 	Group struct {
 		// url 指定访问路径
@@ -83,9 +96,9 @@ type MainDispatcher struct {
 }
 
 //前置插件
-func (this *MainDispatcher) Before() martini.Handler {
-	return this.HTTPDispatcher.Before()
-}
+// func (this *MainDispatcher) Before() martini.Handler {
+// 	return this.HTTPDispatcher.Before()
+// }
 
 // //最终插件
 // func (this *MainDispatcher) After() martini.Handler {
@@ -100,8 +113,6 @@ func (this *MainDispatcher) Header1Handler(c xweb.IMVC) {
 }
 
 func (this *MainDispatcher) Header2Handler(c xweb.IMVC) {
-	//设置一个值保存在上下文
-	c.SetValue("UserInfo", map[string]string{"Name": "徐华"})
 	//
 	c.Logger().Error("header2")
 }

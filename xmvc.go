@@ -172,6 +172,26 @@ func NewBinaryModel() *BinaryModel {
 	return m
 }
 
+//proto render model
+type ProtoModel struct {
+	xModel
+	Data []byte
+}
+
+func (this *ProtoModel) Finished() {
+
+}
+
+func (this *ProtoModel) Render() int {
+	return PROTO_RENDER
+}
+
+func NewProtoModel() *ProtoModel {
+	m := &ProtoModel{}
+	m.InitHeader()
+	return m
+}
+
 //json render model
 type JSONModel struct {
 	xModel
@@ -509,6 +529,14 @@ func (this *DefaultMVC) RunRender() {
 		if !b {
 			panic("RENDER Model error:must set BinaryModel")
 		}
+		this.rev.Data(this.status, v.Data)
+	// proto 输出
+	case PROTO_RENDER:
+		v, b := this.model.(*ProtoModel)
+		if !b {
+			panic("RENDER Model error:must set ProtoModel")
+		}
+		this.rev.Header().Set(ContentType, ProtobufType)
 		this.rev.Data(this.status, v.Data)
 	// 文件下载
 	case FILE_RENDER:
