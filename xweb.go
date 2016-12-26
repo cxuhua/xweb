@@ -765,20 +765,16 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		url := f.Tag.Get("url")
 		view := f.Tag.Get("view")
 		render := strings.ToUpper(f.Tag.Get("render"))
-		//一个或多个handler
 		handler := f.Tag.Get("handler")
 		if handler == "" {
 			handler = f.Name
 		}
-		//多个前置处理使用 `,`分割
 		hs := strings.Split(f.Tag.Get("before"), ",")
-		//
 		method := f.Tag.Get("method")
 		if method == "" {
 			method = pmethod
 		}
 		method = strings.ToUpper(method)
-		//
 		in := []martini.Handler{}
 		hv := sv.MethodByName(handler + HandlerSuffix)
 		dv := sv.MethodByName(DefaultHandler)
@@ -806,13 +802,17 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 				this.useRouter(r, d)
 			}, in...)
 		} else if pb {
-			//加入后置处理
+			if url == "" {
+				panic(errors.New(f.Name + " (Proto)url empty"))
+			}
 			if after := c.AfterHandler(); after != nil {
 				in = append(in, after)
 			}
 			this.useProtoHandler(r, url, in...)
 		} else if ab {
-			//加入后置处理
+			if url == "" {
+				panic(errors.New(f.Name + " (Args)url empty"))
+			}
 			if after := c.AfterHandler(); after != nil {
 				in = append(in, after)
 			}

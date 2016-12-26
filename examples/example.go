@@ -72,12 +72,12 @@ func (this *IndexArgs) Handler(c xweb.IMVC) {
 type MainDispatcher struct {
 	xweb.HTTPDispatcher
 	//Group中间件制定使用handler:"Logger"否则使用GroupHandler
-	Group struct {
-		// url 指定访问路径
-		// method 指定方式
-		// FormArgs 指定参数接收类
-		PostForm FormArgs `url:"/form" method:"POST"`
-	} `url:"/post" handler:"Logger"`
+	// Group struct {
+	// 	// url 指定访问路径
+	// 	// method 指定方式
+	// 	// FormArgs 指定参数接收类
+	// 	PostForm FormArgs `url:"/form" method:"POST"`
+	// } `url:"/post" handler:"Logger"`
 	// 支持多个中间件嵌套
 	// Header2 struct {
 	// 	Header1 struct {
@@ -86,9 +86,11 @@ type MainDispatcher struct {
 	// }
 	//或是这种格式
 	Header0 struct {
-		Test  MessageReq `url:"/proto"`
-		Index IndexArgs  `url:"/" view:"index"`
+		Test      MessageReq `url:"/proto"`
+		IndexArgs `url:"/" view:"index"`
 	} `before:"Header2,Header1"`
+
+	// Header1 IndexArgs `url:"/index" view:"index"`
 }
 
 func (this *MainDispatcher) Header1Handler(c xweb.IMVC) {
@@ -96,7 +98,6 @@ func (this *MainDispatcher) Header1Handler(c xweb.IMVC) {
 }
 
 func (this *MainDispatcher) Header2Handler(c xweb.IMVC) {
-	//
 	c.Logger().Error("header2")
 }
 

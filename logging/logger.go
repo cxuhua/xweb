@@ -197,7 +197,6 @@ func (l *Logger) Printf(format string, args ...interface{}) {
 
 func (l *Logger) Println(args ...interface{}) {
 	l.log(INFO, nil, args...)
-	l.Print("\n")
 }
 
 // Panic is equivalent to l.Critical(fmt.Sprint()) followed by a call to panic().

@@ -175,6 +175,7 @@ func NewBinaryModel() *BinaryModel {
 //proto render model
 type ProtoModel struct {
 	xModel
+	// proto数据
 	Data []byte
 }
 
@@ -248,16 +249,15 @@ func (this *HTTPModel) SetFormat(code int, format string, args ...interface{}) {
 
 func (this *HTTPModel) SetError(code int, err interface{}) {
 	this.Code = code
-	if err == nil {
-		return
-	}
-	switch err.(type) {
-	case string:
-		this.Error = err.(string)
-	case error:
-		this.Error = err.(error).Error()
-	default:
-		this.Error = fmt.Sprintf("%v", err)
+	if err != nil {
+		switch err.(type) {
+		case string:
+			this.Error = err.(string)
+		case error:
+			this.Error = err.(error).Error()
+		default:
+			this.Error = fmt.Sprintf("%v", err)
+		}
 	}
 	if martini.Env == martini.Dev {
 		_, file, line, _ := runtime.Caller(1)
@@ -266,7 +266,7 @@ func (this *HTTPModel) SetError(code int, err interface{}) {
 }
 
 func (this *HTTPModel) Finished() {
-
+	//
 }
 
 func NewHTTPError(code int, err string) *HTTPModel {
