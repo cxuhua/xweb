@@ -5,10 +5,12 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/cxuhua/xweb/martini"
 	"io/ioutil"
 	"mime/multipart"
 	"os"
 	"reflect"
+	"runtime"
 )
 
 var (
@@ -18,6 +20,7 @@ var (
 type protoError struct {
 	Code    int
 	Message string
+	File    string
 }
 
 func (this protoError) GetCode() string {
@@ -25,6 +28,9 @@ func (this protoError) GetCode() string {
 }
 
 func (this protoError) Error() string {
+	if this.File != "" {
+		return this.Message + "\n" + this.File
+	}
 	return this.Message
 }
 
@@ -32,9 +38,15 @@ func ProtoError(code int, format string, args ...interface{}) *protoError {
 	if code == 0 {
 		panic(errors.New("code != 0,0 is success"))
 	}
+	// 返回错误信息
 	r := &protoError{}
 	r.Code = code
 	r.Message = fmt.Sprintf(format, args...)
+	// 开发模式返回出错位置
+	if martini.Env == martini.Dev {
+		_, file, line, _ := runtime.Caller(1)
+		r.File = fmt.Sprintf("%s:%d", file, line)
+	}
 	return r
 }
 

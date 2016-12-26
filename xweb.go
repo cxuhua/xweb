@@ -656,14 +656,14 @@ func (this *HttpContext) handlerWithProto(iv proto.Message, hv reflect.Value, dv
 		c.Map(m)
 		ah := this.GetProtoHandler(args)
 		if ah == nil {
-			panic(errors.New("proto message miss handler method:" + reflect.ValueOf(iv).Type().String()))
+			panic(errors.New("proto message miss Handler method:" + reflect.ValueOf(iv).Type().String()))
 		}
 		vs, err := c.Invoke(ah)
 		if err != nil {
 			panic(err)
 		}
 		if len(vs) != 2 {
-			panic(errors.New("proto handler return args error"))
+			panic(errors.New("proto Handler return args error"))
 		}
 		// 处理错误
 		if !vs[1].IsNil() {

@@ -15,11 +15,6 @@ enum MessageType {
 	MT_SMS = 2;
 }
 
-message Error {
-	int32 code = 1;
-	string error = 2;
-}
-
 message MessageReq {
 	string id = 1;
 
