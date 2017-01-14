@@ -90,6 +90,29 @@ func bytesEquInt(data []byte, n byte) bool {
 	return true
 }
 
+// AES with IV解密
+func AesDecryptWithIV(block cipher.Block, data []byte, iv []byte) ([]byte, error) {
+	if block == nil {
+		return nil, errors.New("block nil")
+	}
+	bytes := len(data)
+	if bytes < 32 || bytes%aes.BlockSize != 0 {
+		return nil, errors.New("decrypt data length error")
+	}
+	//16 bytes iv
+	dd := data[0:]
+	mode := cipher.NewCBCDecrypter(block, iv)
+	mode.CryptBlocks(dd, dd)
+	l := len(dd)
+	if n := dd[l-1]; n < aes.BlockSize {
+		x := l - int(n)
+		if bytesEquInt(dd[x:], n) {
+			dd = dd[:x]
+		}
+	}
+	return dd, nil
+}
+
 // AES加密
 func AesEncrypt(block cipher.Block, data []byte) ([]byte, error) {
 	if block == nil {
