@@ -104,7 +104,7 @@ func AesDecryptWithIV(block cipher.Block, data []byte, iv []byte) ([]byte, error
 	mode := cipher.NewCBCDecrypter(block, iv)
 	mode.CryptBlocks(dd, dd)
 	l := len(dd)
-	if n := dd[l-1]; n < aes.BlockSize {
+	if n := dd[l-1]; n <= aes.BlockSize {
 		x := l - int(n)
 		if bytesEquInt(dd[x:], n) {
 			dd = dd[:x]
@@ -159,7 +159,7 @@ func AesDecrypt(block cipher.Block, data []byte) ([]byte, error) {
 	mode := cipher.NewCBCDecrypter(block, iv)
 	mode.CryptBlocks(dd, dd)
 	l := len(dd)
-	if n := dd[l-1]; n < aes.BlockSize {
+	if n := dd[l-1]; n <= aes.BlockSize {
 		x := l - int(n)
 		if bytesEquInt(dd[x:], n) {
 			dd = dd[:x]
