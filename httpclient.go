@@ -81,18 +81,18 @@ func NewHTTPValues() HTTPValues {
 }
 
 func readResponse(res *http.Response) ([]byte, error) {
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("http error,status=" + res.Status)
+	}
 	if res.Body == nil {
 		return nil, NoDataError
 	}
 	defer res.Body.Close()
 	data, err := ioutil.ReadAll(res.Body)
-	if err != nil {
+	if err != nil && err != io.ErrUnexpectedEOF {
 		return nil, err
 	}
-	if res.StatusCode != http.StatusOK {
-		return data, errors.New("http error,status=" + res.Status)
-	}
-	return data, err
+	return data, nil
 }
 
 type HttpResponse struct {
