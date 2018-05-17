@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"log"
 )
 
 type HTTPValues struct {
@@ -80,14 +81,13 @@ func NewHTTPValues() HTTPValues {
 	return HTTPValues{Values: url.Values{}}
 }
 
-func readResponse(res *http.Response) ([]byte, error) {
-	if res.StatusCode != http.StatusOK {
+func readResponse(res *http.Response,is200 bool) ([]byte, error) {
+	if res.StatusCode != http.StatusOK && is200 {
 		return nil, errors.New("http error,status=" + res.Status)
 	}
 	if res.Body == nil {
 		return nil, NoDataError
 	}
-	defer res.Body.Close()
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return nil, err
@@ -100,7 +100,7 @@ type HttpResponse struct {
 }
 
 func (this HttpResponse) ToReader() (io.Reader, error) {
-	data, err := readResponse(this.Response)
+	data, err := readResponse(this.Response,true)
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +115,12 @@ func (this HttpResponse) ToString() (string, error) {
 	return string(bytes), nil
 }
 
+func (this HttpResponse) GetBody() ([]byte, error) {
+	return readResponse(this.Response,false)
+}
+
 func (this HttpResponse) ToBytes() ([]byte, error) {
-	return readResponse(this.Response)
+	return readResponse(this.Response,true)
 }
 
 func (this HttpResponse) ToJson(v interface{}) error {
@@ -145,6 +149,7 @@ func (this HttpResponse) ToXml(v interface{}) error {
 	if err != nil {
 		return err
 	}
+	log.Println(string(data))
 	return xml.Unmarshal(data, v)
 }
 
@@ -201,6 +206,7 @@ func (this HTTPClient) Get(path string, q HTTPValues) (HttpResponse, error) {
 			qv.Add(kv, v)
 		}
 	}
+	log.Println(this.Host + url.Path + "?" + qv.Encode())
 	res, err := this.Client.Get(this.Host + url.Path + "?" + qv.Encode())
 	if err != nil {
 		return ret, err
