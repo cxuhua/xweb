@@ -311,6 +311,22 @@ func MustLoadTLSConfig(ca, crt, key string) *tls.Config {
 	return conf
 }
 
+func MustLoadTLSFile(crtFile, keyFile string) *tls.Config {
+	if crtFile == "" {
+		panic(errors.New("crtFile miss"))
+	}
+	if keyFile == "" {
+		panic(errors.New("keyFile miss"))
+	}
+	cert, err := tls.LoadX509KeyPair(crtFile, keyFile)
+	if err != nil {
+		panic(err)
+	}
+	conf := &tls.Config{}
+	conf.Certificates = []tls.Certificate{cert}
+	return conf
+}
+
 func MustLoadTLSFileConfig(rootFile, crtFile, keyFile string) *tls.Config {
 	if rootFile == "" {
 		panic(errors.New("rootFile miss"))
