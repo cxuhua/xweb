@@ -17,9 +17,8 @@ func Logger() Handler {
 				addr = req.RemoteAddr
 			}
 		}
-		log.Infof("Started %s %s for %s", req.Method, req.URL.Path, addr)
 		rw := res.(ResponseWriter)
 		c.Next()
-		log.Infof("Completed %v %s in %v,length:%d\n", rw.Status(), http.StatusText(rw.Status()), time.Since(start), rw.Size())
+		log.Infof("%s %s for %s Completed %v %s in %v,length:%d\n", req.Method, req.URL.Path, addr,rw.Status(), http.StatusText(rw.Status()), time.Since(start), rw.Size())
 	}
 }
