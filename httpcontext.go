@@ -8,9 +8,15 @@ import (
 	"io/ioutil"
 	"mime"
 	"net/http"
+	"runtime/pprof"
+	"log"
 	"os"
+	"flag"
 	"sort"
+	"time"
 )
+
+
 
 //default context
 
@@ -18,6 +24,7 @@ var (
 	m            = NewHttpContext()
 	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
+	UserPprof = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 )
 
 func WritePID() {
@@ -125,6 +132,7 @@ type HttpContext struct {
 	martini.ClassicMartini
 	Validator *Validator
 	URLS      URLSlice
+	PprofFiles []string
 }
 
 func (this *HttpContext) InitDefaultLogger(w io.Writer) {
@@ -152,15 +160,63 @@ func (this *HttpContext) Logger() *logging.Logger {
 	return this.GetLogger()
 }
 
+func (this *HttpContext) writeHeapPprof(){
+	for {
+		select {
+		case <-time.After(time.Minute * 10):
+			file := fmt.Sprintf("head-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
+			f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
+			if err == nil {
+				pprof.WriteHeapProfile(f)
+				f.Close()
+				this.PprofFiles = append(this.PprofFiles,file)
+			}
+			if len(this.PprofFiles) > 10 {
+				this.PprofFiles = this.PprofFiles[1:]
+			}
+		}
+	}
+}
+
 func (this *HttpContext) ListenAndServe(addr string) error {
 	this.PrintURLS()
 	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
+
+	if *UserPprof {
+		f, err := os.OpenFile("cpu.prof", os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+
+		log.Println("CPU Profile started for https")
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+
+		go this.writeHeapPprof()
+	}
+
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
 	this.PrintURLS()
 	this.Logger().Infof("https listening on %s (%s)\n", addr, martini.Env)
+
+	if *UserPprof {
+		f, err := os.OpenFile("cpu.prof", os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+
+		log.Println("CPU Profile started for https")
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+
+		go this.writeHeapPprof()
+	}
+
 	return http.ListenAndServeTLS(addr, cert, key, this)
 }
 
