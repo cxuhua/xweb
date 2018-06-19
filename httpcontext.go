@@ -132,7 +132,9 @@ type HttpContext struct {
 	martini.ClassicMartini
 	Validator *Validator
 	URLS      URLSlice
-	PprofFiles []string
+
+	heapPPROFFiles  []string
+	cpuPPROFFiles []string
 }
 
 func (this *HttpContext) InitDefaultLogger(w io.Writer) {
@@ -160,20 +162,44 @@ func (this *HttpContext) Logger() *logging.Logger {
 	return this.GetLogger()
 }
 
+func (this *HttpContext) startCPUPprof() (*os.File,string){
+	file := fmt.Sprintf("cpu-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
+	log.Println("create cpu prof ",file)
+	cpuFile, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	pprof.StartCPUProfile(cpuFile)
+	return  cpuFile,file
+}
+
 func (this *HttpContext) writeHeapPprof(){
+	cpuFile,file := this.startCPUPprof()
 	for {
 		select {
 		case <-time.After(time.Minute * 10):
-			file := fmt.Sprintf("heap-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
+			file := fmt.Sprintf("heap-%s.prof", time.Now().Format("2006-01-02 15:04:05"))
 			f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
-			if err == nil {
-				pprof.WriteHeapProfile(f)
-				f.Close()
-				this.PprofFiles = append(this.PprofFiles,file)
+			if err != nil {
+				log.Fatal(err)
 			}
-			if len(this.PprofFiles) > 10 {
-				this.PprofFiles = this.PprofFiles[1:]
+			pprof.WriteHeapProfile(f)
+			f.Close()
+			this.heapPPROFFiles = append(this.heapPPROFFiles, file)
+			if len(this.heapPPROFFiles) > 10 {
+				os.Remove(this.heapPPROFFiles[0])
+				this.heapPPROFFiles = this.heapPPROFFiles[1:]
 			}
+			log.Println("create heap prof ",file)
+		case <-time.After(time.Minute * 30):
+			pprof.StopCPUProfile()
+			cpuFile.Close()
+			this.cpuPPROFFiles = append(this.cpuPPROFFiles, file)
+			if len(this.cpuPPROFFiles) > 10 {
+				os.Remove(this.cpuPPROFFiles[0])
+				this.cpuPPROFFiles = this.cpuPPROFFiles[1:]
+			}
+			cpuFile,file = this.startCPUPprof()
 		}
 	}
 }
@@ -183,16 +209,6 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 
 	if *UserPprof {
-		file := fmt.Sprintf("cpu-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
-		f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-
-		log.Println("CPU Profile started for https")
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
 
 		go this.writeHeapPprof()
 	}
@@ -205,16 +221,6 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 	this.Logger().Infof("https listening on %s (%s)\n", addr, martini.Env)
 
 	if *UserPprof {
-		f, err := os.OpenFile("cpu.prof", os.O_RDWR|os.O_CREATE, 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-
-		log.Println("CPU Profile started for https")
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-
 		go this.writeHeapPprof()
 	}
 
