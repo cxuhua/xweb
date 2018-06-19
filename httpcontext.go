@@ -164,7 +164,7 @@ func (this *HttpContext) writeHeapPprof(){
 	for {
 		select {
 		case <-time.After(time.Minute * 10):
-			file := fmt.Sprintf("head-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
+			file := fmt.Sprintf("heap-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
 			f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
 			if err == nil {
 				pprof.WriteHeapProfile(f)
@@ -183,7 +183,8 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 
 	if *UserPprof {
-		f, err := os.OpenFile("cpu.prof", os.O_RDWR|os.O_CREATE, 0644)
+		file := fmt.Sprintf("cpu-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
+		f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
