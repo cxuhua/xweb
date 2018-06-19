@@ -163,7 +163,7 @@ func (this *HttpContext) Logger() *logging.Logger {
 }
 
 func (this *HttpContext) startCPUPprof() (*os.File,string){
-	file := fmt.Sprintf("cpu-%s.prof",time.Now().Format("2006-01-02 15:04:05"))
+	file := fmt.Sprintf("cpu-%s.prof",time.Now().Format("20060102150405"))
 	log.Println("create cpu prof ",file)
 	cpuFile, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
@@ -178,7 +178,7 @@ func (this *HttpContext) writeHeapPprof(){
 	for {
 		select {
 		case <-time.After(time.Minute * 10):
-			file := fmt.Sprintf("heap-%s.prof", time.Now().Format("2006-01-02 15:04:05"))
+			file := fmt.Sprintf("heap-%s.prof", time.Now().Format("20060102150405"))
 			f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
 			if err != nil {
 				log.Fatal(err)
