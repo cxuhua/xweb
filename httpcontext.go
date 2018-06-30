@@ -1,22 +1,20 @@
 package xweb
 
 import (
+	"flag"
 	"fmt"
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime"
 	"net/http"
-	"runtime/pprof"
-	"log"
 	"os"
-	"flag"
+	"runtime/pprof"
 	"sort"
 	"time"
 )
-
-
 
 //default context
 
@@ -24,7 +22,7 @@ var (
 	m            = NewHttpContext()
 	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
-	UserPprof = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
+	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 )
 
 func WritePID() {
@@ -133,8 +131,8 @@ type HttpContext struct {
 	Validator *Validator
 	URLS      URLSlice
 
-	heapPPROFFiles  []string
-	cpuPPROFFiles []string
+	heapPPROFFiles []string
+	cpuPPROFFiles  []string
 }
 
 func (this *HttpContext) InitDefaultLogger(w io.Writer) {
@@ -162,19 +160,18 @@ func (this *HttpContext) Logger() *logging.Logger {
 	return this.GetLogger()
 }
 
-func (this *HttpContext) startCPUPprof() (*os.File,string){
-	file := fmt.Sprintf("cpu-%s.prof",time.Now().Format("20060102150405"))
-	log.Println("create cpu prof ",file)
+func (this *HttpContext) startCPUPprof() (*os.File, string) {
+	file := fmt.Sprintf("cpu-%s.prof", time.Now().Format("20060102150405"))
+	log.Println("create cpu prof ", file)
 	cpuFile, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	pprof.StartCPUProfile(cpuFile)
-	return  cpuFile,file
+	return cpuFile, file
 }
 
-func (this *HttpContext) writeHeapPprof(){
-	cpuFile,file := this.startCPUPprof()
+func (this *HttpContext) writeHeapPprof() {
 	for {
 		select {
 		case <-time.After(time.Minute * 10):
@@ -190,7 +187,15 @@ func (this *HttpContext) writeHeapPprof(){
 				os.Remove(this.heapPPROFFiles[0])
 				this.heapPPROFFiles = this.heapPPROFFiles[1:]
 			}
-			log.Println("create heap prof ",file)
+			log.Println("create heap prof ", file)
+		}
+	}
+}
+
+func (this *HttpContext) writeCPUPprof() {
+	cpuFile, file := this.startCPUPprof()
+	for {
+		select {
 		case <-time.After(time.Minute * 30):
 			pprof.StopCPUProfile()
 			cpuFile.Close()
@@ -199,7 +204,7 @@ func (this *HttpContext) writeHeapPprof(){
 				os.Remove(this.cpuPPROFFiles[0])
 				this.cpuPPROFFiles = this.cpuPPROFFiles[1:]
 			}
-			cpuFile,file = this.startCPUPprof()
+			cpuFile, file = this.startCPUPprof()
 		}
 	}
 }
@@ -209,8 +214,8 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 
 	if *UserPprof {
-
 		go this.writeHeapPprof()
+		go this.writeCPUPprof()
 	}
 
 	return http.ListenAndServe(addr, this)
@@ -222,6 +227,7 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 
 	if *UserPprof {
 		go this.writeHeapPprof()
+		go this.writeCPUPprof()
 	}
 
 	return http.ListenAndServeTLS(addr, cert, key, this)
