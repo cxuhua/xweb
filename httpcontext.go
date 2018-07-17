@@ -23,7 +23,7 @@ var (
 	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
 	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
-	HttpTimeout = time.Second * 15
+	HttpTimeout = time.Second * 5
 )
 
 func WritePID() {
