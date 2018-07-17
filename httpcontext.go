@@ -23,6 +23,7 @@ var (
 	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
 	LoggerPrefix = ""
 	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
+	HttpTimeout = time.Second * 15
 )
 
 func WritePID() {
@@ -217,8 +218,8 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-
-	return http.ListenAndServe(addr, this)
+	handler := http.TimeoutHandler(this,HttpTimeout,"time out");
+	return http.ListenAndServe(addr, handler)
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
@@ -229,8 +230,8 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-
-	return http.ListenAndServeTLS(addr, cert, key, this)
+	handler := http.TimeoutHandler(this,HttpTimeout,"time out");
+	return http.ListenAndServeTLS(addr, cert, key, handler)
 }
 
 func (this *HttpContext) PrintURLS() {
