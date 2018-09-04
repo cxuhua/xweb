@@ -149,7 +149,6 @@ func (this HttpResponse) ToXml(v interface{}) error {
 	if err != nil {
 		return err
 	}
-	log.Println(string(data))
 	return xml.Unmarshal(data, v)
 }
 
