@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
-	"log"
-	"net"
 	"time"
 )
 
@@ -281,10 +281,8 @@ func dialTimeout(network, addr string) (net.Conn, error) {
 	if err != nil {
 		return conn, err
 	}
-
 	tcp_conn := conn.(*net.TCPConn)
 	tcp_conn.SetKeepAlive(false)
-
 	return tcp_conn, err
 }
 
