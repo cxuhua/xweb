@@ -10,11 +10,16 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"time"
+)
+
+const (
+	POST_REMOTE_TIMEOUT = 15
 )
 
 type HTTPValues struct {
@@ -97,6 +102,10 @@ func readResponse(res *http.Response, is200 bool) ([]byte, error) {
 
 type HttpResponse struct {
 	*http.Response
+}
+
+func (this HttpResponse) Close() {
+	this.Response.Body.Close()
 }
 
 func (this HttpResponse) ToReader() (io.Reader, error) {
@@ -265,6 +274,16 @@ func (this HTTPClient) NewForm(path string, v HTTPValues) (*http.Request, error)
 	return req, nil
 }
 
+func dialTimeout(network, addr string) (net.Conn, error) {
+	conn, err := net.DialTimeout(network, addr, time.Second*POST_REMOTE_TIMEOUT)
+	if err != nil {
+		return conn, err
+	}
+	tcp_conn := conn.(*net.TCPConn)
+	tcp_conn.SetKeepAlive(false)
+	return tcp_conn, err
+}
+
 func (this HTTPClient) NewPost(path string, bt string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodPost, this.Host+path, body)
 	if err != nil {
@@ -364,7 +383,10 @@ func NewHTTPClient(host string, confs ...*tls.Config) HTTPClient {
 	ret := HTTPClient{}
 	ret.Host = host
 	ret.IsSecure = strings.HasPrefix(host, "https")
-	tr := &http.Transport{}
+	tr := &http.Transport{
+		Dial:              dialTimeout,
+		DisableKeepAlives: true,
+	}
 	if len(confs) > 0 {
 		tr.TLSClientConfig = confs[0]
 	} else if ret.IsSecure {
