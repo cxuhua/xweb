@@ -1,10 +1,11 @@
 package xweb
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"github.com/cxuhua/xweb/logging"
-	"github.com/cxuhua/xweb/martini"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,8 +14,134 @@ import (
 	"os"
 	"runtime/pprof"
 	"sort"
+	"sync"
 	"time"
+
+	"github.com/cxuhua/xweb/logging"
+	"github.com/cxuhua/xweb/martini"
 )
+
+func checkWriteHeaderCode(code int) {
+	if code < 100 || code > 999 {
+		panic(fmt.Sprintf("invalid WriteHeader code %v", code))
+	}
+}
+
+func TimeoutHandler(h http.Handler, dt time.Duration, msg string) http.Handler {
+	logger := h.(*HttpContext).Logger()
+	return &timeoutHandler{
+		logger: logger,
+		handler: h,
+		body:    msg,
+		dt:      dt,
+	}
+}
+
+var ErrHandlerTimeout = errors.New("http: Handler timeout")
+
+type timeoutHandler struct {
+	logger *logging.Logger
+	handler http.Handler
+	body    string
+	dt      time.Duration
+	testContext context.Context
+}
+
+func (h *timeoutHandler) errorBody() string {
+	if h.body != "" {
+		return h.body
+	}
+	return "<html><head><title>Timeout</title></head><body><h1>Timeout</h1></body></html>"
+}
+
+func (h *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := h.testContext
+	if ctx == nil {
+		var cancelCtx context.CancelFunc
+		ctx, cancelCtx = context.WithTimeout(r.Context(), h.dt)
+		defer cancelCtx()
+	}
+	r = r.WithContext(ctx)
+	done := make(chan struct{})
+	tw := &timeoutWriter{
+		w: w,
+		h: make(http.Header),
+	}
+	panicChan := make(chan interface{}, 1)
+	now := time.Now().UnixNano()
+	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				panicChan <- p
+			}
+		}()
+		h.handler.ServeHTTP(tw, r)
+		close(done)
+	}()
+	select {
+	case p := <-panicChan:
+		panic(p)
+	case <-done:
+		tw.mu.Lock()
+		defer tw.mu.Unlock()
+		dst := w.Header()
+		for k, vv := range tw.h {
+			dst[k] = vv
+		}
+		if !tw.wroteHeader {
+			tw.code = http.StatusOK
+		}
+		w.WriteHeader(tw.code)
+		w.Write(tw.wbuf.Bytes())
+	case <-ctx.Done():
+		tw.mu.Lock()
+		defer tw.mu.Unlock()
+		w.WriteHeader(http.StatusServiceUnavailable)
+		io.WriteString(w, h.errorBody())
+		tw.timedOut = true
+		h.logger.Println(r.RequestURI,"do timeout",time.Now().UnixNano() - now," status=",http.StatusServiceUnavailable)
+	}
+}
+
+type timeoutWriter struct {
+	w    http.ResponseWriter
+	h    http.Header
+	wbuf bytes.Buffer
+
+	mu          sync.Mutex
+	timedOut    bool
+	wroteHeader bool
+	code        int
+}
+
+func (tw *timeoutWriter) Header() http.Header { return tw.h }
+
+func (tw *timeoutWriter) Write(p []byte) (int, error) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	if tw.timedOut {
+		return 0, ErrHandlerTimeout
+	}
+	if !tw.wroteHeader {
+		tw.writeHeader(http.StatusOK)
+	}
+	return tw.wbuf.Write(p)
+}
+
+func (tw *timeoutWriter) WriteHeader(code int) {
+	checkWriteHeaderCode(code)
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	if tw.timedOut || tw.wroteHeader {
+		return
+	}
+	tw.writeHeader(code)
+}
+
+func (tw *timeoutWriter) writeHeader(code int) {
+	tw.wroteHeader = true
+	tw.code = code
+}
 
 //default context
 
@@ -218,7 +345,7 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-	handler := http.TimeoutHandler(this, HttpTimeout, "time out")
+	handler := TimeoutHandler(this, HttpTimeout, "time out")
 	return http.ListenAndServe(addr, handler)
 }
 
@@ -230,7 +357,7 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-	handler := http.TimeoutHandler(this, HttpTimeout, "time out")
+	handler := TimeoutHandler(this, HttpTimeout, "time out")
 	return http.ListenAndServeTLS(addr, cert, key, handler)
 }
 
