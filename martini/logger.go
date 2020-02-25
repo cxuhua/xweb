@@ -19,6 +19,8 @@ func Logger() Handler {
 		}
 		rw := res.(ResponseWriter)
 		c.Next()
-		log.Infof("%s %s for %s Completed %v %s in %v,length:%d\n", req.Method, req.URL.Path, addr,rw.Status(), http.StatusText(rw.Status()), time.Since(start), rw.Size())
+		if Env == Dev {
+			log.Infof("%s %s for %s Completed %v %s in %v,length:%d\n", req.Method, req.URL.Path, addr,rw.Status(), http.StatusText(rw.Status()), time.Since(start), rw.Size())
+		}
 	}
 }
