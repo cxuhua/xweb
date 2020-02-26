@@ -121,7 +121,7 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 			}
 		}
 
-		if !opt.SkipLogging {
+		if !opt.SkipLogging && Env == Dev {
 			log.Info("[Static] Serving " + file)
 		}
 
