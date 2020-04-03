@@ -30,7 +30,7 @@ func checkWriteHeaderCode(code int) {
 func TimeoutHandler(h http.Handler, dt time.Duration, msg string) http.Handler {
 	logger := h.(*HttpContext).Logger()
 	return &timeoutHandler{
-		logger: logger,
+		logger:  logger,
 		handler: h,
 		body:    msg,
 		dt:      dt,
@@ -40,10 +40,10 @@ func TimeoutHandler(h http.Handler, dt time.Duration, msg string) http.Handler {
 var ErrHandlerTimeout = errors.New("http: Handler timeout")
 
 type timeoutHandler struct {
-	logger *logging.Logger
-	handler http.Handler
-	body    string
-	dt      time.Duration
+	logger      *logging.Logger
+	handler     http.Handler
+	body        string
+	dt          time.Duration
 	testContext context.Context
 }
 
@@ -99,7 +99,7 @@ func (h *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		io.WriteString(w, h.errorBody())
 		tw.timedOut = true
-		h.logger.Println(r.RequestURI,"do timeout",time.Now().UnixNano() - now," status=",http.StatusServiceUnavailable)
+		h.logger.Println(r.RequestURI, "do timeout", time.Now().UnixNano()-now, " status=", http.StatusServiceUnavailable)
 	}
 }
 
@@ -199,8 +199,8 @@ func MapTo(v interface{}, t interface{}) {
 	m.MapTo(v, t)
 }
 
-func UseDispatcher(c IDispatcher) {
-	m.UseDispatcher(c)
+func UseDispatcher(c IDispatcher, in ...martini.Handler) {
+	m.UseDispatcher(c, in...)
 }
 
 func Use(h martini.Handler) {
