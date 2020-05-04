@@ -5,9 +5,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/cxuhua/xweb/logging"
-	"github.com/cxuhua/xweb/martini"
-	"github.com/golang/protobuf/proto"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
@@ -16,6 +13,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/cxuhua/xweb/logging"
+	"github.com/cxuhua/xweb/martini"
+	"github.com/golang/protobuf/proto"
 )
 
 var (
@@ -148,10 +149,10 @@ func (this *HTTPDispatcher) URL() string {
 
 //获取远程地址
 func GetRemoteAddr(req *http.Request) string {
-	if x := req.Header.Get("X-Real-IP"); x != "" {
+	if x := req.Header.Get("X-Forwarded-For"); x != "" {
 		return strings.Split(x, ",")[0]
 	}
-	if x := req.Header.Get("X-Forwarded-For"); x != "" {
+	if x := req.Header.Get("X-Real-IP"); x != "" {
 		return strings.Split(x, ",")[0]
 	}
 	if x := strings.Split(req.RemoteAddr, ":"); len(x) > 0 {
