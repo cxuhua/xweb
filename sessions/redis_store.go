@@ -47,4 +47,5 @@ func (c *rediStore) Options(options Options) {
 		Secure:   options.Secure,
 		HttpOnly: options.HttpOnly,
 	}
+	c.SetMaxAge(c.RediStore.Options.MaxAge)
 }
