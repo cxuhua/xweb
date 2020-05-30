@@ -367,31 +367,31 @@ type CacheParams struct {
 }
 
 //获取字符串类型
-func (cp *CacheParams) GetString() (string, error) {
-	var s []byte
-	err := cp.Imp.Get(cp.Key, &s)
+func (cp *CacheParams) GetBytes() ([]byte, error) {
+	var b []byte
+	err := cp.Imp.Get(cp.Key, &b)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if len(s) == 0 {
-		return "", fmt.Errorf("empty content")
+	if len(b) == 0 {
+		return nil, fmt.Errorf("empty content")
 	}
 	if cp.ZipOn < MinZipSize {
-		return string(s), nil
+		return b, nil
 	}
-	v, err := lzma.Uncompress([]byte(s))
+	v, err := lzma.Uncompress(b)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(v), nil
+	return v, nil
 }
 
 //保存字符串
-func (cp *CacheParams) SetString(s string) error {
+func (cp *CacheParams) SetBytes(b []byte) error {
 	if cp.ZipOn < MinZipSize {
-		return cp.Imp.Set(cp.Key, []byte(s), cp.Time)
+		return cp.Imp.Set(cp.Key, b, cp.Time)
 	}
-	b, err := lzma.Compress([]byte(s))
+	b, err := lzma.Compress(b)
 	if err != nil {
 		return err
 	}

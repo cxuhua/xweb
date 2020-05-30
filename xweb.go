@@ -626,22 +626,25 @@ func (this *HttpContext) getCacheParam(vs []reflect.Value, req *http.Request) (*
 
 //缓存处理，如果返回true，输出了数据，不会执行Handler
 func (this *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParams) bool {
-	str, err := cp.GetString()
+	bb, err := cp.GetBytes()
 	if err != nil {
+		//从缓存获取失败会在渲染时根据这个参数写入缓存
 		rv.CacheParams(cp)
 		return false
 	}
 	var cm *ContentModel
 	if mt := m.Render(); mt == JSON_RENDER {
-		cm = NewContentModel([]byte(str), cp.Key, ContentJSON)
+		cm = NewContentModel(bb, cp.Key, ContentJSON)
 	} else if mt == XML_RENDER {
-		cm = NewContentModel([]byte(str), cp.Key, ContentXML)
+		cm = NewContentModel(bb, cp.Key, ContentXML)
 	} else if mt == TEXT_RENDER {
-		cm = NewContentModel([]byte(str), cp.Key, ContentText)
+		cm = NewContentModel(bb, cp.Key, ContentText)
 	} else if mt == HTML_RENDER {
-		cm = NewContentModel([]byte(str), cp.Key, ContentHTML)
+		cm = NewContentModel(bb, cp.Key, ContentHTML)
+	} else if mt == DATA_RENDER {
+		cm = NewContentModel(bb, cp.Key, ContentBinary)
 	} else {
-		rv.CacheParams(cp)
+		//类型不支持
 		return false
 	}
 	mvc.SetModel(cm)

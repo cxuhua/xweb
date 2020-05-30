@@ -294,7 +294,7 @@ func (r *renderer) JSON(status int, v interface{}) {
 		r.Write(r.opt.PrefixJSON)
 	}
 	if r.cpv != nil {
-		r.cpv.SetString(string(result))
+		r.cpv.SetBytes(result)
 	}
 	r.Write(result)
 }
@@ -332,7 +332,7 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 	r.Header().Set(ContentType, r.opt.HTMLContentType+r.compiledCharset)
 	r.WriteHeader(status)
 	if r.cpv != nil {
-		r.cpv.SetString(string(buf.Bytes()))
+		r.cpv.SetBytes(buf.Bytes())
 	}
 	io.Copy(r, buf)
 	bufpool.Put(buf)
@@ -357,7 +357,7 @@ func (r *renderer) XML(status int, v interface{}) {
 		r.Write(r.opt.PrefixXML)
 	}
 	if r.cpv != nil {
-		r.cpv.SetString(string(result))
+		r.cpv.SetBytes(result)
 	}
 	r.Write(result)
 }
@@ -367,6 +367,9 @@ func (r *renderer) Data(status int, v []byte) {
 		r.Header().Set(ContentType, ContentBinary)
 	}
 	r.WriteHeader(status)
+	if r.cpv != nil {
+		r.cpv.SetBytes(v)
+	}
 	r.Write(v)
 }
 
@@ -376,7 +379,7 @@ func (r *renderer) Text(status int, v string) {
 	}
 	r.WriteHeader(status)
 	if r.cpv != nil {
-		r.cpv.SetString(v)
+		r.cpv.SetBytes([]byte(v))
 	}
 	r.Write([]byte(v))
 }
