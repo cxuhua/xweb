@@ -16,7 +16,6 @@ import (
 
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
-	"github.com/golang/protobuf/proto"
 )
 
 var (
@@ -24,9 +23,10 @@ var (
 )
 
 const (
-	ValidateErrorCode = 10000     //数据校验失败返回code
-	HandlerSuffix     = "Handler" //处理组件必须的后缀
-	ModelSuffix       = "Model"   //创建model方法
+	ValidateErrorCode = 10000         //数据校验失败返回code
+	HandlerSuffix     = "Handler"     //处理组件必须的后缀
+	CacheParamsSuffix = "CacheParams" //缓存配置方法
+	ModelSuffix       = "Model"       //创建model方法
 	DefaultHandler    = "Default" + HandlerSuffix
 )
 
@@ -41,7 +41,7 @@ const (
 	FILE_RENDER
 	TEMP_RENDER
 	REDIRECT_RENDER
-	PROTO_RENDER
+	CONTENT_RENDER
 )
 
 var (
@@ -55,7 +55,7 @@ var (
 		"FILE":     FILE_RENDER,
 		"TEMP":     TEMP_RENDER,
 		"REDIRECT": REDIRECT_RENDER,
-		"PROTO":    PROTO_RENDER,
+		"CONTENT":  CONTENT_RENDER,
 	}
 	rmap = map[int]string{
 		HTML_RENDER:     "HTML",
@@ -67,7 +67,7 @@ var (
 		FILE_RENDER:     "FILE",
 		TEMP_RENDER:     "TEMP",
 		REDIRECT_RENDER: "REDIRECT",
-		PROTO_RENDER:    "PROTO",
+		CONTENT_RENDER:  "CONTENT",
 	}
 )
 
@@ -469,21 +469,6 @@ func (this *HttpContext) IsIArgs(v reflect.Value) (a IArgs, ok bool) {
 	return
 }
 
-func (this *HttpContext) IsProto(v reflect.Value) (a proto.Message, ok bool) {
-	if !v.IsValid() {
-		return nil, false
-	}
-	if !v.CanAddr() {
-		return nil, false
-	}
-	addr := v.Addr()
-	if !addr.IsValid() || !addr.CanInterface() {
-		return nil, false
-	}
-	a, ok = addr.Interface().(proto.Message)
-	return
-}
-
 func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool) {
 	if !v.IsValid() {
 		return
@@ -560,9 +545,9 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 	}
 }
 
-func (this *HttpContext) GetProtoHandler(args proto.Message) interface{} {
+func (this *HttpContext) GetArgsCacheParams(args IArgs) interface{} {
 	v := reflect.ValueOf(args)
-	if hv := v.MethodByName(HandlerSuffix); hv.IsValid() {
+	if hv := v.MethodByName(CacheParamsSuffix); hv.IsValid() {
 		return hv.Interface()
 	} else {
 		return nil
@@ -589,8 +574,6 @@ func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Para
 		args = this.newJSONArgs(iv, req, param, log)
 	case AT_XML:
 		args = this.newXMLArgs(iv, req, param, log)
-	case AT_PROTO:
-		return iv
 	default:
 		panic(errors.New("args reqtype error"))
 	}
@@ -622,85 +605,47 @@ func (this *HttpContext) handlerProtoArgs(mvc IMVC, iv IArgs) {
 	log.Println(iv)
 }
 
-func (this *HttpContext) newProtoMessage(iv proto.Message, req *http.Request, param martini.Params, log *logging.Logger) (proto.Message, error) {
-	t := reflect.TypeOf(iv).Elem()
-	v := reflect.New(t)
-	args, ok := v.Interface().(proto.Message)
+//获取缓存参数
+func (this *HttpContext) getCacheParam(vs []reflect.Value, req *http.Request) (*CacheParams, error) {
+	if len(vs) != 1 {
+		return nil, fmt.Errorf("args num error")
+	}
+	vp := vs[0].Interface()
+	cp, ok := vp.(*CacheParams)
 	if !ok {
-		return nil, errors.New(t.Name() + "not imp proto.Message")
+		return nil, fmt.Errorf("cache params type error")
 	}
-	buf, err := this.GetBody(req)
-	if err != nil {
-		return nil, err
+	if cp.Imp == nil {
+		return nil, fmt.Errorf("cache imp nil")
 	}
-	if martini.Env == martini.Dev {
-		log.Info("Recv PROTO Data:", len(buf))
+	if cp.Key == "" {
+		return nil, fmt.Errorf("cache key empty")
 	}
-	if err := proto.Unmarshal(buf, args); err != nil {
-		return nil, err
-	}
-	return args, nil
+	return cp, nil
 }
 
-func (this *HttpContext) handlerWithProto(iv proto.Message, hv reflect.Value, dv reflect.Value) martini.Handler {
-	if !dv.IsValid() {
-		panic(errors.New("DefaultHandler miss"))
+//缓存处理，如果返回true，输出了数据，不会执行Handler
+func (this *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParams) bool {
+	str, err := cp.GetString()
+	if err != nil {
+		rv.CacheParams(cp)
+		return false
 	}
-	return func(c martini.Context, mvc IMVC, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
-		mvc.SetView("")
-		args, err := this.newProtoMessage(iv, req, param, log)
-		if err != nil {
-			mvc.Error(err.Error())
-			return
-		}
-		m := NewProtoModel()
-		c.Map(m)
-		ah := this.GetProtoHandler(args)
-		if ah == nil {
-			panic(errors.New("proto message miss Handler method:" + reflect.ValueOf(iv).Type().String()))
-		}
-		vs, err := c.Invoke(ah)
-		if err != nil {
-			panic(err)
-		}
-		if len(vs) != 2 {
-			panic(errors.New("proto Handler return args error"))
-		}
-		// 处理错误
-		if !vs[1].IsNil() {
-			m := NewStringModel()
-			if err, ok := vs[1].Interface().(*protoError); ok && err != nil {
-				m.Text = err.Error()
-				m.Header.Set("code", err.GetCode())
-			} else if err, ok := vs[1].Interface().(error); ok && err != nil {
-				m.Text = err.Error()
-				m.Header.Set("code", "1")
-			} else {
-				m.Text = fmt.Sprintf("%v", vs[1].Interface())
-				m.Header.Set("code", "2")
-			}
-			mvc.SetModel(m)
-			return
-		}
-		// 没有返回值
-		if vs[0].IsNil() {
-			mvc.SkipRender(true)
-			return
-		}
-		// 返回protobuf二进制
-		msg, ok := vs[0].Interface().(proto.Message)
-		if !ok {
-			panic(errors.New("proto return must is proto message"))
-		}
-		data, err := proto.Marshal(msg)
-		if err != nil {
-			panic(err)
-		}
-		// 正确的返回 code == "0"
-		m.Data = data
-		m.Header.Set("code", "0")
-		mvc.SetModel(m)
+	var cm *ContentModel
+	if mt := m.Render(); mt == JSON_RENDER {
+		cm = NewContentModel([]byte(str), cp.Key, ContentJSON)
+	} else if mt == XML_RENDER {
+		cm = NewContentModel([]byte(str), cp.Key, ContentXML)
+	} else if mt == TEXT_RENDER {
+		cm = NewContentModel([]byte(str), cp.Key, ContentText)
+	} else if mt == HTML_RENDER {
+		cm = NewContentModel([]byte(str), cp.Key, ContentHTML)
+	} else {
+		rv.CacheParams(cp)
+		return false
 	}
+	mvc.SetModel(cm)
+	return true
 }
 
 func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
@@ -710,6 +655,7 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 	return func(c martini.Context, mvc IMVC, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
 		var err error
 		var vs []reflect.Value
+		var cp *CacheParams
 		mvc.SetView(view)
 		mvc.SetRender(StringToRender(render))
 		args := this.newArgs(iv, req, param, log)
@@ -727,8 +673,21 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		mvc.SetModel(model)
 		//参数校验和执行参数方法
 		if err = this.Validate(args); err != nil {
-			err = args.Validate(NewValidateModel(err), mvc)
-		} else if ah := this.GetArgsHandler(args); ah != nil {
+			args.Validate(NewValidateModel(err), mvc)
+			return
+		}
+		//如果方法存在获取缓存处理,支持json，xml，string三种类型
+		if ch := this.GetArgsCacheParams(args); ch != nil {
+			vs, err = c.Invoke(ch)
+			if err == nil {
+				cp, err = this.getCacheParam(vs, req)
+			}
+		}
+		//如果缓存命中直接返回
+		if err == nil && cp != nil && this.domvccache(mvc, rv, model, cp) {
+			return
+		}
+		if ah := this.GetArgsHandler(args); ah != nil {
 			vs, err = c.Invoke(ah)
 		} else if hv.IsValid() {
 			vs, err = c.Invoke(hv.Interface())
@@ -779,14 +738,8 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		in := []martini.Handler{}
 		hv := sv.MethodByName(handler + HandlerSuffix)
 		dv := sv.MethodByName(DefaultHandler)
-		pv, pb := this.IsProto(v)
 		iv, ab := this.IsIArgs(v)
-		if pb && url != "" {
-			if len(hs) > 0 {
-				in = this.useMulHandler(in, hs, sv)
-			}
-			in = append(in, this.handlerWithProto(pv, hv, dv))
-		} else if ab && url != "" {
+		if ab && url != "" {
 			if len(hs) > 0 {
 				in = this.useMulHandler(in, hs, sv)
 			}
@@ -802,14 +755,6 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			this.Group(d.URL()+url, func(r martini.Router) {
 				this.useRouter(r, d)
 			}, in...)
-		} else if pb {
-			if url == "" {
-				panic(errors.New(f.Name + " (Proto)url empty"))
-			}
-			if after := c.AfterHandler(); after != nil {
-				in = append(in, after)
-			}
-			this.useProtoHandler(r, url, in...)
 		} else if ab {
 			if url == "" {
 				panic(errors.New(f.Name + " (Args)url empty"))

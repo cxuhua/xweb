@@ -5,8 +5,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/cxuhua/xweb/logging"
-	"github.com/cxuhua/xweb/martini"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +12,10 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/cxuhua/lzma"
+	"github.com/cxuhua/xweb/logging"
+	"github.com/cxuhua/xweb/martini"
 )
 
 type IModel interface {
@@ -152,6 +154,28 @@ func NewStringModel() *StringModel {
 	return m
 }
 
+//content model
+type ContentModel struct {
+	xModel
+	Key  string
+	Type string
+	Data []byte
+}
+
+func (this *ContentModel) Finished() {
+
+}
+
+func (this *ContentModel) Render() int {
+	return CONTENT_RENDER
+}
+
+func NewContentModel(b []byte, k string, t string) *ContentModel {
+	m := &ContentModel{Data: b, Key: k, Type: t}
+	m.InitHeader()
+	return m
+}
+
 //data render model
 type BinaryModel struct {
 	xModel
@@ -168,27 +192,6 @@ func (this *BinaryModel) Render() int {
 
 func NewBinaryModel() *BinaryModel {
 	m := &BinaryModel{}
-	m.InitHeader()
-	return m
-}
-
-//proto render model
-type ProtoModel struct {
-	xModel
-	// proto数据
-	Data []byte
-}
-
-func (this *ProtoModel) Finished() {
-
-}
-
-func (this *ProtoModel) Render() int {
-	return PROTO_RENDER
-}
-
-func NewProtoModel() *ProtoModel {
-	m := &ProtoModel{}
 	m.InitHeader()
 	return m
 }
@@ -341,7 +344,64 @@ func NewValidateModel(err error) *ValidateModel {
 	return m
 }
 
+type ICache interface {
+	//设置值
+	Set(k string, v interface{}, exp ...time.Duration) error
+	//获取值
+	Get(k string, v interface{}) error
+	//删除值
+	Del(k ...string) (int64, error)
+}
+
+const (
+	//最小压缩大小
+	MinZipSize = 2048
+)
+
+//缓存参数
+type CacheParams struct {
+	Imp   ICache
+	Time  time.Duration
+	Key   string
+	ZipOn int //如果配置>0当数据达到这个大小时启用压缩
+}
+
+//获取字符串类型
+func (cp *CacheParams) GetString() (string, error) {
+	var s []byte
+	err := cp.Imp.Get(cp.Key, &s)
+	if err != nil {
+		return "", err
+	}
+	if len(s) == 0 {
+		return "", fmt.Errorf("empty content")
+	}
+	if cp.ZipOn < MinZipSize {
+		return string(s), nil
+	}
+	v, err := lzma.Uncompress([]byte(s))
+	if err != nil {
+		return "", err
+	}
+	return string(v), nil
+}
+
+//保存字符串
+func (cp *CacheParams) SetString(s string) error {
+	if cp.ZipOn < MinZipSize {
+		return cp.Imp.Set(cp.Key, []byte(s), cp.Time)
+	}
+	b, err := lzma.Compress([]byte(s))
+	if err != nil {
+		return err
+	}
+	return cp.Imp.Set(cp.Key, b, cp.Time)
+}
+
 type IMVC interface {
+	SetCacheParams(v *CacheParams)
+	GetCacheParams() *CacheParams
+
 	SetView(string)
 	SetTemplate(string)
 	SetViewModel(string, IModel)
@@ -500,6 +560,14 @@ func (this *DefaultMVC) RunRender() {
 	}
 	//执行不同类型的渲染
 	switch this.render {
+	case CONTENT_RENDER:
+		v, b := this.model.(*ContentModel)
+		if !b {
+			panic("RENDER Model error:must set ContentModel")
+		}
+		this.rev.Header().Set("X-Cache-Key", v.Key)
+		this.rev.Header().Set(ContentType, v.Type)
+		this.rev.Data(this.status, v.Data)
 	case HTML_RENDER:
 		if this.view == "" {
 			this.view = this.template(this.req.URL)
@@ -532,14 +600,6 @@ func (this *DefaultMVC) RunRender() {
 		if !b {
 			panic("RENDER Model error:must set BinaryModel")
 		}
-		this.rev.Data(this.status, v.Data)
-	// proto 输出
-	case PROTO_RENDER:
-		v, b := this.model.(*ProtoModel)
-		if !b {
-			panic("RENDER Model error:must set ProtoModel")
-		}
-		this.rev.Header().Set(ContentType, ProtobufType)
 		this.rev.Data(this.status, v.Data)
 	// 文件下载
 	case FILE_RENDER:

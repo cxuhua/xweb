@@ -5,12 +5,13 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/cxuhua/xweb/martini"
 	"io/ioutil"
 	"mime/multipart"
 	"os"
 	"reflect"
 	"runtime"
+
+	"github.com/cxuhua/xweb/martini"
 )
 
 var (
@@ -100,12 +101,11 @@ func (this FormFile) ReadAll() ([]byte, error) {
 
 //req type
 const (
-	AT_NONE  = iota
-	AT_FORM  //表单数据解析  	use:form tag
-	AT_JSON  //json数据解析	use:json tag
-	AT_XML   //xml数据解析	use:xml tag
-	AT_PROTO // proto协议	user:protobuf
-	AT_URL   //url可以和以上结构体混用 use:url tag
+	AT_NONE = iota
+	AT_FORM //表单数据解析  	use:form tag
+	AT_JSON //json数据解析	use:json tag
+	AT_XML  //xml数据解析	use:xml tag
+	AT_URL  //url可以和以上结构体混用 use:url tag
 )
 
 type IArgs interface {
@@ -184,26 +184,6 @@ func (this *JSONArgs) ReqType() int {
 
 func (this *JSONArgs) Model() IModel {
 	return NewHTTPSuccess()
-}
-
-type PROTOArgs struct {
-	xArgs
-}
-
-func (this *PROTOArgs) Validate(m *ValidateModel, c IMVC) error {
-	return nil
-}
-
-func (this *PROTOArgs) IsValidate() bool {
-	return false
-}
-
-func (this *PROTOArgs) ReqType() int {
-	return AT_PROTO
-}
-
-func (this *PROTOArgs) Model() IModel {
-	return nil
 }
 
 type XMLArgs struct {

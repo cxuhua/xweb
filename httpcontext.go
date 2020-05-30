@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime"
 	"net/http"
@@ -152,16 +151,6 @@ var (
 	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 	HttpTimeout  = time.Second * 30
 )
-
-func WritePID() {
-	pid := fmt.Sprintf("%v", os.Getpid())
-	ioutil.WriteFile("pid", []byte(pid), 0666)
-}
-
-func WritePIDFile(file string) {
-	pid := fmt.Sprintf("%v", os.Getpid())
-	ioutil.WriteFile(file, []byte(pid), 0666)
-}
 
 func AddExtType(ext string, typ string) {
 	mime.AddExtensionType(ext, typ)

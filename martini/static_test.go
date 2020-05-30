@@ -3,14 +3,11 @@ package martini
 import (
 	"bytes"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
-
-	"github.com/codegangsta/inject"
 )
 
 var currentRoot, _ = os.Getwd()
@@ -116,125 +113,6 @@ func Test_Static_BadDir(t *testing.T) {
 
 	m.ServeHTTP(response, req)
 	refute(t, response.Code, http.StatusOK)
-}
-
-func Test_Static_Options_Logging(t *testing.T) {
-	response := httptest.NewRecorder()
-
-	var buffer bytes.Buffer
-	m := &Martini{Injector: inject.New(), action: func() {}, logger: log.New(&buffer, "[martini] ", 0)}
-	m.Map(m.logger)
-	m.Map(defaultReturnHandler())
-
-	opt := StaticOptions{}
-	m.Use(Static(currentRoot, opt))
-
-	req, err := http.NewRequest("GET", "http://localhost:3000/martini.go", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.ServeHTTP(response, req)
-	expect(t, response.Code, http.StatusOK)
-	expect(t, buffer.String(), "[martini] [Static] Serving /martini.go\n")
-
-	// Now without logging
-	m.Handlers()
-	buffer.Reset()
-
-	// This should disable logging
-	opt.SkipLogging = true
-	m.Use(Static(currentRoot, opt))
-
-	m.ServeHTTP(response, req)
-	expect(t, response.Code, http.StatusOK)
-	expect(t, buffer.String(), "")
-}
-
-func Test_Static_Options_ServeIndex(t *testing.T) {
-	response := httptest.NewRecorder()
-
-	var buffer bytes.Buffer
-	m := &Martini{Injector: inject.New(), action: func() {}, logger: log.New(&buffer, "[martini] ", 0)}
-	m.Map(m.logger)
-	m.Map(defaultReturnHandler())
-
-	opt := StaticOptions{IndexFile: "martini.go"} // Define martini.go as index file
-	m.Use(Static(currentRoot, opt))
-
-	req, err := http.NewRequest("GET", "http://localhost:3000/", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.ServeHTTP(response, req)
-	expect(t, response.Code, http.StatusOK)
-	expect(t, buffer.String(), "[martini] [Static] Serving /martini.go\n")
-}
-
-func Test_Static_Options_Prefix(t *testing.T) {
-	response := httptest.NewRecorder()
-
-	var buffer bytes.Buffer
-	m := &Martini{Injector: inject.New(), action: func() {}, logger: log.New(&buffer, "[martini] ", 0)}
-	m.Map(m.logger)
-	m.Map(defaultReturnHandler())
-
-	// Serve current directory under /public
-	m.Use(Static(currentRoot, StaticOptions{Prefix: "/public"}))
-
-	// Check file content behaviour
-	req, err := http.NewRequest("GET", "http://localhost:3000/public/martini.go", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.ServeHTTP(response, req)
-	expect(t, response.Code, http.StatusOK)
-	expect(t, buffer.String(), "[martini] [Static] Serving /martini.go\n")
-}
-
-func Test_Static_Options_Expires(t *testing.T) {
-	response := httptest.NewRecorder()
-
-	var buffer bytes.Buffer
-	m := &Martini{Injector: inject.New(), action: func() {}, logger: log.New(&buffer, "[martini] ", 0)}
-	m.Map(m.logger)
-	m.Map(defaultReturnHandler())
-
-	// Serve current directory under /public
-	m.Use(Static(currentRoot, StaticOptions{Expires: func() string { return "46" }}))
-
-	// Check file content behaviour
-	req, err := http.NewRequest("GET", "http://localhost:3000/martini.go", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.ServeHTTP(response, req)
-	expect(t, response.Header().Get("Expires"), "46")
-}
-
-func Test_Static_Options_Fallback(t *testing.T) {
-	response := httptest.NewRecorder()
-
-	var buffer bytes.Buffer
-	m := &Martini{Injector: inject.New(), action: func() {}, logger: log.New(&buffer, "[martini] ", 0)}
-	m.Map(m.logger)
-	m.Map(defaultReturnHandler())
-
-	// Serve current directory under /public
-	m.Use(Static(currentRoot, StaticOptions{Fallback: "/martini.go"}))
-
-	// Check file content behaviour
-	req, err := http.NewRequest("GET", "http://localhost:3000/initram.go", nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	m.ServeHTTP(response, req)
-	expect(t, response.Code, http.StatusOK)
-	expect(t, buffer.String(), "[martini] [Static] Serving /martini.go\n")
 }
 
 func Test_Static_Redirect(t *testing.T) {

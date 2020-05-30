@@ -6,9 +6,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/cxuhua/xweb/logging"
-	"github.com/cxuhua/xweb/martini"
-	"github.com/oxtoacart/bpool"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -17,6 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/cxuhua/xweb/logging"
+	"github.com/cxuhua/xweb/martini"
+	"github.com/oxtoacart/bpool"
 )
 
 const (
@@ -25,7 +26,6 @@ const (
 	ContentExpires    = "Expires"
 	ContentType       = "Content-Type"
 	ContentLength     = "Content-Length"
-	ProtobufType      = "application/protobuf"
 	ContentBinary     = "application/octet-stream"
 	ContentText       = "text/plain"
 	ContentJSON       = "application/json"
@@ -79,6 +79,8 @@ type Render interface {
 	Header() http.Header
 	// SetCookie
 	SetCookie(cookie *http.Cookie)
+	// cache config
+	CacheParams(v *CacheParams)
 }
 
 // Delims represents a set of Left and Right delimiters for HTML template rendering
@@ -173,7 +175,7 @@ func Renderer(options ...RenderOptions) martini.Handler {
 				return vv
 			},
 		})
-		c.MapTo(&renderer{res, req, tc, opt, cs}, (*Render)(nil))
+		c.MapTo(&renderer{res, req, tc, opt, cs, nil}, (*Render)(nil))
 	}
 }
 
@@ -258,6 +260,11 @@ type renderer struct {
 	t               *template.Template
 	opt             RenderOptions
 	compiledCharset string
+	cpv             *CacheParams
+}
+
+func (this *renderer) CacheParams(v *CacheParams) {
+	this.cpv = v
 }
 
 func (r *renderer) SetCookie(cookie *http.Cookie) {
@@ -285,6 +292,9 @@ func (r *renderer) JSON(status int, v interface{}) {
 	r.WriteHeader(status)
 	if len(r.opt.PrefixJSON) > 0 {
 		r.Write(r.opt.PrefixJSON)
+	}
+	if r.cpv != nil {
+		r.cpv.SetString(string(result))
 	}
 	r.Write(result)
 }
@@ -321,6 +331,9 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 	// template rendered fine, write out the result
 	r.Header().Set(ContentType, r.opt.HTMLContentType+r.compiledCharset)
 	r.WriteHeader(status)
+	if r.cpv != nil {
+		r.cpv.SetString(string(buf.Bytes()))
+	}
 	io.Copy(r, buf)
 	bufpool.Put(buf)
 }
@@ -343,6 +356,9 @@ func (r *renderer) XML(status int, v interface{}) {
 	if len(r.opt.PrefixXML) > 0 {
 		r.Write(r.opt.PrefixXML)
 	}
+	if r.cpv != nil {
+		r.cpv.SetString(string(result))
+	}
 	r.Write(result)
 }
 
@@ -359,6 +375,9 @@ func (r *renderer) Text(status int, v string) {
 		r.Header().Set(ContentType, ContentText+r.compiledCharset)
 	}
 	r.WriteHeader(status)
+	if r.cpv != nil {
+		r.cpv.SetString(v)
+	}
 	r.Write([]byte(v))
 }
 
