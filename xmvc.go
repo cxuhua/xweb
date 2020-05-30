@@ -353,17 +353,16 @@ type ICache interface {
 	Del(k ...string) (int64, error)
 }
 
-const (
+var (
 	//最小压缩大小
 	MinZipSize = 2048
 )
 
 //缓存参数
 type CacheParams struct {
-	Imp   ICache
-	Time  time.Duration
-	Key   string
-	ZipOn int //如果配置>0当数据达到这个大小时启用压缩
+	Imp  ICache
+	Time time.Duration
+	Key  string
 }
 
 //获取字符串类型
@@ -376,26 +375,33 @@ func (cp *CacheParams) GetBytes() ([]byte, error) {
 	if len(b) == 0 {
 		return nil, fmt.Errorf("empty content")
 	}
-	if cp.ZipOn < MinZipSize {
-		return b, nil
+	if b[0] == 0 {
+		return b[1:], nil
 	}
-	v, err := lzma.Uncompress(b)
+	v, err := lzma.Uncompress(b[1:])
 	if err != nil {
 		return nil, err
 	}
 	return v, nil
 }
 
-//保存字符串
-func (cp *CacheParams) SetBytes(b []byte) error {
-	if cp.ZipOn < MinZipSize {
-		return cp.Imp.Set(cp.Key, b, cp.Time)
+//保存字符串,第一字节存放是否被压缩
+func (cp *CacheParams) SetBytes(sb []byte) error {
+	var vb []byte
+	if len(sb) > MinZipSize {
+		zb, err := lzma.Compress(sb)
+		if err != nil {
+			return err
+		}
+		vb = make([]byte, len(zb)+1)
+		vb[0] = 1
+		copy(vb[1:], zb)
+	} else {
+		vb := make([]byte, len(sb)+1)
+		vb[0] = 0
+		copy(vb[1:], sb)
 	}
-	b, err := lzma.Compress(b)
-	if err != nil {
-		return err
-	}
-	return cp.Imp.Set(cp.Key, b, cp.Time)
+	return cp.Imp.Set(cp.Key, vb, cp.Time)
 }
 
 type IMVC interface {
