@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ type cachenode struct {
 }
 
 var (
+	lck sync.RWMutex
 	cks = map[string]cachenode{}
 )
 
@@ -29,6 +31,8 @@ type cacheimp struct {
 
 //设置值
 func (c *cacheimp) Set(k string, v interface{}, exp ...time.Duration) error {
+	lck.Lock()
+	defer lck.Unlock()
 	now := time.Now()
 	if len(exp) > 0 {
 		now = now.Add(exp[0])
@@ -39,6 +43,8 @@ func (c *cacheimp) Set(k string, v interface{}, exp ...time.Duration) error {
 
 //获取值
 func (c *cacheimp) Get(k string, v interface{}) error {
+	lck.RLock()
+	defer lck.RUnlock()
 	vp, ok := cks[k]
 	if !ok {
 		return fmt.Errorf("key %s miss", k)
@@ -56,6 +62,8 @@ func (c *cacheimp) Get(k string, v interface{}) error {
 
 //删除值
 func (c *cacheimp) Del(k ...string) (int64, error) {
+	lck.Lock()
+	defer lck.Unlock()
 	delete(cks, k[0])
 	return 1, nil
 }
