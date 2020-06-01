@@ -355,9 +355,16 @@ type ICache interface {
 }
 
 var (
+	//CacheOn 是否开启缓存
+	CacheOn = true
 	//MinZipSize 最小压缩大小
 	MinZipSize = 2048
 )
+
+//IsCacheOn 是否开启缓存
+func IsCacheOn() bool {
+	return CacheOn
+}
 
 //CacheParams 缓存参数
 type CacheParams struct {
@@ -409,6 +416,7 @@ func (cp *CacheParams) SetBytes(sb []byte) error {
 	return cp.Imp.Set(cp.Key, vb, cp.Time)
 }
 
+//IMVC mvc控制接口
 type IMVC interface {
 	SetView(string)
 	SetTemplate(string)
@@ -448,6 +456,7 @@ type IMVC interface {
 	Error(string, ...interface{})
 }
 
+//DefaultMVC 默认mvc控制器
 type DefaultMVC struct {
 	IMVC
 	status   int

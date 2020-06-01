@@ -546,6 +546,9 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 }
 
 func (this *HttpContext) GetArgsCacheParams(args IArgs) interface{} {
+	if !IsCacheOn() {
+		return nil
+	}
 	v := reflect.ValueOf(args)
 	if hv := v.MethodByName(CacheParamsSuffix); hv.IsValid() {
 		return hv.Interface()
@@ -627,28 +630,38 @@ func (this *HttpContext) getCacheParam(vs []reflect.Value, req *http.Request) (*
 //缓存处理，如果返回true，输出了数据，不会执行Handler
 func (this *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParams) bool {
 	bb, err := cp.GetBytes()
+	//从缓存获取失败会在渲染时根据这个参数写入缓存
 	if err != nil {
-		//从缓存获取失败会在渲染时根据这个参数写入缓存
 		rv.CacheParams(cp)
 		return false
 	}
-	var cm *ContentModel
-	if mt := m.Render(); mt == JSON_RENDER {
-		cm = NewContentModel(bb, cp.Key, ContentJSON)
-	} else if mt == XML_RENDER {
-		cm = NewContentModel(bb, cp.Key, ContentXML)
-	} else if mt == TEXT_RENDER {
-		cm = NewContentModel(bb, cp.Key, ContentText)
-	} else if mt == HTML_RENDER {
-		cm = NewContentModel(bb, cp.Key, ContentHTML)
-	} else if mt == DATA_RENDER {
-		cm = NewContentModel(bb, cp.Key, ContentBinary)
-	} else {
-		//类型不支持
-		return false
+	mt := m.Render()
+	if mt == JSON_RENDER {
+		cm := NewContentModel(bb, cp.Key, ContentJSON)
+		mvc.SetModel(cm)
+		return true
 	}
-	mvc.SetModel(cm)
-	return true
+	if mt == XML_RENDER {
+		cm := NewContentModel(bb, cp.Key, ContentXML)
+		mvc.SetModel(cm)
+		return true
+	}
+	if mt == TEXT_RENDER {
+		cm := NewContentModel(bb, cp.Key, ContentText)
+		mvc.SetModel(cm)
+		return true
+	}
+	if mt == HTML_RENDER {
+		cm := NewContentModel(bb, cp.Key, ContentHTML)
+		mvc.SetModel(cm)
+		return true
+	}
+	if mt == DATA_RENDER {
+		cm := NewContentModel(bb, cp.Key, ContentBinary)
+		mvc.SetModel(cm)
+		return true
+	}
+	return false
 }
 
 func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
@@ -658,7 +671,7 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 	return func(c martini.Context, mvc IMVC, rv Render, param martini.Params, req *http.Request, log *logging.Logger) {
 		var err error
 		var vs []reflect.Value
-		var cp *CacheParams
+		var cp *CacheParams = nil
 		mvc.SetView(view)
 		mvc.SetRender(StringToRender(render))
 		args := this.newArgs(iv, req, param, log)
