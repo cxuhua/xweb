@@ -120,7 +120,7 @@ func (this *HTTPDispatcher) BeforeHandler() martini.Handler {
 		if !ok {
 			panic(errors.New("ResponseWriter not martini.ResponseWriter"))
 		}
-		mvc := &DefaultMVC{
+		mvc := &xmvc{
 			ctx:      ctx,
 			model:    &xModel{},
 			status:   http.StatusOK,

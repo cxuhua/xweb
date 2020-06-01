@@ -456,8 +456,8 @@ type IMVC interface {
 	Error(string, ...interface{})
 }
 
-//DefaultMVC 默认mvc控制器
-type DefaultMVC struct {
+//xmvc 默认mvc控制器
+type xmvc struct {
 	IMVC
 	status   int
 	view     string
@@ -473,68 +473,68 @@ type DefaultMVC struct {
 }
 
 //error put
-func (this *DefaultMVC) Error(format string, args ...interface{}) {
+func (this *xmvc) Error(format string, args ...interface{}) {
 	m := NewStringModel()
 	m.Text = fmt.Sprintf(format, args...)
 	this.SetStatus(http.StatusInternalServerError)
 	this.SetModel(m)
 }
 
-func (this *DefaultMVC) Method() string {
+func (this *xmvc) Method() string {
 	return this.req.Method
 }
 
-func (this *DefaultMVC) Host() string {
+func (this *xmvc) Host() string {
 	return this.req.Host
 }
 
-func (this *DefaultMVC) Header() http.Header {
+func (this *xmvc) Header() http.Header {
 	return this.req.Header
 }
 
-func (this *DefaultMVC) Cookie(name string) (*http.Cookie, error) {
+func (this *xmvc) Cookie(name string) (*http.Cookie, error) {
 	return this.req.Cookie(name)
 }
 
-func (this *DefaultMVC) URL() *url.URL {
+func (this *xmvc) URL() *url.URL {
 	return this.req.URL
 }
 
-func (this *DefaultMVC) RemoteAddr() string {
+func (this *xmvc) RemoteAddr() string {
 	return GetRemoteAddr(this.req)
 }
 
-func (this *DefaultMVC) Render() Render {
+func (this *xmvc) Render() Render {
 	return this.rev
 }
 
-func (this *DefaultMVC) Request() *http.Request {
+func (this *xmvc) Request() *http.Request {
 	return this.req
 }
 
-func (this *DefaultMVC) Logger() *logging.Logger {
+func (this *xmvc) Logger() *logging.Logger {
 	return this.log
 }
 
 // 跳过所有中间件并执行默认render
-func (this *DefaultMVC) SkipAll() {
+func (this *xmvc) SkipAll() {
 	this.ctx.SkipAll()
 }
 
 // skip count
-func (this *DefaultMVC) Skip(c int) {
+func (this *xmvc) Skip(c int) {
 	this.ctx.Skip(c)
 }
 
-func (this *DefaultMVC) SkipNext() {
+func (this *xmvc) SkipNext() {
 	this.ctx.SkipNext()
 }
 
-func (this *DefaultMVC) SkipRender(v bool) {
+func (this *xmvc) SkipRender(v bool) {
 	this.isrender = !v
 }
 
-func (this *DefaultMVC) merageHeaderAndCookie() {
+func (this *xmvc) merageHeaderAndCookie() {
 	for ik, iv := range this.model.GetHeader() {
 		for _, vv := range iv {
 			this.rev.Header().Add(ik, vv)
@@ -549,7 +549,7 @@ func (this *DefaultMVC) merageHeaderAndCookie() {
 // /goods/ -> goods/index.tmpl
 // /goods/list -> goods/list.tmpl
 // /goods/list.html -> goods/list.html.tmpl
-func (this *DefaultMVC) template(url *url.URL) string {
+func (this *xmvc) template(url *url.URL) string {
 	path := url.Path
 	if path == "" {
 		return "index"
@@ -561,7 +561,7 @@ func (this *DefaultMVC) template(url *url.URL) string {
 	return path[1:]
 }
 
-func (this *DefaultMVC) RunRender() {
+func (this *xmvc) RunRender() {
 	//
 	if this.model != nil {
 		defer this.model.Finished()
@@ -583,6 +583,7 @@ func (this *DefaultMVC) RunRender() {
 			panic("RENDER Model error:must set ContentModel")
 		}
 		this.rev.Header().Set("X-Cache-Key", v.Key)
+		this.rev.Header().Set(ContentLength, fmt.Sprintf("%d", len(v.Data)))
 		this.rev.Header().Set(ContentType, v.Type)
 		this.rev.Data(this.status, v.Data)
 	case HTML_RENDER:
@@ -644,55 +645,55 @@ func (this *DefaultMVC) RunRender() {
 	}
 }
 
-func (this *DefaultMVC) Map(v interface{}) {
+func (this *xmvc) Map(v interface{}) {
 	this.ctx.Map(v)
 }
-func (this *DefaultMVC) MapTo(v interface{}, t interface{}) {
+func (this *xmvc) MapTo(v interface{}, t interface{}) {
 	this.ctx.MapTo(v, t)
 }
 
-func (this *DefaultMVC) Next() {
+func (this *xmvc) Next() {
 	this.ctx.Next()
 }
 
-func (this *DefaultMVC) SetCookie(cookie *http.Cookie) {
+func (this *xmvc) SetCookie(cookie *http.Cookie) {
 	this.cookies = append(this.cookies, cookie)
 }
 
-func (this *DefaultMVC) Redirect(url string) {
+func (this *xmvc) Redirect(url string) {
 	m := &RedirectModel{Url: url}
 	m.InitHeader()
 	this.SetModel(m)
 	this.render = REDIRECT_RENDER
 }
 
-func (this *DefaultMVC) String() string {
+func (this *xmvc) String() string {
 	return fmt.Sprintf("Status:%d,View:%s,Render:%s,Model:%v,IsRender:%v", this.status, this.view, RenderToString(this.render), reflect.TypeOf(this.model).Elem(), this.isrender)
 }
 
-func (this *DefaultMVC) SetView(v string) {
+func (this *xmvc) SetView(v string) {
 	this.view = v
 }
 
-func (this *DefaultMVC) SetModel(v IModel) {
+func (this *xmvc) SetModel(v IModel) {
 	this.model = v
 }
 
-func (this *DefaultMVC) SetTemplate(v string) {
+func (this *xmvc) SetTemplate(v string) {
 	this.view = v
 	this.render = HTML_RENDER
 }
 
-func (this *DefaultMVC) SetViewModel(v string, m IModel) {
+func (this *xmvc) SetViewModel(v string, m IModel) {
 	this.view = v
 	this.model = m
 	this.render = HTML_RENDER
 }
 
-func (this *DefaultMVC) SetRender(v int) {
+func (this *xmvc) SetRender(v int) {
 	this.render = v
 }
 
-func (this *DefaultMVC) SetStatus(v int) {
+func (this *xmvc) SetStatus(v int) {
 	this.status = v
 }
