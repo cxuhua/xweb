@@ -56,7 +56,8 @@ func (c *cacheimp) Get(k string, v interface{}) error {
 
 //删除值
 func (c *cacheimp) Del(k ...string) (int64, error) {
-	return 0, nil
+	delete(cks, k[0])
+	return 1, nil
 }
 
 type TestModel struct {
@@ -95,11 +96,7 @@ func CacheNew() martini.Handler {
 }
 
 func TestCacheDoXML(t *testing.T) {
-	kp := &CacheParams{
-		Imp:  &cacheimp{},
-		Key:  "x112",
-		Time: time.Second,
-	}
+	kp := NewCacheParams(&cacheimp{}, time.Second, "x113")
 
 	type model struct {
 		A string `xml:"a"`
@@ -141,12 +138,7 @@ func TestCacheDoXML(t *testing.T) {
 }
 
 func TestCacheDoJSON(t *testing.T) {
-	kp := &CacheParams{
-		Imp:  &cacheimp{},
-		Key:  "j112",
-		Time: time.Second,
-	}
-
+	kp := NewCacheParams(&cacheimp{}, time.Second, "x114")
 	type model struct {
 		A string `json:"a"`
 		B int    `json:"b"`
@@ -187,11 +179,7 @@ func TestCacheDoJSON(t *testing.T) {
 }
 
 func TestCacheDoBytes(t *testing.T) {
-	kp := &CacheParams{
-		Imp:  &cacheimp{},
-		Key:  "b111",
-		Time: time.Second,
-	}
+	kp := NewCacheParams(&cacheimp{}, time.Second, "x115")
 
 	sb := []byte{1, 2, 34}
 
@@ -220,6 +208,8 @@ func TestCacheDoBytes(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
 	require.Equal(t, sb, bb)
+
+	kp.Remove()
 }
 
 func TestCache(t *testing.T) {
