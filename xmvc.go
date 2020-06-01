@@ -373,6 +373,20 @@ type CacheParams struct {
 	Key  string
 }
 
+//NewCacheParams 传教缓存参数
+func NewCacheParams(imp ICache, time time.Duration, kf string, vs ...interface{}) *CacheParams {
+	return &CacheParams{
+		Imp:  imp,
+		Time: time,
+		Key:  fmt.Sprintf(kf, vs...),
+	}
+}
+
+//Remove 删除缓存
+func (cp *CacheParams) Remove() {
+	cp.Imp.Del(cp.Key)
+}
+
 //DoXML 缓存为xml
 func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}) (bool, error) {
 	if !IsCacheOn() {
