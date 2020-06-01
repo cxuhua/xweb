@@ -344,6 +344,7 @@ func NewValidateModel(err error) *ValidateModel {
 	return m
 }
 
+//ICache 缓存接口
 type ICache interface {
 	//设置值
 	Set(k string, v interface{}, exp ...time.Duration) error
@@ -354,18 +355,18 @@ type ICache interface {
 }
 
 var (
-	//最小压缩大小
+	//MinZipSize 最小压缩大小
 	MinZipSize = 2048
 )
 
-//缓存参数
+//CacheParams 缓存参数
 type CacheParams struct {
 	Imp  ICache
 	Time time.Duration
 	Key  string
 }
 
-//获取字符串类型
+//GetBytes 获取字符串类型
 func (cp *CacheParams) GetBytes() ([]byte, error) {
 	var b []byte
 	err := cp.Imp.Get(cp.Key, &b)
@@ -374,6 +375,10 @@ func (cp *CacheParams) GetBytes() ([]byte, error) {
 	}
 	if len(b) == 0 {
 		return nil, fmt.Errorf("empty content")
+	}
+	//非SetBytes设置的
+	if b[0] != 0 && b[0] != 1 {
+		return b, nil
 	}
 	if b[0] == 0 {
 		return b[1:], nil
@@ -385,7 +390,7 @@ func (cp *CacheParams) GetBytes() ([]byte, error) {
 	return v, nil
 }
 
-//保存字符串,第一字节存放是否被压缩
+//SetBytes 保存字符串,第一字节存放是否被压缩
 func (cp *CacheParams) SetBytes(sb []byte) error {
 	var vb []byte
 	if len(sb) > MinZipSize {
@@ -405,9 +410,6 @@ func (cp *CacheParams) SetBytes(sb []byte) error {
 }
 
 type IMVC interface {
-	SetCacheParams(v *CacheParams)
-	GetCacheParams() *CacheParams
-
 	SetView(string)
 	SetTemplate(string)
 	SetViewModel(string, IModel)
