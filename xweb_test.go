@@ -12,10 +12,16 @@ import (
 	"time"
 
 	"github.com/cxuhua/xweb/martini"
+	"github.com/stretchr/testify/require"
 )
 
+type cachenode struct {
+	b   []byte
+	exp time.Time
+}
+
 var (
-	cks = map[string][]byte{}
+	cks = map[string]cachenode{}
 )
 
 type cacheimp struct {
@@ -23,7 +29,11 @@ type cacheimp struct {
 
 //设置值
 func (c *cacheimp) Set(k string, v interface{}, exp ...time.Duration) error {
-	cks[k] = v.([]byte)
+	now := time.Now()
+	if len(exp) > 0 {
+		now = now.Add(exp[0])
+	}
+	cks[k] = cachenode{b: v.([]byte), exp: now}
 	return nil
 }
 
@@ -33,11 +43,14 @@ func (c *cacheimp) Get(k string, v interface{}) error {
 	if !ok {
 		return fmt.Errorf("key %s miss", k)
 	}
+	if vp.exp.Sub(time.Now()) < 0 {
+		return fmt.Errorf("key value expire")
+	}
 	rp, ok := v.(*[]byte)
 	if !ok {
 		return fmt.Errorf("v type error")
 	}
-	*rp = vp
+	*rp = vp.b
 	return nil
 }
 
@@ -79,6 +92,134 @@ func CacheNew() martini.Handler {
 	return func(m martini.Context) {
 		m.Map(imp)
 	}
+}
+
+func TestCacheDoXML(t *testing.T) {
+	kp := &CacheParams{
+		Imp:  &cacheimp{},
+		Key:  "x112",
+		Time: time.Second,
+	}
+
+	type model struct {
+		A string `xml:"a"`
+		B int    `xml:"b"`
+	}
+
+	testdata := model{A: "astr", B: 100}
+
+	retdata := &model{}
+
+	bcache, err := kp.DoXML(func() (interface{}, error) {
+		return testdata, nil
+	}, retdata)
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, testdata.A, retdata.A)
+	require.Equal(t, testdata.B, retdata.B)
+
+	retdata = &model{}
+	bcache, err = kp.DoXML(func() (interface{}, error) {
+		return testdata, nil
+	}, retdata)
+	require.NoError(t, err)
+	require.Equal(t, true, bcache)
+	require.Equal(t, testdata.A, retdata.A)
+	require.Equal(t, testdata.B, retdata.B)
+
+	//缓存失效
+	time.Sleep(time.Second * 2)
+
+	retdata = &model{}
+	bcache, err = kp.DoXML(func() (interface{}, error) {
+		return testdata, nil
+	}, retdata)
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, testdata.A, retdata.A)
+	require.Equal(t, testdata.B, retdata.B)
+}
+
+func TestCacheDoJSON(t *testing.T) {
+	kp := &CacheParams{
+		Imp:  &cacheimp{},
+		Key:  "j112",
+		Time: time.Second,
+	}
+
+	type model struct {
+		A string `json:"a"`
+		B int    `json:"b"`
+	}
+
+	testdata := model{A: "astr", B: 100}
+
+	retdata := &model{}
+
+	bcache, err := kp.DoJSON(func() (interface{}, error) {
+		return testdata, nil
+	}, retdata)
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, testdata.A, retdata.A)
+	require.Equal(t, testdata.B, retdata.B)
+
+	retdata = &model{}
+	bcache, err = kp.DoJSON(func() (interface{}, error) {
+		return testdata, nil
+	}, retdata)
+	require.NoError(t, err)
+	require.Equal(t, true, bcache)
+	require.Equal(t, testdata.A, retdata.A)
+	require.Equal(t, testdata.B, retdata.B)
+
+	//缓存失效
+	time.Sleep(time.Second * 2)
+
+	retdata = &model{}
+	bcache, err = kp.DoJSON(func() (interface{}, error) {
+		return testdata, nil
+	}, retdata)
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, testdata.A, retdata.A)
+	require.Equal(t, testdata.B, retdata.B)
+}
+
+func TestCacheDoBytes(t *testing.T) {
+	kp := &CacheParams{
+		Imp:  &cacheimp{},
+		Key:  "b111",
+		Time: time.Second,
+	}
+
+	sb := []byte{1, 2, 34}
+
+	bb, bcache, err := kp.DoBytes(func() ([]byte, error) {
+		return []byte{1, 2, 34}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, sb, bb)
+
+	bb, bcache, err = kp.DoBytes(func() ([]byte, error) {
+		return []byte{1, 2, 34}, nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, true, bcache)
+	require.Equal(t, sb, bb)
+
+	//缓存失效
+	time.Sleep(time.Second * 2)
+
+	bb, bcache, err = kp.DoBytes(func() ([]byte, error) {
+		return []byte{1, 2, 34}, nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, sb, bb)
 }
 
 func TestCache(t *testing.T) {

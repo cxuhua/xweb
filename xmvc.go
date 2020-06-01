@@ -373,6 +373,90 @@ type CacheParams struct {
 	Key  string
 }
 
+//DoXML 缓存为xml
+func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}) (bool, error) {
+	if !IsCacheOn() {
+		return false, fmt.Errorf("cache disabled")
+	}
+	//从缓存获取数据
+	bb, err := cp.GetBytes()
+	//如果有就直接反序列化到vp返回
+	if err == nil {
+		err = xml.Unmarshal(bb, vp)
+		return true, err
+	}
+	//没有执行处理函数返回数据
+	vptr, err := fn()
+	if err != nil {
+		return false, err
+	}
+	//序列化保存
+	bb, err = xml.Marshal(vptr)
+	if err != nil {
+		return false, err
+	}
+	//有数据就保存并且返回
+	err = cp.SetBytes(bb)
+	//反序列化到vp返回
+	if err == nil {
+		err = xml.Unmarshal(bb, vp)
+	}
+	return false, err
+}
+
+//DoJSON 缓存为json
+func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}) (bool, error) {
+	if !IsCacheOn() {
+		return false, fmt.Errorf("cache disabled")
+	}
+	//从缓存获取数据
+	bb, err := cp.GetBytes()
+	//如果有就直接反序列化到vp返回
+	if err == nil {
+		err = json.Unmarshal(bb, vp)
+		return true, err
+	}
+	//没有执行处理函数返回数据
+	vptr, err := fn()
+	if err != nil {
+		return false, err
+	}
+	//序列化保存
+	bb, err = json.Marshal(vptr)
+	if err != nil {
+		return false, err
+	}
+	//有数据就保存并且返回
+	err = cp.SetBytes(bb)
+	//反序列化到vp返回
+	if err == nil {
+		err = json.Unmarshal(bb, vp)
+	}
+	return false, err
+}
+
+//DoBytes 缓存fn返回的二进制数据
+//返回参数2为true表示来自缓存
+func (cp *CacheParams) DoBytes(fn func() ([]byte, error)) ([]byte, bool, error) {
+	if !IsCacheOn() {
+		return nil, false, fmt.Errorf("cache disabled")
+	}
+	//从缓存获取数据
+	bb, err := cp.GetBytes()
+	//如果有就直接返回
+	if err == nil {
+		return bb, true, err
+	}
+	//没有执行处理函数返回数据
+	bb, err = fn()
+	if err != nil {
+		return nil, false, err
+	}
+	//有数据就保存并且返回
+	err = cp.SetBytes(bb)
+	return bb, false, err
+}
+
 //GetBytes 获取字符串类型
 func (cp *CacheParams) GetBytes() ([]byte, error) {
 	var b []byte
@@ -409,7 +493,7 @@ func (cp *CacheParams) SetBytes(sb []byte) error {
 		vb[0] = 1
 		copy(vb[1:], zb)
 	} else {
-		vb := make([]byte, len(sb)+1)
+		vb = make([]byte, len(sb)+1)
 		vb[0] = 0
 		copy(vb[1:], sb)
 	}
