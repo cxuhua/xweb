@@ -170,9 +170,10 @@ func (this *ContentModel) Render() int {
 	return CONTENT_RENDER
 }
 
-func NewContentModel(b []byte, k string, t string) *ContentModel {
+func NewContentModel(b []byte, f int, k string, t string) *ContentModel {
 	m := &ContentModel{Data: b, Key: k, Type: t}
 	m.InitHeader()
+	m.Header.Set("X-Cache-Attr", fmt.Sprintf("%s,%d", k, f))
 	return m
 }
 
@@ -451,6 +452,10 @@ func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl
 }
 
 //DoJSON 缓存为json
+//vp 反序列化对象指针
+//ttl 锁超时时间
+//try 尝试获取锁参数
+//返回数据来源
 func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (int, error) {
 	if !IsCacheOn() {
 		return 0, fmt.Errorf("cache disabled")
@@ -816,7 +821,6 @@ func (this *xmvc) RunRender() {
 		if !b {
 			panic("RENDER Model error:must set ContentModel")
 		}
-		this.rev.Header().Set("X-Cache-Key", v.Key)
 		this.rev.Header().Set(ContentLength, fmt.Sprintf("%d", len(v.Data)))
 		this.rev.Header().Set(ContentType, v.Type)
 		this.rev.Data(this.status, v.Data)

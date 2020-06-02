@@ -639,27 +639,27 @@ func (ctx *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParam
 	if bc > 0 {
 		mt := m.Render()
 		if mt == JSON_RENDER {
-			cm := NewContentModel(bb, cp.Key, ContentJSON)
+			cm := NewContentModel(bb, bc, cp.Key, ContentJSON)
 			mvc.SetModel(cm)
 			return nil, bc
 		}
 		if mt == XML_RENDER {
-			cm := NewContentModel(bb, cp.Key, ContentXML)
+			cm := NewContentModel(bb, bc, cp.Key, ContentXML)
 			mvc.SetModel(cm)
 			return nil, bc
 		}
 		if mt == TEXT_RENDER {
-			cm := NewContentModel(bb, cp.Key, ContentText)
+			cm := NewContentModel(bb, bc, cp.Key, ContentText)
 			mvc.SetModel(cm)
 			return nil, bc
 		}
 		if mt == HTML_RENDER {
-			cm := NewContentModel(bb, cp.Key, ContentHTML)
+			cm := NewContentModel(bb, bc, cp.Key, ContentHTML)
 			mvc.SetModel(cm)
 			return nil, bc
 		}
 		if mt == DATA_RENDER {
-			cm := NewContentModel(bb, cp.Key, ContentBinary)
+			cm := NewContentModel(bb, bc, cp.Key, ContentBinary)
 			mvc.SetModel(cm)
 			return nil, bc
 		}

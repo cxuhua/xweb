@@ -227,26 +227,10 @@ type URLS struct {
 	Render  string
 	Args    IArgs
 }
-
-type URLSlice []URLS
-
-func (p URLSlice) Len() int {
-	return len(p)
-}
-func (p URLSlice) Less(i, j int) bool {
-	return p[i].Pattern < p[j].Pattern
-}
-func (p URLSlice) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-func (p URLSlice) Sort() {
-	sort.Sort(p)
-}
-
 type HttpContext struct {
 	martini.ClassicMartini
 	Validator *Validator
-	URLS      URLSlice
+	URLS      []URLS
 
 	heapPPROFFiles []string
 	cpuPPROFFiles  []string
@@ -352,7 +336,9 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 
 func (this *HttpContext) PrintURLS() {
 	log := this.GetLogger()
-	this.URLS.Sort()
+	sort.Slice(this.URLS, func(i, j int) bool {
+		return this.URLS[i].Pattern < this.URLS[j].Pattern
+	})
 	mc, pc, vc, rc := 0, 0, 0, 0
 	for _, u := range this.URLS {
 		if len(u.Method) > mc {
