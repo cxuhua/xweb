@@ -358,6 +358,8 @@ type ILocker interface {
 //ICache 缓存接口
 type ICache interface {
 	//获取key超时时间
+	//-1 未设置过期时间
+	//-2 key不存在
 	TTL(k string) (time.Duration, error)
 	//Set 设置值
 	Set(k string, v interface{}, exp ...time.Duration) error
@@ -384,17 +386,23 @@ func IsCacheOn() bool {
 
 //CacheParams 缓存参数
 type CacheParams struct {
-	Imp  ICache
-	Time time.Duration
-	Key  string
+	//缓存实现
+	Imp ICache
+	//超时时间
+	TTL time.Duration
+	//缓存key
+	Key string
+	//延迟超时时间，如果设置ttl和dtl>0，当key得时间少于dtl时就算过期
+	DTL time.Duration
 }
 
 //NewCacheParams 传教缓存参数
-func NewCacheParams(imp ICache, time time.Duration, kf string, vs ...interface{}) *CacheParams {
+func NewCacheParams(imp ICache, ttl time.Duration, dtl time.Duration, kfmt string, vs ...interface{}) *CacheParams {
 	return &CacheParams{
-		Imp:  imp,
-		Time: time,
-		Key:  fmt.Sprintf(kf, vs...),
+		Imp: imp,
+		TTL: ttl,
+		Key: fmt.Sprintf(kfmt, vs...),
+		DTL: dtl,
 	}
 }
 
@@ -404,16 +412,23 @@ func (cp *CacheParams) Remove() {
 }
 
 //DoXML 缓存为xml
-func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}) (bool, error) {
+func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (bool, error) {
 	if !IsCacheOn() {
 		return false, fmt.Errorf("cache disabled")
 	}
-	//从缓存获取数据
-	bb, err := cp.GetBytes()
-	//如果有就直接反序列化到vp返回
-	if err == nil {
+	//测试是否从缓存获取数据
+	lck, bb, fbc, err := cp.prepare(ttl, try...)
+	//如果有缓存数据
+	if fbc {
 		err = xml.Unmarshal(bb, vp)
 		return true, err
+	}
+	//错误了
+	if err != nil {
+		return false, err
+	}
+	if lck != nil {
+		defer lck.Release()
 	}
 	//没有执行处理函数返回数据
 	vptr, err := fn()
@@ -435,16 +450,23 @@ func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}) (bo
 }
 
 //DoJSON 缓存为json
-func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}) (bool, error) {
+func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (bool, error) {
 	if !IsCacheOn() {
 		return false, fmt.Errorf("cache disabled")
 	}
-	//从缓存获取数据
-	bb, err := cp.GetBytes()
-	//如果有就直接反序列化到vp返回
-	if err == nil {
+	//测试是否从缓存获取数据
+	lck, bb, fbc, err := cp.prepare(ttl, try...)
+	//如果有缓存数据
+	if fbc {
 		err = json.Unmarshal(bb, vp)
 		return true, err
+	}
+	//错误了
+	if err != nil {
+		return false, err
+	}
+	if lck != nil {
+		defer lck.Release()
 	}
 	//没有执行处理函数返回数据
 	vptr, err := fn()
@@ -465,17 +487,77 @@ func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}) (b
 	return false, err
 }
 
+//PTP 获取尝试次数和延迟时间
+func PTP(try ...int) (int, time.Duration) {
+	//默认3 次每次100毫秒
+	tc := 3
+	tv := time.Millisecond * 100
+	if len(try) > 0 {
+		tc = try[0]
+	}
+	if len(try) > 1 {
+		tv = time.Millisecond * time.Duration(try[1])
+	}
+	return tc, tv
+}
+
+//预处理数据
+func (cp *CacheParams) prepare(ttl time.Duration, try ...int) (ILocker, []byte, bool, error) {
+	//从缓存获取数据
+	bb, err := cp.GetBytes()
+	//如果有数据并且设置dtl，数据可能要过期
+	hasbb := err == nil
+	//如果有并且没有过期就直接返回
+	if hasbb && !cp.IsExpire() {
+		return nil, bb, true, nil
+	}
+	//如果不启用锁并且没有数据
+	if ttl == 0 && !hasbb {
+		return nil, nil, false, nil
+	}
+	//加锁确保后续fn不会重复被执行
+	lck, err := cp.Imp.Locker(cp.Key, ttl)
+	//锁失败并且有旧数据返回旧数据
+	if err != nil && hasbb {
+		return nil, bb, true, nil
+	}
+	//尝试再次获取数据和锁
+	for tc, tv := PTP(try...); err != nil && tc > 0; tc-- {
+		//休眠后尝试
+		time.Sleep(tv)
+		//尝试期间如果有缓存数据
+		bb, err = cp.GetBytes()
+		if err == nil {
+			return nil, bb, true, nil
+		}
+		lck, err = cp.Imp.Locker(cp.Key, ttl)
+	}
+	//尝试多次未获取锁失败返回错误
+	if err != nil {
+		return nil, nil, false, err
+	}
+	return lck, nil, false, nil
+}
+
 //DoBytes 缓存fn返回的二进制数据
 //返回参数2为true表示来自缓存
-func (cp *CacheParams) DoBytes(fn func() ([]byte, error)) ([]byte, bool, error) {
+//ttl 锁超时时间,try锁尝试次数和延迟时间(毫秒)
+func (cp *CacheParams) DoBytes(fn func() ([]byte, error), ttl time.Duration, try ...int) ([]byte, bool, error) {
 	if !IsCacheOn() {
 		return nil, false, fmt.Errorf("cache disabled")
 	}
-	//从缓存获取数据
-	bb, err := cp.GetBytes()
-	//如果有就直接返回
-	if err == nil {
-		return bb, true, err
+	//测试是否从缓存获取数据
+	lck, bb, fbc, err := cp.prepare(ttl, try...)
+	//如果有缓存数据
+	if fbc {
+		return bb, true, nil
+	}
+	//错误了
+	if err != nil {
+		return nil, false, err
+	}
+	if lck != nil {
+		defer lck.Release()
 	}
 	//没有执行处理函数返回数据
 	bb, err = fn()
@@ -511,6 +593,34 @@ func (cp *CacheParams) GetBytes() ([]byte, error) {
 	return v, nil
 }
 
+//IsExpire 是否过期
+//返回 true 表示已经过期
+func (cp *CacheParams) IsExpire() bool {
+	//如果未设置延迟过期时间返回未过期
+	if cp.DTL == 0 {
+		return false
+	}
+	//dv单位毫秒
+	dv, err := cp.Imp.TTL(cp.Key)
+	//错误当作过期
+	if err != nil {
+		return true
+	}
+	//未设置过期时间
+	if dv == -1 {
+		return false
+	}
+	//不存在
+	if dv == -2 {
+		return true
+	}
+	//如果设置了延迟超时
+	if dv < cp.DTL {
+		return true
+	}
+	return false
+}
+
 //SetBytes 保存字符串,第一字节存放是否被压缩
 func (cp *CacheParams) SetBytes(sb []byte) error {
 	var vb []byte
@@ -527,7 +637,7 @@ func (cp *CacheParams) SetBytes(sb []byte) error {
 		vb[0] = 0
 		copy(vb[1:], sb)
 	}
-	return cp.Imp.Set(cp.Key, vb, cp.Time)
+	return cp.Imp.Set(cp.Key, vb, cp.TTL+cp.DTL)
 }
 
 //IMVC mvc控制接口

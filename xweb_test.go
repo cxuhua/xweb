@@ -149,11 +149,7 @@ func (a *TestArgs) Model() IModel {
 //如果有此方法需要处理缓存,返回缓存实现，key,超时时间
 //key为空将不进行缓存处理
 func (a *TestArgs) CacheParams(imp ICache, mvc IMVC) *CacheParams {
-	return &CacheParams{
-		Imp:  imp,
-		Key:  "111",
-		Time: time.Second,
-	}
+	return NewCacheParams(imp, time.Second, 0, "111")
 }
 
 func (a *TestArgs) Handler(m *TestModel, mvc IMVC) {
@@ -185,7 +181,7 @@ func TestLocker(t *testing.T) {
 }
 
 func TestCacheDoXML(t *testing.T) {
-	kp := NewCacheParams(&cacheimp{}, time.Second, "x113")
+	kp := NewCacheParams(&cacheimp{}, time.Second, 0, "x113")
 
 	type model struct {
 		A string `xml:"a"`
@@ -198,7 +194,7 @@ func TestCacheDoXML(t *testing.T) {
 
 	bcache, err := kp.DoXML(func() (interface{}, error) {
 		return testdata, nil
-	}, retdata)
+	}, retdata, 0)
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
 	require.Equal(t, testdata.A, retdata.A)
@@ -207,7 +203,7 @@ func TestCacheDoXML(t *testing.T) {
 	retdata = &model{}
 	bcache, err = kp.DoXML(func() (interface{}, error) {
 		return testdata, nil
-	}, retdata)
+	}, retdata, 0)
 	require.NoError(t, err)
 	require.Equal(t, true, bcache)
 	require.Equal(t, testdata.A, retdata.A)
@@ -219,7 +215,7 @@ func TestCacheDoXML(t *testing.T) {
 	retdata = &model{}
 	bcache, err = kp.DoXML(func() (interface{}, error) {
 		return testdata, nil
-	}, retdata)
+	}, retdata, 0)
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
 	require.Equal(t, testdata.A, retdata.A)
@@ -227,7 +223,7 @@ func TestCacheDoXML(t *testing.T) {
 }
 
 func TestCacheDoJSON(t *testing.T) {
-	kp := NewCacheParams(&cacheimp{}, time.Second, "x114")
+	kp := NewCacheParams(&cacheimp{}, time.Second, 0, "x114")
 	type model struct {
 		A string `json:"a"`
 		B int    `json:"b"`
@@ -239,7 +235,7 @@ func TestCacheDoJSON(t *testing.T) {
 
 	bcache, err := kp.DoJSON(func() (interface{}, error) {
 		return testdata, nil
-	}, retdata)
+	}, retdata, 0)
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
 	require.Equal(t, testdata.A, retdata.A)
@@ -248,7 +244,7 @@ func TestCacheDoJSON(t *testing.T) {
 	retdata = &model{}
 	bcache, err = kp.DoJSON(func() (interface{}, error) {
 		return testdata, nil
-	}, retdata)
+	}, retdata, 0)
 	require.NoError(t, err)
 	require.Equal(t, true, bcache)
 	require.Equal(t, testdata.A, retdata.A)
@@ -260,28 +256,52 @@ func TestCacheDoJSON(t *testing.T) {
 	retdata = &model{}
 	bcache, err = kp.DoJSON(func() (interface{}, error) {
 		return testdata, nil
-	}, retdata)
+	}, retdata, 0)
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 }
 
-func TestCacheDoBytes(t *testing.T) {
-	kp := NewCacheParams(&cacheimp{}, time.Second, "x115")
+func TestTryDoBytes(t *testing.T) {
+	kp := NewCacheParams(&cacheimp{}, time.Second, time.Second*2, "x115")
 
 	sb := []byte{1, 2, 34}
 
 	bb, bcache, err := kp.DoBytes(func() ([]byte, error) {
 		return []byte{1, 2, 34}, nil
-	})
+	}, time.Second)
+	require.NoError(t, err)
+	require.Equal(t, false, bcache)
+	require.Equal(t, sb, bb)
+	time.Sleep(time.Second * 2)
+
+	for i := 0; i < 5; i++ {
+		go func() {
+			bb, bcache, err = kp.DoBytes(func() ([]byte, error) {
+				return []byte{1, 2, 34}, nil
+			}, time.Second)
+		}()
+
+	}
+	time.Sleep(time.Second * 30)
+}
+
+func TestCacheDoBytes(t *testing.T) {
+	kp := NewCacheParams(&cacheimp{}, time.Second, 0, "x115")
+
+	sb := []byte{1, 2, 34}
+
+	bb, bcache, err := kp.DoBytes(func() ([]byte, error) {
+		return []byte{1, 2, 34}, nil
+	}, time.Second)
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
 	require.Equal(t, sb, bb)
 
 	bb, bcache, err = kp.DoBytes(func() ([]byte, error) {
 		return []byte{1, 2, 34}, nil
-	})
+	}, time.Second)
 
 	require.NoError(t, err)
 	require.Equal(t, true, bcache)
@@ -292,7 +312,7 @@ func TestCacheDoBytes(t *testing.T) {
 
 	bb, bcache, err = kp.DoBytes(func() ([]byte, error) {
 		return []byte{1, 2, 34}, nil
-	})
+	}, time.Second)
 
 	require.NoError(t, err)
 	require.Equal(t, false, bcache)
