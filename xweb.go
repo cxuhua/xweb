@@ -699,19 +699,22 @@ func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.V
 		}
 		//如果方法存在获取缓存处理,支持json，xml，string三种类型
 		if ch := ctx.GetArgsCacheParams(args); ch != nil {
+			//调用CacheParams
 			vs, err = c.Invoke(ch)
 			if err == nil {
 				cp, err = ctx.getCacheParam(vs, req)
 			}
-		}
-		//如果缓存命中直接返回
-		if err == nil && cp != nil {
-			lck, cok := ctx.domvccache(mvc, rv, model, cp)
-			if cok > 0 {
-				return
-			}
-			if lck != nil {
-				defer lck.Release()
+			//如果需要缓存处理
+			if err == nil && cp != nil {
+				lck, fcb := ctx.domvccache(mvc, rv, model, cp)
+				//缓存命中直接返回
+				if fcb > 0 {
+					return
+				}
+				//释放缓存锁
+				if lck != nil {
+					defer lck.Release()
+				}
 			}
 		}
 		//

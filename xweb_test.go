@@ -149,7 +149,7 @@ func (a *TestArgs) Model() IModel {
 //如果有此方法需要处理缓存,返回缓存实现，key,超时时间
 //key为空将不进行缓存处理
 func (a *TestArgs) CacheParams(imp ICache, mvc IMVC) *CacheParams {
-	return NewCacheParams(imp, time.Second, 0, "111")
+	return NewCacheParams(imp, time.Second, time.Hour, "111")
 }
 
 func (a *TestArgs) Handler(m *TestModel, mvc IMVC) {
