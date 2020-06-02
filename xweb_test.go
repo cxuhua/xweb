@@ -29,6 +29,20 @@ var (
 type cacheimp struct {
 }
 
+func (c *cacheimp) TTL(k string) (time.Duration, error) {
+	lck.RLock()
+	defer lck.RUnlock()
+	node, ok := cks[k]
+	if !ok {
+		return 0, fmt.Errorf("not found")
+	}
+	tp := node.exp.Sub(time.Now())
+	if tp < 0 {
+		tp = 0
+	}
+	return tp, nil
+}
+
 //设置值
 func (c *cacheimp) Set(k string, v interface{}, exp ...time.Duration) error {
 	lck.Lock()
@@ -68,6 +82,56 @@ func (c *cacheimp) Del(k ...string) (int64, error) {
 	return 1, nil
 }
 
+type locker struct {
+	key string
+	c   *cacheimp
+}
+
+//Release 释放锁
+func (l *locker) Release() {
+	l.c.Del(l.key)
+}
+
+func (l *locker) Refresh(ttl time.Duration) error {
+	lck.Lock()
+	defer lck.Unlock()
+	node, ok := cks[l.key]
+	if !ok {
+		return fmt.Errorf("not found")
+	}
+	node.exp = time.Now().Add(ttl)
+	return nil
+}
+
+//TTL 锁超时时间 返回0表示锁已经释放
+func (l *locker) TTL() (time.Duration, error) {
+	lck.Lock()
+	defer lck.Unlock()
+	node, ok := cks[l.key]
+	if !ok {
+		return 0, fmt.Errorf("not found")
+	}
+	tp := node.exp.Sub(time.Now())
+	if tp <= 0 {
+		delete(cks, l.key)
+		return 0, nil
+	}
+	return tp, nil
+}
+
+//获取锁
+func (c *cacheimp) Locker(key string, ttl time.Duration, meta ...string) (ILocker, error) {
+	lck.Lock()
+	defer lck.Unlock()
+	l := &locker{key: "lck_" + key, c: c}
+	lp, ok := cks[l.key]
+	if ok && lp.exp.Sub(time.Now()) > 0 {
+		return nil, fmt.Errorf("locker exist")
+	}
+	cks[l.key] = cachenode{b: []byte{1, 2, 3}, exp: time.Now().Add(ttl)}
+	return l, nil
+}
+
 type TestModel struct {
 	JSONModel `json:"-"`
 	A         int `json:"a"`
@@ -101,6 +165,23 @@ func CacheNew() martini.Handler {
 	return func(m martini.Context) {
 		m.Map(imp)
 	}
+}
+
+func TestLocker(t *testing.T) {
+	c := &cacheimp{}
+	l, err := c.Locker("a", time.Second)
+	require.NoError(t, err)
+	ttl, err := l.TTL()
+	require.NoError(t, err)
+	require.Equal(t, time.Second, ttl)
+	_, err = c.Locker("a", time.Second)
+	require.Error(t, err)
+	time.Sleep(time.Second * 2)
+	l, err = c.Locker("a", time.Second*2)
+	require.NoError(t, err)
+	ttl, err = l.TTL()
+	require.NoError(t, err)
+	require.Equal(t, time.Second*2, ttl)
 }
 
 func TestCacheDoXML(t *testing.T) {

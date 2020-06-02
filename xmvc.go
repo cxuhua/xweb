@@ -337,6 +337,7 @@ func (this *ValidateModel) Init(e error) {
 	}
 }
 
+//NewValidateModel 校验器
 func NewValidateModel(err error) *ValidateModel {
 	m := &ValidateModel{}
 	m.InitHeader()
@@ -344,14 +345,29 @@ func NewValidateModel(err error) *ValidateModel {
 	return m
 }
 
+//ILocker 缓存锁，需要基于分布式锁实现
+type ILocker interface {
+	//Release 释放锁
+	Release()
+	//TTL 锁超时时间 返回0表示锁已经释放
+	TTL() (time.Duration, error)
+	//Refresh 更新锁超时时间
+	Refresh(ttl time.Duration) error
+}
+
 //ICache 缓存接口
 type ICache interface {
-	//设置值
+	//获取key超时时间
+	TTL(k string) (time.Duration, error)
+	//Set 设置值
 	Set(k string, v interface{}, exp ...time.Duration) error
-	//获取值
+	//Get 获取值
 	Get(k string, v interface{}) error
-	//删除值
+	//Del 删除值
 	Del(k ...string) (int64, error)
+	//Locker 创建缓存锁,锁存在将返回错误
+	//如果创建成功，锁将在ttl时间后过期释放
+	Locker(key string, ttl time.Duration, meta ...string) (ILocker, error)
 }
 
 var (
