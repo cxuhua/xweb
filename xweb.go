@@ -114,7 +114,7 @@ type HTTPDispatcher struct {
 }
 
 // 前置通用处理
-func (this *HTTPDispatcher) BeforeHandler() martini.Handler {
+func (ctx *HTTPDispatcher) BeforeHandler() martini.Handler {
 	return func(ctx martini.Context, rev Render, rw http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		mrw, ok := rw.(martini.ResponseWriter)
 		if !ok {
@@ -138,12 +138,12 @@ func (this *HTTPDispatcher) BeforeHandler() martini.Handler {
 }
 
 // 后置通用处理
-func (this *HTTPDispatcher) AfterHandler() martini.Handler {
+func (ctx *HTTPDispatcher) AfterHandler() martini.Handler {
 	return nil
 }
 
 // URL前缀
-func (this *HTTPDispatcher) URL() string {
+func (ctx *HTTPDispatcher) URL() string {
 	return ""
 }
 
@@ -162,12 +162,12 @@ func GetRemoteAddr(req *http.Request) string {
 }
 
 //默认处理方法
-func (this *HTTPDispatcher) DefaultHandler(log *logging.Logger, c IMVC) {
+func (ctx *HTTPDispatcher) DefaultHandler(log *logging.Logger, c IMVC) {
 	log.Info("invoke default handler")
 }
 
 //日志打印调试Handler
-func (this *HTTPDispatcher) LoggerHandler(req *http.Request, log *logging.Logger, c IMVC) {
+func (ctx *HTTPDispatcher) LoggerHandler(req *http.Request, log *logging.Logger, c IMVC) {
 	log.Info("----------------------------Logger---------------------------")
 	log.Info("Remote:", GetRemoteAddr(req))
 	log.Info("Method:", req.Method)
@@ -325,14 +325,14 @@ func MapFormBindValue(value reflect.Value, form url.Values, files map[string][]*
 }
 
 //获得http post数据
-func (this *HttpContext) GetBody(req *http.Request) ([]byte, error) {
+func (ctx *HttpContext) GetBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil {
 		return nil, errors.New("body data miss")
 	}
 	return ioutil.ReadAll(req.Body)
 }
 
-func (this *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
+func (ctx *HttpContext) newURLArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -388,7 +388,7 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 	}
 }
 
-func (this *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
+func (ctx *HttpContext) newFormArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
@@ -412,14 +412,14 @@ func UnmarshalURLCookie(iv IArgs, param martini.Params, req *http.Request) {
 	MapFormBindValue(v, nil, nil, uv, cv)
 }
 
-func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
+func (ctx *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
 	if !ok {
 		panic(errors.New(t.Name() + "not imp JSONArgs"))
 	}
-	data, err := this.GetBody(req)
+	data, err := ctx.GetBody(req)
 	if err != nil {
 		log.Error(err)
 	}
@@ -433,14 +433,14 @@ func (this *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.
 	return args
 }
 
-func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
+func (ctx *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	t := reflect.TypeOf(iv).Elem()
 	v := reflect.New(t)
 	args, ok := v.Interface().(IArgs)
 	if !ok {
 		panic(errors.New(t.Name() + "not imp XMLArgs"))
 	}
-	data, err := this.GetBody(req)
+	data, err := ctx.GetBody(req)
 	if err != nil {
 		log.Error(err)
 	}
@@ -454,7 +454,7 @@ func (this *HttpContext) newXMLArgs(iv IArgs, req *http.Request, param martini.P
 	return args
 }
 
-func (this *HttpContext) IsIArgs(v reflect.Value) (a IArgs, ok bool) {
+func (ctx *HttpContext) IsIArgs(v reflect.Value) (a IArgs, ok bool) {
 	if !v.IsValid() {
 		return nil, false
 	}
@@ -469,7 +469,7 @@ func (this *HttpContext) IsIArgs(v reflect.Value) (a IArgs, ok bool) {
 	return
 }
 
-func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool) {
+func (ctx *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool) {
 	if !v.IsValid() {
 		return
 	}
@@ -484,7 +484,7 @@ func (this *HttpContext) IsIDispatcher(v reflect.Value) (av IDispatcher, ok bool
 	return
 }
 
-func (this *HttpContext) useProtoHandler(r martini.Router, url string, in ...martini.Handler) {
+func (ctx *HttpContext) useProtoHandler(r martini.Router, url string, in ...martini.Handler) {
 	if len(in) == 0 || url == "" {
 		return
 	}
@@ -494,10 +494,10 @@ func (this *HttpContext) useProtoHandler(r martini.Router, url string, in ...mar
 	urls.Pattern = rv.Pattern()
 	urls.View = "{PROTO}"
 	urls.Render = "{PROTO}"
-	this.URLS = append(this.URLS, urls)
+	ctx.URLS = append(ctx.URLS, urls)
 }
 
-func (this *HttpContext) useHttpHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
+func (ctx *HttpContext) useHttpHandler(method string, r martini.Router, url, view, render string, args IArgs, in ...martini.Handler) {
 	if len(in) == 0 || url == "" {
 		return
 	}
@@ -533,10 +533,10 @@ func (this *HttpContext) useHttpHandler(method string, r martini.Router, url, vi
 	urls.View = view
 	urls.Render = render
 	urls.Args = args
-	this.URLS = append(this.URLS, urls)
+	ctx.URLS = append(ctx.URLS, urls)
 }
 
-func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
+func (ctx *HttpContext) GetArgsHandler(args IArgs) interface{} {
 	v := reflect.ValueOf(args)
 	if hv := v.MethodByName(HandlerSuffix); hv.IsValid() {
 		return hv.Interface()
@@ -545,7 +545,7 @@ func (this *HttpContext) GetArgsHandler(args IArgs) interface{} {
 	}
 }
 
-func (this *HttpContext) GetArgsCacheParams(args IArgs) interface{} {
+func (ctx *HttpContext) GetArgsCacheParams(args IArgs) interface{} {
 	if !IsCacheOn() {
 		return nil
 	}
@@ -557,7 +557,7 @@ func (this *HttpContext) GetArgsCacheParams(args IArgs) interface{} {
 	}
 }
 
-func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
+func (ctx *HttpContext) GetArgsModel(args IArgs) interface{} {
 	v := reflect.ValueOf(args)
 	if hv := v.MethodByName(ModelSuffix); hv.IsValid() {
 		return hv.Interface()
@@ -566,17 +566,17 @@ func (this *HttpContext) GetArgsModel(args IArgs) interface{} {
 	}
 }
 
-func (this *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
+func (ctx *HttpContext) newArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {
 	var args IArgs = nil
 	switch iv.ReqType() {
 	case AT_URL:
-		args = this.newURLArgs(iv, req, param, log)
+		args = ctx.newURLArgs(iv, req, param, log)
 	case AT_FORM:
-		args = this.newFormArgs(iv, req, param, log)
+		args = ctx.newFormArgs(iv, req, param, log)
 	case AT_JSON:
-		args = this.newJSONArgs(iv, req, param, log)
+		args = ctx.newJSONArgs(iv, req, param, log)
 	case AT_XML:
-		args = this.newXMLArgs(iv, req, param, log)
+		args = ctx.newXMLArgs(iv, req, param, log)
 	default:
 		panic(errors.New("args reqtype error"))
 	}
@@ -592,7 +592,7 @@ var (
 //-> /list -> list
 //-> /goods/list/info -> goods/list/info
 //-> /goods/ -> goods/index
-func (this *HttpContext) autoView(req *http.Request) string {
+func (ctx *HttpContext) autoView(req *http.Request) string {
 	path := req.URL.Path
 	if path == "" {
 		return "index"
@@ -604,12 +604,12 @@ func (this *HttpContext) autoView(req *http.Request) string {
 	return path[1:]
 }
 
-func (this *HttpContext) handlerProtoArgs(mvc IMVC, iv IArgs) {
+func (ctx *HttpContext) handlerProtoArgs(mvc IMVC, iv IArgs) {
 	log.Println(iv)
 }
 
 //获取缓存参数
-func (this *HttpContext) getCacheParam(vs []reflect.Value, req *http.Request) (*CacheParams, error) {
+func (ctx *HttpContext) getCacheParam(vs []reflect.Value, req *http.Request) (*CacheParams, error) {
 	if len(vs) != 1 {
 		return nil, fmt.Errorf("args num error")
 	}
@@ -628,43 +628,48 @@ func (this *HttpContext) getCacheParam(vs []reflect.Value, req *http.Request) (*
 }
 
 //缓存处理，如果返回true，输出了数据，不会执行Handler
-func (this *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParams) bool {
-	bb, err := cp.GetBytes()
-	//从缓存获取失败会在渲染时根据这个参数写入缓存
+func (ctx *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParams) (ILocker, int) {
+	//预处理
+	lck, bb, bc, err := cp.Prepare(HttpTimeout)
 	if err != nil {
 		rv.CacheParams(cp)
-		return false
+		return nil, bc
 	}
-	mt := m.Render()
-	if mt == JSON_RENDER {
-		cm := NewContentModel(bb, cp.Key, ContentJSON)
-		mvc.SetModel(cm)
-		return true
+	//如果来自缓存并且符合预期得类型
+	if bc > 0 {
+		mt := m.Render()
+		if mt == JSON_RENDER {
+			cm := NewContentModel(bb, cp.Key, ContentJSON)
+			mvc.SetModel(cm)
+			return nil, bc
+		}
+		if mt == XML_RENDER {
+			cm := NewContentModel(bb, cp.Key, ContentXML)
+			mvc.SetModel(cm)
+			return nil, bc
+		}
+		if mt == TEXT_RENDER {
+			cm := NewContentModel(bb, cp.Key, ContentText)
+			mvc.SetModel(cm)
+			return nil, bc
+		}
+		if mt == HTML_RENDER {
+			cm := NewContentModel(bb, cp.Key, ContentHTML)
+			mvc.SetModel(cm)
+			return nil, bc
+		}
+		if mt == DATA_RENDER {
+			cm := NewContentModel(bb, cp.Key, ContentBinary)
+			mvc.SetModel(cm)
+			return nil, bc
+		}
+		panic(fmt.Errorf(" type %d not support cache", mt))
 	}
-	if mt == XML_RENDER {
-		cm := NewContentModel(bb, cp.Key, ContentXML)
-		mvc.SetModel(cm)
-		return true
-	}
-	if mt == TEXT_RENDER {
-		cm := NewContentModel(bb, cp.Key, ContentText)
-		mvc.SetModel(cm)
-		return true
-	}
-	if mt == HTML_RENDER {
-		cm := NewContentModel(bb, cp.Key, ContentHTML)
-		mvc.SetModel(cm)
-		return true
-	}
-	if mt == DATA_RENDER {
-		cm := NewContentModel(bb, cp.Key, ContentBinary)
-		mvc.SetModel(cm)
-		return true
-	}
-	return false
+	rv.CacheParams(cp)
+	return lck, bc
 }
 
-func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
+func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
 	}
@@ -674,7 +679,7 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		var cp *CacheParams = nil
 		mvc.SetView(view)
 		mvc.SetRender(StringToRender(render))
-		args := this.newArgs(iv, req, param, log)
+		args := ctx.newArgs(iv, req, param, log)
 		if args == nil {
 			panic(ErrorArgs)
 		}
@@ -688,22 +693,29 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 		c.Map(model)
 		mvc.SetModel(model)
 		//参数校验和执行参数方法
-		if err = this.Validate(args); err != nil {
+		if err = ctx.Validate(args); err != nil {
 			args.Validate(NewValidateModel(err), mvc)
 			return
 		}
 		//如果方法存在获取缓存处理,支持json，xml，string三种类型
-		if ch := this.GetArgsCacheParams(args); ch != nil {
+		if ch := ctx.GetArgsCacheParams(args); ch != nil {
 			vs, err = c.Invoke(ch)
 			if err == nil {
-				cp, err = this.getCacheParam(vs, req)
+				cp, err = ctx.getCacheParam(vs, req)
 			}
 		}
 		//如果缓存命中直接返回
-		if err == nil && cp != nil && this.domvccache(mvc, rv, model, cp) {
-			return
+		if err == nil && cp != nil {
+			lck, cok := ctx.domvccache(mvc, rv, model, cp)
+			if cok > 0 {
+				return
+			}
+			if lck != nil {
+				defer lck.Release()
+			}
 		}
-		if ah := this.GetArgsHandler(args); ah != nil {
+		//
+		if ah := ctx.GetArgsHandler(args); ah != nil {
 			vs, err = c.Invoke(ah)
 		} else if hv.IsValid() {
 			vs, err = c.Invoke(hv.Interface())
@@ -721,7 +733,7 @@ func (this *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.
 }
 
 //加入多个中间件
-func (this *HttpContext) useMulHandler(in []martini.Handler, hs []string, sv reflect.Value) []martini.Handler {
+func (ctx *HttpContext) useMulHandler(in []martini.Handler, hs []string, sv reflect.Value) []martini.Handler {
 	for _, n := range hs {
 		hv := sv.MethodByName(n + HandlerSuffix)
 		if !hv.IsValid() {
@@ -732,7 +744,7 @@ func (this *HttpContext) useMulHandler(in []martini.Handler, hs []string, sv ref
 	return in
 }
 
-func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatcher, vv reflect.Value) {
+func (ctx *HttpContext) useValue(pmethod string, r martini.Router, c IDispatcher, vv reflect.Value) {
 	vt := vv.Type()
 	sv := reflect.ValueOf(c)
 	for i := 0; i < vt.NumField(); i++ {
@@ -754,22 +766,22 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 		in := []martini.Handler{}
 		hv := sv.MethodByName(handler + HandlerSuffix)
 		dv := sv.MethodByName(DefaultHandler)
-		iv, ab := this.IsIArgs(v)
+		iv, ab := ctx.IsIArgs(v)
 		if ab && url != "" {
 			if len(hs) > 0 {
-				in = this.useMulHandler(in, hs, sv)
+				in = ctx.useMulHandler(in, hs, sv)
 			}
-			in = append(in, this.handlerWithArgs(iv, hv, dv, view, render))
+			in = append(in, ctx.handlerWithArgs(iv, hv, dv, view, render))
 		}
-		if d, b := this.IsIDispatcher(v); b {
+		if d, b := ctx.IsIDispatcher(v); b {
 			if len(hs) > 0 {
-				in = this.useMulHandler(in, hs, sv)
+				in = ctx.useMulHandler(in, hs, sv)
 			}
 			if hv.IsValid() {
 				in = append(in, hv.Interface())
 			}
-			this.Group(d.URL()+url, func(r martini.Router) {
-				this.useRouter(r, d)
+			ctx.Group(d.URL()+url, func(r martini.Router) {
+				ctx.useRouter(r, d)
 			}, in...)
 		} else if ab {
 			if url == "" {
@@ -778,31 +790,31 @@ func (this *HttpContext) useValue(pmethod string, r martini.Router, c IDispatche
 			if after := c.AfterHandler(); after != nil {
 				in = append(in, after)
 			}
-			this.useHttpHandler(method, r, url, view, render, iv, in...)
+			ctx.useHttpHandler(method, r, url, view, render, iv, in...)
 		} else if v.Kind() == reflect.Struct {
 			if len(hs) > 0 {
-				in = this.useMulHandler(in, hs, sv)
+				in = ctx.useMulHandler(in, hs, sv)
 			}
 			if hv.IsValid() {
 				in = append(in, hv.Interface())
 			}
-			this.Group(url, func(r martini.Router) {
-				this.useValue(method, r, c, v)
+			ctx.Group(url, func(r martini.Router) {
+				ctx.useValue(method, r, c, v)
 			}, in...)
 		}
 	}
 }
 
-func (this *HttpContext) useRouter(r martini.Router, c IDispatcher) {
+func (ctx *HttpContext) useRouter(r martini.Router, c IDispatcher) {
 	v := reflect.ValueOf(c)
-	this.useValue(http.MethodGet, r, c, v.Elem())
+	ctx.useValue(http.MethodGet, r, c, v.Elem())
 }
 
-func (this *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
+func (ctx *HttpContext) UseDispatcher(c IDispatcher, in ...martini.Handler) {
 	if b := c.BeforeHandler(); b != nil {
 		in = append(in, b)
 	}
-	this.Group(c.URL(), func(r martini.Router) {
-		this.useRouter(r, c)
+	ctx.Group(c.URL(), func(r martini.Router) {
+		ctx.useRouter(r, c)
 	}, in...)
 }

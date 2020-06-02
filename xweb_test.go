@@ -196,7 +196,7 @@ func TestCacheDoXML(t *testing.T) {
 		return testdata, nil
 	}, retdata, 0)
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 
@@ -205,7 +205,7 @@ func TestCacheDoXML(t *testing.T) {
 		return testdata, nil
 	}, retdata, 0)
 	require.NoError(t, err)
-	require.Equal(t, true, bcache)
+	require.Equal(t, true, bcache > 0)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 
@@ -217,7 +217,7 @@ func TestCacheDoXML(t *testing.T) {
 		return testdata, nil
 	}, retdata, 0)
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 }
@@ -237,7 +237,7 @@ func TestCacheDoJSON(t *testing.T) {
 		return testdata, nil
 	}, retdata, 0)
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 
@@ -246,7 +246,7 @@ func TestCacheDoJSON(t *testing.T) {
 		return testdata, nil
 	}, retdata, 0)
 	require.NoError(t, err)
-	require.Equal(t, true, bcache)
+	require.Equal(t, true, bcache > 0)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 
@@ -258,7 +258,7 @@ func TestCacheDoJSON(t *testing.T) {
 		return testdata, nil
 	}, retdata, 0)
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, testdata.A, retdata.A)
 	require.Equal(t, testdata.B, retdata.B)
 }
@@ -272,7 +272,7 @@ func TestTryDoBytes(t *testing.T) {
 		return []byte{1, 2, 34}, nil
 	}, time.Second)
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, sb, bb)
 	time.Sleep(time.Second * 2)
 
@@ -296,7 +296,7 @@ func TestCacheDoBytes(t *testing.T) {
 		return []byte{1, 2, 34}, nil
 	}, time.Second)
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, sb, bb)
 
 	bb, bcache, err = kp.DoBytes(func() ([]byte, error) {
@@ -304,7 +304,7 @@ func TestCacheDoBytes(t *testing.T) {
 	}, time.Second)
 
 	require.NoError(t, err)
-	require.Equal(t, true, bcache)
+	require.Equal(t, true, bcache > 0)
 	require.Equal(t, sb, bb)
 
 	//缓存失效
@@ -315,7 +315,7 @@ func TestCacheDoBytes(t *testing.T) {
 	}, time.Second)
 
 	require.NoError(t, err)
-	require.Equal(t, false, bcache)
+	require.Equal(t, false, bcache > 0)
 	require.Equal(t, sb, bb)
 
 	kp.Remove()

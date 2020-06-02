@@ -393,6 +393,7 @@ type CacheParams struct {
 	//缓存key
 	Key string
 	//延迟超时时间，如果设置ttl和dtl>0，当key得时间少于dtl时就算过期
+	//TTL+DTL就是实际缓存时间
 	DTL time.Duration
 }
 
@@ -412,20 +413,20 @@ func (cp *CacheParams) Remove() {
 }
 
 //DoXML 缓存为xml
-func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (bool, error) {
+func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (int, error) {
 	if !IsCacheOn() {
-		return false, fmt.Errorf("cache disabled")
+		return 0, fmt.Errorf("cache disabled")
 	}
 	//测试是否从缓存获取数据
-	lck, bb, fbc, err := cp.prepare(ttl, try...)
+	lck, bb, fbc, err := cp.Prepare(ttl, try...)
 	//如果有缓存数据
-	if fbc {
+	if fbc > 0 {
 		err = xml.Unmarshal(bb, vp)
-		return true, err
+		return fbc, err
 	}
 	//错误了
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	if lck != nil {
 		defer lck.Release()
@@ -433,12 +434,12 @@ func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl
 	//没有执行处理函数返回数据
 	vptr, err := fn()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	//序列化保存
 	bb, err = xml.Marshal(vptr)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	//有数据就保存并且返回
 	err = cp.SetBytes(bb)
@@ -446,24 +447,24 @@ func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl
 	if err == nil {
 		err = xml.Unmarshal(bb, vp)
 	}
-	return false, err
+	return 0, err
 }
 
 //DoJSON 缓存为json
-func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (bool, error) {
+func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (int, error) {
 	if !IsCacheOn() {
-		return false, fmt.Errorf("cache disabled")
+		return 0, fmt.Errorf("cache disabled")
 	}
 	//测试是否从缓存获取数据
-	lck, bb, fbc, err := cp.prepare(ttl, try...)
+	lck, bb, fbc, err := cp.Prepare(ttl, try...)
 	//如果有缓存数据
-	if fbc {
+	if fbc > 0 {
 		err = json.Unmarshal(bb, vp)
-		return true, err
+		return fbc, err
 	}
 	//错误了
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	if lck != nil {
 		defer lck.Release()
@@ -471,12 +472,12 @@ func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, tt
 	//没有执行处理函数返回数据
 	vptr, err := fn()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	//序列化保存
 	bb, err = json.Marshal(vptr)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	//有数据就保存并且返回
 	err = cp.SetBytes(bb)
@@ -484,7 +485,7 @@ func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, tt
 	if err == nil {
 		err = json.Unmarshal(bb, vp)
 	}
-	return false, err
+	return 0, err
 }
 
 //PTP 获取尝试次数和延迟时间
@@ -501,25 +502,34 @@ func PTP(try ...int) (int, time.Duration) {
 	return tc, tv
 }
 
-//预处理数据
-func (cp *CacheParams) prepare(ttl time.Duration, try ...int) (ILocker, []byte, bool, error) {
+//LockerKey 获取加锁key
+func (cp *CacheParams) LockerKey() string {
+	return "_lck_" + cp.Key
+}
+
+//Prepare 预处理数据
+//0 来自执行结果
+//1 来自缓存
+//2 来自旧缓存数据
+//3 尝试获取锁时从缓存获取到
+func (cp *CacheParams) Prepare(ttl time.Duration, try ...int) (ILocker, []byte, int, error) {
 	//从缓存获取数据
 	bb, err := cp.GetBytes()
 	//如果有数据并且设置dtl，数据可能要过期
 	hasbb := err == nil
 	//如果有并且没有过期就直接返回
 	if hasbb && !cp.IsExpire() {
-		return nil, bb, true, nil
+		return nil, bb, 1, nil
 	}
 	//如果不启用锁并且没有数据
 	if ttl == 0 && !hasbb {
-		return nil, nil, false, nil
+		return nil, nil, 0, nil
 	}
 	//加锁确保后续fn不会重复被执行
-	lck, err := cp.Imp.Locker(cp.Key, ttl)
+	lck, err := cp.Imp.Locker(cp.LockerKey(), ttl)
 	//锁失败并且有旧数据返回旧数据
 	if err != nil && hasbb {
-		return nil, bb, true, nil
+		return nil, bb, 2, nil
 	}
 	//尝试再次获取数据和锁
 	for tc, tv := PTP(try...); err != nil && tc > 0; tc-- {
@@ -528,33 +538,33 @@ func (cp *CacheParams) prepare(ttl time.Duration, try ...int) (ILocker, []byte, 
 		//尝试期间如果有缓存数据
 		bb, err = cp.GetBytes()
 		if err == nil {
-			return nil, bb, true, nil
+			return nil, bb, 3, nil
 		}
-		lck, err = cp.Imp.Locker(cp.Key, ttl)
+		lck, err = cp.Imp.Locker(cp.LockerKey(), ttl)
 	}
 	//尝试多次未获取锁失败返回错误
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, 0, err
 	}
-	return lck, nil, false, nil
+	return lck, nil, 0, nil
 }
 
 //DoBytes 缓存fn返回的二进制数据
 //返回参数2为true表示来自缓存
 //ttl 锁超时时间,try锁尝试次数和延迟时间(毫秒)
-func (cp *CacheParams) DoBytes(fn func() ([]byte, error), ttl time.Duration, try ...int) ([]byte, bool, error) {
+func (cp *CacheParams) DoBytes(fn func() ([]byte, error), ttl time.Duration, try ...int) ([]byte, int, error) {
 	if !IsCacheOn() {
-		return nil, false, fmt.Errorf("cache disabled")
+		return nil, 0, fmt.Errorf("cache disabled")
 	}
 	//测试是否从缓存获取数据
-	lck, bb, fbc, err := cp.prepare(ttl, try...)
+	lck, bb, fbc, err := cp.Prepare(ttl, try...)
 	//如果有缓存数据
-	if fbc {
-		return bb, true, nil
+	if fbc > 0 {
+		return bb, fbc, nil
 	}
 	//错误了
 	if err != nil {
-		return nil, false, err
+		return nil, 0, err
 	}
 	if lck != nil {
 		defer lck.Release()
@@ -562,11 +572,11 @@ func (cp *CacheParams) DoBytes(fn func() ([]byte, error), ttl time.Duration, try
 	//没有执行处理函数返回数据
 	bb, err = fn()
 	if err != nil {
-		return nil, false, err
+		return nil, 0, err
 	}
 	//有数据就保存并且返回
 	err = cp.SetBytes(bb)
-	return bb, false, err
+	return bb, 0, err
 }
 
 //GetBytes 获取字符串类型
