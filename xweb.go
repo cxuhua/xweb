@@ -546,9 +546,6 @@ func (ctx *HttpContext) GetArgsHandler(args IArgs) interface{} {
 }
 
 func (ctx *HttpContext) GetArgsCacheParams(args IArgs) interface{} {
-	if !IsCacheOn() {
-		return nil
-	}
 	v := reflect.ValueOf(args)
 	if hv := v.MethodByName(CacheParamsSuffix); hv.IsValid() {
 		return hv.Interface()
@@ -674,10 +671,8 @@ func (ctx *HttpContext) checkskipcache(vs []reflect.Value, cp *CacheParams) {
 	if cp == nil || len(vs) != 1 {
 		return
 	}
-	if vs[0].Type().Kind() != reflect.Bool {
-		return
-	}
-	cp.Skip(vs[0].Bool())
+	//返回一个非nil跳过缓存（例如返回错误)
+	cp.Skip(!vs[0].IsNil())
 }
 
 func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {

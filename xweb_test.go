@@ -152,9 +152,9 @@ func (a *TestArgs) CacheParams(imp ICache, mvc IMVC) *CacheParams {
 	return NewCacheParams(imp, time.Second, time.Hour, "111")
 }
 
-func (a *TestArgs) Handler(m *TestModel, mvc IMVC) bool {
+func (a *TestArgs) Handler(m *TestModel, mvc IMVC) error {
 	m.A = 171718
-	return true
+	return nil
 }
 
 func CacheNew() martini.Handler {

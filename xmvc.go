@@ -21,20 +21,40 @@ import (
 type IModel interface {
 	Finished()   //处理完成
 	Render() int //输出模式
-	GetHeader() http.Header
+	Header() http.Header
+	Set(k, v string)
+	Add(k, v string)
+	Get(key string) string
+	Values(key string) []string
 }
 
 type xModel struct {
 	IModel
-	Header http.Header
+	header http.Header
 }
 
 func (this *xModel) InitHeader() {
-	this.Header = http.Header{}
+	this.header = http.Header{}
 }
 
-func (this *xModel) GetHeader() http.Header {
-	return this.Header
+func (this *xModel) Header() http.Header {
+	return this.header
+}
+
+func (this *xModel) Set(k, v string) {
+	this.header.Set(k, v)
+}
+
+func (this *xModel) Add(k, v string) {
+	this.header.Add(k, v)
+}
+
+func (this *xModel) Get(key string) string {
+	return this.header.Get(key)
+}
+
+func (this *xModel) Values(key string) []string {
+	return this.header.Values(key)
 }
 
 func (this *xModel) Finished() {
@@ -173,7 +193,7 @@ func (this *ContentModel) Render() int {
 func NewContentModel(b []byte, f int, k string, t string) *ContentModel {
 	m := &ContentModel{Data: b, Key: k, Type: t}
 	m.InitHeader()
-	m.Header.Set("X-Cache-Attr", fmt.Sprintf("%s,%d", k, f))
+	m.header.Set("X-Cache-Attr", fmt.Sprintf("%s,%d", k, f))
 	return m
 }
 
@@ -374,16 +394,9 @@ type ICache interface {
 }
 
 var (
-	//CacheOn 是否开启缓存
-	CacheOn = true
 	//MinZipSize 最小压缩大小
 	MinZipSize = 2048
 )
-
-//IsCacheOn 是否开启缓存
-func IsCacheOn() bool {
-	return CacheOn
-}
 
 //CacheParams 缓存参数
 type CacheParams struct {
@@ -422,9 +435,6 @@ func (cp *CacheParams) Remove() {
 
 //DoXML 缓存为xml
 func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (int, error) {
-	if !IsCacheOn() {
-		return 0, fmt.Errorf("cache disabled")
-	}
 	//测试是否从缓存获取数据
 	lck, bb, fbc, err := cp.Prepare(ttl, try...)
 	//如果有缓存数据
@@ -464,9 +474,6 @@ func (cp *CacheParams) DoXML(fn func() (interface{}, error), vp interface{}, ttl
 //try 尝试获取锁参数
 //返回数据来源
 func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, ttl time.Duration, try ...int) (int, error) {
-	if !IsCacheOn() {
-		return 0, fmt.Errorf("cache disabled")
-	}
 	//测试是否从缓存获取数据
 	lck, bb, fbc, err := cp.Prepare(ttl, try...)
 	//如果有缓存数据
@@ -565,9 +572,6 @@ func (cp *CacheParams) Prepare(ttl time.Duration, try ...int) (ILocker, []byte, 
 //返回参数2为true表示来自缓存
 //ttl 锁超时时间,try锁尝试次数和延迟时间(毫秒)
 func (cp *CacheParams) DoBytes(fn func() ([]byte, error), ttl time.Duration, try ...int) ([]byte, int, error) {
-	if !IsCacheOn() {
-		return nil, 0, fmt.Errorf("cache disabled")
-	}
 	//测试是否从缓存获取数据
 	lck, bb, fbc, err := cp.Prepare(ttl, try...)
 	//如果有缓存数据
@@ -785,7 +789,7 @@ func (this *xmvc) SkipRender(v bool) {
 }
 
 func (this *xmvc) merageHeaderAndCookie() {
-	for ik, iv := range this.model.GetHeader() {
+	for ik, iv := range this.model.Header() {
 		for _, vv := range iv {
 			this.rev.Header().Add(ik, vv)
 		}
