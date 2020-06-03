@@ -154,6 +154,7 @@ func (a *TestArgs) CacheParams(imp ICache, mvc IMVC) *CacheParams {
 
 func (a *TestArgs) Handler(m *TestModel, mvc IMVC) error {
 	m.A = 171718
+	m.Set("abc", "123")
 	return nil
 }
 

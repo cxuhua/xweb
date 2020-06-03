@@ -33,27 +33,34 @@ type xModel struct {
 	header http.Header
 }
 
-func (this *xModel) InitHeader() {
-	this.header = http.Header{}
+func (this *xModel) init() {
+	if this.header == nil {
+		this.header = http.Header{}
+	}
 }
 
 func (this *xModel) Header() http.Header {
+	this.init()
 	return this.header
 }
 
 func (this *xModel) Set(k, v string) {
+	this.init()
 	this.header.Set(k, v)
 }
 
 func (this *xModel) Add(k, v string) {
+	this.init()
 	this.header.Add(k, v)
 }
 
 func (this *xModel) Get(key string) string {
+	this.init()
 	return this.header.Get(key)
 }
 
 func (this *xModel) Values(key string) []string {
+	this.init()
 	return this.header.Values(key)
 }
 
@@ -129,9 +136,7 @@ func (this *FileModel) Finished() {
 }
 
 func NewFileModel() *FileModel {
-	m := &FileModel{ModTime: time.Now()}
-	m.InitHeader()
-	return m
+	return &FileModel{ModTime: time.Now()}
 }
 
 //脚本输出
@@ -149,9 +154,7 @@ func (this *ScriptModel) Finished() {
 }
 
 func NewScriptModel() *ScriptModel {
-	m := &ScriptModel{}
-	m.InitHeader()
-	return m
+	return &ScriptModel{}
 }
 
 //用于TEXT输出
@@ -169,9 +172,7 @@ func (this *StringModel) Render() int {
 }
 
 func NewStringModel() *StringModel {
-	m := &StringModel{}
-	m.InitHeader()
-	return m
+	return &StringModel{}
 }
 
 //content model
@@ -192,8 +193,7 @@ func (this *ContentModel) Render() int {
 
 func NewContentModel(b []byte, f int, k string, t string) *ContentModel {
 	m := &ContentModel{Data: b, Key: k, Type: t}
-	m.InitHeader()
-	m.header.Set("X-Cache-Attr", fmt.Sprintf("%s,%d", k, f))
+	m.Set("X-Cache-Attr", fmt.Sprintf("%s,%d", k, f))
 	return m
 }
 
@@ -212,9 +212,7 @@ func (this *BinaryModel) Render() int {
 }
 
 func NewBinaryModel() *BinaryModel {
-	m := &BinaryModel{}
-	m.InitHeader()
-	return m
+	return &BinaryModel{}
 }
 
 //json render model
@@ -294,15 +292,11 @@ func (this *HTTPModel) Finished() {
 }
 
 func NewHTTPError(code int, err string) *HTTPModel {
-	m := &HTTPModel{Code: code, Error: err}
-	m.InitHeader()
-	return m
+	return &HTTPModel{Code: code, Error: err}
 }
 
 func NewHTTPSuccess() *HTTPModel {
-	m := &HTTPModel{Code: 0}
-	m.InitHeader()
-	return m
+	return &HTTPModel{Code: 0}
 }
 
 //数据参数校验器是吧输出
@@ -361,7 +355,6 @@ func (this *ValidateModel) Init(e error) {
 //NewValidateModel 校验器
 func NewValidateModel(err error) *ValidateModel {
 	m := &ValidateModel{}
-	m.InitHeader()
 	m.Init(err)
 	return m
 }
@@ -915,7 +908,6 @@ func (this *xmvc) SetCookie(cookie *http.Cookie) {
 
 func (this *xmvc) Redirect(url string) {
 	m := &RedirectModel{Url: url}
-	m.InitHeader()
 	this.SetModel(m)
 	this.render = REDIRECT_RENDER
 }
