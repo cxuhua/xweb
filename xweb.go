@@ -669,6 +669,17 @@ func (ctx *HttpContext) domvccache(mvc IMVC, rv Render, m IModel, cp *CacheParam
 	return lck, bc
 }
 
+//检测是否跳过缓存
+func (ctx *HttpContext) checkskipcache(vs []reflect.Value, cp *CacheParams) {
+	if cp == nil || len(vs) != 1 {
+		return
+	}
+	if vs[0].Type().Kind() != reflect.Bool {
+		return
+	}
+	cp.Skip(vs[0].Bool())
+}
+
 func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.Value, view string, render string) martini.Handler {
 	if !dv.IsValid() {
 		panic(errors.New("DefaultHandler miss"))
@@ -704,17 +715,17 @@ func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.V
 			if err == nil {
 				cp, err = ctx.getCacheParam(vs, req)
 			}
-			//如果需要缓存处理
-			if err == nil && cp != nil {
-				lck, fcb := ctx.domvccache(mvc, rv, model, cp)
-				//缓存命中直接返回
-				if fcb > 0 {
-					return
-				}
-				//释放缓存锁
-				if lck != nil {
-					defer lck.Release()
-				}
+		}
+		//如果需要缓存处理
+		if err == nil && cp != nil {
+			lck, fcb := ctx.domvccache(mvc, rv, model, cp)
+			//缓存命中直接返回
+			if fcb > 0 {
+				return
+			}
+			//释放缓存锁
+			if lck != nil {
+				defer lck.Release()
 			}
 		}
 		//
@@ -725,13 +736,12 @@ func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.V
 		} else {
 			vs, err = c.Invoke(dv.Interface())
 		}
-		if len(vs) > 0 {
-			log.Info(vs)
-		}
 		//执行出错了
 		if err != nil {
 			panic(err)
 		}
+		//(检测是否跳过cache)如果有返回值，并且是true，跳过缓存处理
+		ctx.checkskipcache(vs, cp)
 	}
 }
 

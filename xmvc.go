@@ -396,6 +396,8 @@ type CacheParams struct {
 	//延迟超时时间，如果设置ttl和dtl>0，当key得时间少于dtl时就算过期
 	//TTL+DTL就是实际缓存时间
 	DTL time.Duration
+	//是否跳过setbytes缓存数据
+	skip bool
 }
 
 //NewCacheParams 传教缓存参数
@@ -406,6 +408,11 @@ func NewCacheParams(imp ICache, ttl time.Duration, dtl time.Duration, kfmt strin
 		Key: fmt.Sprintf(kfmt, vs...),
 		DTL: dtl,
 	}
+}
+
+//Skip 是否跳过存储到缓存，如果接口返回错误不需要缓存设置未true
+func (cp *CacheParams) Skip(sv bool) {
+	cp.skip = sv
 }
 
 //Remove 删除缓存
@@ -638,6 +645,10 @@ func (cp *CacheParams) IsExpire() bool {
 
 //SetBytes 保存字符串,第一字节存放是否被压缩
 func (cp *CacheParams) SetBytes(sb []byte) error {
+	//如果跳过覆盖缓存数据直接返回成功
+	if cp.skip {
+		return nil
+	}
 	var vb []byte
 	if len(sb) > MinZipSize {
 		zb, err := lzma.Compress(sb)
