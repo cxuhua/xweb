@@ -500,6 +500,19 @@ func (cp *CacheParams) DoJSON(fn func() (interface{}, error), vp interface{}, tt
 	return 0, err
 }
 
+//PTPWithDefault 带默认值
+func PTPWithDefault(dtc int, dtv time.Duration, try ...int) (int, time.Duration) {
+	tc := dtc
+	tv := dtv
+	if len(try) > 0 {
+		tc = try[0]
+	}
+	if len(try) > 1 {
+		tv = time.Millisecond * time.Duration(try[1])
+	}
+	return tc, tv
+}
+
 //PTP 获取尝试次数和延迟时间
 func PTP(try ...int) (int, time.Duration) {
 	//默认3 次每次100毫秒
