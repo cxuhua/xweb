@@ -2,6 +2,7 @@ package xweb
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -165,6 +166,7 @@ type HTTPClient struct {
 	http.Client
 	IsSecure bool
 	Host     string
+	ctx      context.Context
 }
 
 var (
@@ -246,27 +248,37 @@ func (this HTTPClient) Form(path string, v HTTPValues) (HttpResponse, error) {
 	return ret, nil
 }
 
-func (this HTTPClient) NewRequest(method, path string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, this.Host+path, body)
+//自动识别是否启用context
+func (this HTTPClient) request(method, url string, body io.Reader) (*http.Request, error) {
+	if this.ctx != nil {
+		return http.NewRequestWithContext(this.ctx, method, url, body)
+	}
+	return http.NewRequest(method, url, body)
 }
 
-func (this HTTPClient) NewGet(path string, q HTTPValues) (*http.Request, error) {
+func (this HTTPClient) NewRequest(method, path string, body io.Reader) (*http.Request, error) {
+	return this.request(method, this.Host+path, body)
+}
+
+func (this HTTPClient) NewGet(path string, qs ...HTTPValues) (*http.Request, error) {
 	url, err := url.Parse(path)
 	if err != nil {
 		return nil, err
 	}
 	qv := url.Query()
-	for kv, vv := range q.Values {
-		for _, v := range vv {
-			qv.Add(kv, v)
+	for _, q := range qs {
+		for kv, vv := range q.Values {
+			for _, v := range vv {
+				qv.Add(kv, v)
+			}
 		}
 	}
-	return http.NewRequest(http.MethodGet, this.Host+url.Path+"?"+qv.Encode(), nil)
+	return this.request(http.MethodGet, this.Host+url.Path+"?"+qv.Encode(), nil)
 }
 
 func (this HTTPClient) NewForm(path string, v HTTPValues) (*http.Request, error) {
 	body := strings.NewReader(v.Encode())
-	req, err := http.NewRequest(http.MethodPost, this.Host+path, body)
+	req, err := this.request(http.MethodPost, this.Host+path, body)
 	if err != nil {
 		return req, nil
 	}
@@ -285,7 +297,7 @@ func dialTimeout(network, addr string) (net.Conn, error) {
 }
 
 func (this HTTPClient) NewPost(path string, bt string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, this.Host+path, body)
+	req, err := this.request(http.MethodPost, this.Host+path, body)
 	if err != nil {
 		return req, nil
 	}
@@ -378,7 +390,7 @@ func MustLoadTLSFileConfig(rootFile, crtFile, keyFile string) *tls.Config {
 	return conf
 }
 
-func NewHTTPClient(host string, confs ...*tls.Config) HTTPClient {
+func NewHTTPClientWithContext(ctx context.Context, host string, confs ...*tls.Config) HTTPClient {
 	host = strings.ToLower(host)
 	ret := HTTPClient{}
 	ret.Host = host
@@ -393,5 +405,10 @@ func NewHTTPClient(host string, confs ...*tls.Config) HTTPClient {
 		tr.TLSClientConfig = TLSSkipVerifyConfig()
 	}
 	ret.Client = http.Client{Transport: tr}
+	ret.ctx = ctx
 	return ret
+}
+
+func NewHTTPClient(host string, confs ...*tls.Config) HTTPClient {
+	return NewHTTPClientWithContext(nil, host, confs...)
 }

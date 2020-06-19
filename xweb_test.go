@@ -2,6 +2,7 @@ package xweb
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,6 +16,18 @@ import (
 	"github.com/cxuhua/xweb/martini"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHttpGet(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+	defer cancel()
+	c := NewHTTPClientWithContext(ctx, "https://baidu.com")
+	req, err := c.NewGet("/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.Do(req)
+	log.Println(res.ToString())
+}
 
 type cachenode struct {
 	b   []byte
