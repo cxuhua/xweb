@@ -175,7 +175,7 @@ func Renderer(options ...RenderOptions) martini.Handler {
 				return vv
 			},
 		})
-		c.MapTo(&renderer{res, req, tc, opt, cs, nil}, (*Render)(nil))
+		c.MapTo(&renderer{res, req, tc, opt, cs, nil, log}, (*Render)(nil))
 	}
 }
 
@@ -261,6 +261,7 @@ type renderer struct {
 	opt             RenderOptions
 	compiledCharset string
 	cpv             *CacheParams
+	log             *logging.Logger
 }
 
 func (this *renderer) CacheParams(v *CacheParams) {
@@ -279,7 +280,7 @@ func (r *renderer) JSON(status int, v interface{}) {
 	var result []byte
 	var err error
 	if r.opt.IndentJSON {
-		result, err = json.MarshalIndent(v, "", "  ")
+		result, err = json.MarshalIndent(v, "", " ")
 	} else {
 		result, err = json.Marshal(v)
 	}
@@ -295,6 +296,9 @@ func (r *renderer) JSON(status int, v interface{}) {
 	}
 	if r.cpv != nil {
 		r.cpv.SetBytes(result)
+	}
+	if martini.Dev == martini.Dev && r.log != nil {
+		r.log.Println("Send JSON:", string(result))
 	}
 	r.Write(result)
 }
@@ -358,6 +362,9 @@ func (r *renderer) XML(status int, v interface{}) {
 	}
 	if r.cpv != nil {
 		r.cpv.SetBytes(result)
+	}
+	if martini.Dev == martini.Dev && r.log != nil {
+		r.log.Println("Send XML:", string(result))
 	}
 	r.Write(result)
 }
