@@ -297,7 +297,7 @@ func (r *renderer) JSON(status int, v interface{}) {
 	if r.cpv != nil {
 		r.cpv.SetBytes(result)
 	}
-	if martini.Dev == martini.Dev && r.log != nil {
+	if martini.Env == martini.Dev && r.log != nil {
 		r.log.Println("Send JSON:", string(result))
 	}
 	r.Write(result)
@@ -363,7 +363,7 @@ func (r *renderer) XML(status int, v interface{}) {
 	if r.cpv != nil {
 		r.cpv.SetBytes(result)
 	}
-	if martini.Dev == martini.Dev && r.log != nil {
+	if martini.Env == martini.Dev && r.log != nil {
 		r.log.Println("Send XML:", string(result))
 	}
 	r.Write(result)
