@@ -292,15 +292,15 @@ func (r *renderer) JSON(status int, v interface{}) {
 	r.Header().Set(ContentType, ContentJSON+r.compiledCharset)
 	r.WriteHeader(status)
 	if len(r.opt.PrefixJSON) > 0 {
-		r.Write(r.opt.PrefixJSON)
+		_, _ = r.Write(r.opt.PrefixJSON)
 	}
 	if r.cpv != nil {
-		r.cpv.SetBytes(result)
+		_ = r.cpv.SetBytes(result)
 	}
 	if martini.Env == martini.Dev && r.log != nil {
 		r.log.Println("Send JSON:", string(result))
 	}
-	r.Write(result)
+	_, _ = r.Write(result)
 }
 
 func (r *renderer) TEMP(status int, template string, data interface{}) {
@@ -316,7 +316,7 @@ func (r *renderer) TEMP(status int, template string, data interface{}) {
 	}
 	r.Header().Set(ContentType, r.opt.HTMLContentType+r.compiledCharset)
 	r.WriteHeader(status)
-	io.Copy(r, buf)
+	_, _ = io.Copy(r, buf)
 	bufpool.Put(buf)
 }
 
@@ -336,9 +336,9 @@ func (r *renderer) HTML(status int, name string, binding interface{}, htmlOpt ..
 	r.Header().Set(ContentType, r.opt.HTMLContentType+r.compiledCharset)
 	r.WriteHeader(status)
 	if r.cpv != nil {
-		r.cpv.SetBytes(buf.Bytes())
+		_ = r.cpv.SetBytes(buf.Bytes())
 	}
-	io.Copy(r, buf)
+	_, _ = io.Copy(r, buf)
 	bufpool.Put(buf)
 }
 
@@ -358,15 +358,15 @@ func (r *renderer) XML(status int, v interface{}) {
 	r.Header().Set(ContentType, ContentXML+r.compiledCharset)
 	r.WriteHeader(status)
 	if len(r.opt.PrefixXML) > 0 {
-		r.Write(r.opt.PrefixXML)
+		_, _ = r.Write(r.opt.PrefixXML)
 	}
 	if r.cpv != nil {
-		r.cpv.SetBytes(result)
+		_ = r.cpv.SetBytes(result)
 	}
 	if martini.Env == martini.Dev && r.log != nil {
 		r.log.Println("Send XML:", string(result))
 	}
-	r.Write(result)
+	_, _ = r.Write(result)
 }
 
 func (r *renderer) Data(status int, v []byte) {
@@ -375,9 +375,9 @@ func (r *renderer) Data(status int, v []byte) {
 	}
 	r.WriteHeader(status)
 	if r.cpv != nil {
-		r.cpv.SetBytes(v)
+		_ = r.cpv.SetBytes(v)
 	}
-	r.Write(v)
+	_, _ = r.Write(v)
 }
 
 func (r *renderer) Text(status int, v string) {
@@ -386,9 +386,9 @@ func (r *renderer) Text(status int, v string) {
 	}
 	r.WriteHeader(status)
 	if r.cpv != nil {
-		r.cpv.SetBytes([]byte(v))
+		_ = r.cpv.SetBytes([]byte(v))
 	}
-	r.Write([]byte(v))
+	_, _ = r.Write([]byte(v))
 }
 
 // Error writes the given HTTP status to the current ResponseWriter
@@ -421,7 +421,9 @@ func (r *renderer) addYield(name string, binding interface{}) {
 	funcs := template.FuncMap{
 		"yield": func() (template.HTML, error) {
 			buf, err := r.execute(name, binding)
-			// return safe html here since we are rendering our own template
+			if err != nil {
+				return "",err
+			}
 			return template.HTML(buf.String()), err
 		},
 		"current": func() (string, error) {
