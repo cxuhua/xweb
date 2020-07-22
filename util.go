@@ -42,7 +42,8 @@ func GenId() string {
 	if err != nil {
 		panic(err)
 	}
-	x := r.Uint64() % 1000000
+	v := r.Uint64() + uint64(t.UnixNano() % 1000000)
+	x := v % 1000000
 	return fmt.Sprintf("%s%.5d%.6d", t.Format("20060102"), z, x)
 }
 

@@ -17,6 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGenId(t *testing.T) {
+	log.Println(GenId(),GenId(),GenId())
+}
+
+
 func TestHttpGet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
