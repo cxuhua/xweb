@@ -91,12 +91,12 @@ func (h *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tw.code = http.StatusOK
 		}
 		w.WriteHeader(tw.code)
-		w.Write(tw.wbuf.Bytes())
+		_, _ = w.Write(tw.wbuf.Bytes())
 	case <-ctx.Done():
 		tw.mu.Lock()
 		defer tw.mu.Unlock()
 		w.WriteHeader(http.StatusServiceUnavailable)
-		io.WriteString(w, h.errorBody())
+		_, _ = io.WriteString(w, h.errorBody())
 		tw.timedOut = true
 		h.logger.Println(r.RequestURI, "do timeout", time.Now().UnixNano()-now, " status=", http.StatusServiceUnavailable)
 	}
@@ -153,7 +153,7 @@ var (
 )
 
 func AddExtType(ext string, typ string) {
-	mime.AddExtensionType(ext, typ)
+	_ = mime.AddExtensionType(ext, typ)
 }
 
 func InitLogger(w io.Writer) {
@@ -204,6 +204,10 @@ func Serve(addr string) error {
 	return m.ListenAndServe(addr)
 }
 
+func Shutdown() {
+	m.Shutdown()
+}
+
 func ListenAndServe(addr string) error {
 	return m.ListenAndServe(addr)
 }
@@ -229,11 +233,11 @@ type URLS struct {
 }
 type HttpContext struct {
 	martini.ClassicMartini
-	Validator *Validator
-	URLS      []URLS
-
+	Validator      *Validator
+	URLS           []URLS
 	heapPPROFFiles []string
 	cpuPPROFFiles  []string
+	http           *http.Server
 }
 
 func (this *HttpContext) InitDefaultLogger(w io.Writer) {
@@ -309,6 +313,14 @@ func (this *HttpContext) writeCPUPprof() {
 		}
 	}
 }
+func (this *HttpContext) Shutdown() {
+	if this.http == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	_ = this.http.Shutdown(ctx)
+}
 
 func (this *HttpContext) ListenAndServe(addr string) error {
 	this.PrintURLS()
@@ -318,8 +330,11 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-	handler := TimeoutHandler(this, HttpTimeout, "time out")
-	return http.ListenAndServe(addr, handler)
+	this.http = &http.Server{
+		Addr:    addr,
+		Handler: TimeoutHandler(this, HttpTimeout, "time out"),
+	}
+	return this.http.ListenAndServe()
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
@@ -330,8 +345,11 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-	handler := TimeoutHandler(this, HttpTimeout, "time out")
-	return http.ListenAndServeTLS(addr, cert, key, handler)
+	this.http = &http.Server{
+		Addr:    addr,
+		Handler: TimeoutHandler(this, HttpTimeout, "time out"),
+	}
+	return this.http.ListenAndServeTLS(cert, key)
 }
 
 func (this *HttpContext) PrintURLS() {

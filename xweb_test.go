@@ -17,6 +17,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestShutdown(t *testing.T) {
+	go func() {
+		err := ListenAndServe(":9100")
+		log.Println("closed", err)
+	}()
+	time.Sleep(time.Second)
+	m.Shutdown()
+	time.Sleep(time.Second * 30)
+}
+
 func TestHttpGet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
