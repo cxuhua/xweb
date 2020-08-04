@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/graphql-go/handler"
+
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 )
@@ -146,7 +148,7 @@ func (tw *timeoutWriter) writeHeader(code int) {
 
 var (
 	m            = NewHttpContext()
-	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
+	LoggerFormat = logging.MustStringFormatter(`{time:15:04:05.000} %{shortfile} %{shortfunc} %{level:.5s} %{message}`)
 	LoggerPrefix = ""
 	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 	HttpTimeout  = time.Second * 30
@@ -154,6 +156,49 @@ var (
 
 func AddExtType(ext string, typ string) {
 	_ = mime.AddExtensionType(ext, typ)
+}
+
+func GraphQL(path string, conf *handler.Config) {
+	hh := handler.New(conf)
+	m.Any(path, func(w http.ResponseWriter, r *http.Request) {
+		hh.ServeHTTP(w, r)
+	})
+}
+
+func Group(path string, fn func(martini.Router), handler ...martini.Handler) {
+	m.Group(path, fn, handler...)
+}
+
+func Get(path string, handler ...martini.Handler) martini.Route {
+	return m.Get(path, handler...)
+}
+
+func Patch(path string, handler ...martini.Handler) martini.Route {
+	return m.Patch(path, handler...)
+}
+
+func Post(path string, handler ...martini.Handler) martini.Route {
+	return m.Post(path, handler...)
+}
+
+func Put(path string, handler ...martini.Handler) martini.Route {
+	return m.Put(path, handler...)
+}
+
+func Delete(path string, handler ...martini.Handler) martini.Route {
+	return m.Delete(path, handler...)
+}
+
+func Options(path string, handler ...martini.Handler) martini.Route {
+	return m.Options(path, handler...)
+}
+
+func Head(path string, handler ...martini.Handler) martini.Route {
+	return m.Head(path, handler...)
+}
+
+func Any(path string, handler ...martini.Handler) martini.Route {
+	return m.Any(path, handler...)
 }
 
 func InitLogger(w io.Writer) {

@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cxuhua/xweb/bpool"
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
-	"github.com/oxtoacart/bpool"
 )
 
 const (
@@ -422,7 +422,7 @@ func (r *renderer) addYield(name string, binding interface{}) {
 		"yield": func() (template.HTML, error) {
 			buf, err := r.execute(name, binding)
 			if err != nil {
-				return "",err
+				return "", err
 			}
 			return template.HTML(buf.String()), err
 		},
