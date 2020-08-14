@@ -367,6 +367,8 @@ type ILocker interface {
 	TTL() (time.Duration, error)
 	//Refresh 更新锁超时时间
 	Refresh(ttl time.Duration) error
+	//创建一个可远程传递的锁,基于redis的锁可实现这个方法
+	Marshal() ILocker
 }
 
 //ICache 缓存接口
