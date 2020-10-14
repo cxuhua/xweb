@@ -148,7 +148,7 @@ func (tw *timeoutWriter) writeHeader(code int) {
 
 var (
 	m            = NewHttpContext()
-	LoggerFormat = logging.MustStringFormatter(`{time:15:04:05.000} %{shortfile} %{shortfunc} %{level:.5s} %{message}`)
+	LoggerFormat = logging.MustStringFormatter(`%{time} %{level:.5s} %{message}`)
 	LoggerPrefix = ""
 	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 	HttpTimeout  = time.Second * 30
