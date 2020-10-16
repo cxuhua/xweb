@@ -17,6 +17,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBytesAes(t *testing.T) {
+	a := []byte{1, 2, 3}
+	b, err := BytesEncrypt(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := BytesDecrypt(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a, c) {
+		t.Error("test failed")
+	}
+}
+
+func TestStringAes(t *testing.T) {
+	a := "12121212"
+	b, err := TokenEncrypt(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := TokenDecrypt(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != c {
+		t.Error("test failed")
+	}
+}
+
 func TestShutdown(t *testing.T) {
 	go func() {
 		err := ListenAndServe(":9100")
