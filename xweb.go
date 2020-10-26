@@ -257,110 +257,75 @@ func hasParseTag(tf reflect.StructField) bool {
 	return false
 }
 
-func MapFormBindValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values, cookies url.Values, header url.Values) {
-	if value.Kind() == reflect.Ptr {
-		value = value.Elem()
+func setInputValue(form url.Values, name string, sf reflect.Value, tf reflect.StructField) {
+	if len(form) == 0 {
+		return
 	}
+	if input, ok := form[name]; ok {
+		num := len(input)
+		if num == 0 {
+			return
+		}
+		if sf.Kind() == reflect.Slice {
+			skind := sf.Type().Elem().Kind()
+			slice := reflect.MakeSlice(sf.Type(), num, num)
+			for j := 0; j < num; j++ {
+				_ = setKindValue(skind, input[j], slice.Index(j))
+			}
+			sf.Set(slice)
+		} else {
+			_ = setKindValue(tf.Type.Kind(), input[0], sf)
+		}
+	}
+}
+
+func setFileValue(files map[string][]*multipart.FileHeader, name string, sf reflect.Value, tf reflect.StructField) {
+	if len(files) == 0 {
+		return
+	}
+	if input, ok := files[name]; ok {
+		num := len(input)
+		if num == 0 {
+			return
+		}
+		if sf.Kind() == reflect.Slice && sf.Type().Elem() == FormFileType {
+			slice := reflect.MakeSlice(sf.Type(), num, num)
+			for j := 0; j < num; j++ {
+				item := reflect.ValueOf(FormFile{FileHeader: input[j]})
+				slice.Index(j).Set(item)
+			}
+			sf.Set(slice)
+		} else if sf.Type() == FormFileType {
+			item := reflect.ValueOf(FormFile{FileHeader: input[0]})
+			sf.Set(item)
+		}
+	}
+}
+
+func MapFormBindValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values, cookies url.Values, header url.Values) {
+	value = reflect.Indirect(value)
 	vtyp := value.Type()
 	for i := 0; i < vtyp.NumField(); i++ {
 		tf := vtyp.Field(i)
 		sf := value.Field(i)
 		if !sf.CanSet() || !hasParseTag(tf) {
 			continue
-		} else if tf.Type.Kind() == reflect.Ptr {
-			sf.Set(reflect.New(tf.Type.Elem()))
-			MapFormBindValue(sf.Elem(), form, files, urls, cookies, header)
+		}
+		if tf.Type.Kind() == reflect.Ptr {
+			ele := reflect.New(tf.Type.Elem())
+			MapFormBindValue(ele.Elem(), form, files, urls, cookies, header)
+			sf.Set(ele)
 		} else if tf.Type.Kind() == reflect.Struct && tf.Type != FormFileType {
 			MapFormBindValue(sf, form, files, urls, cookies, header)
 		} else if name := tf.Tag.Get("form"); (len(form) > 0 || len(files) > 0) && name != "-" && name != "" {
-			if len(form) > 0 {
-				if input, ok := form[name]; ok {
-					num := len(input)
-					if num == 0 {
-						continue
-					}
-					if sf.Kind() == reflect.Slice {
-						skind := sf.Type().Elem().Kind()
-						slice := reflect.MakeSlice(sf.Type(), num, num)
-						for j := 0; j < num; j++ {
-							_ = setKindValue(skind, input[j], slice.Index(j))
-						}
-						sf.Set(slice)
-					} else {
-						_ = setKindValue(tf.Type.Kind(), input[0], sf)
-					}
-				}
-			}
-			if len(files) > 0 {
-				if input, ok := files[name]; ok {
-					num := len(input)
-					if num == 0 {
-						continue
-					}
-					if sf.Kind() == reflect.Slice && sf.Type().Elem() == FormFileType {
-						slice := reflect.MakeSlice(sf.Type(), num, num)
-						for j := 0; j < num; j++ {
-							item := reflect.ValueOf(FormFile{FileHeader: input[j]})
-							slice.Index(j).Set(item)
-						}
-						sf.Set(slice)
-					} else if sf.Type() == FormFileType {
-						item := reflect.ValueOf(FormFile{FileHeader: input[0]})
-						sf.Set(item)
-					}
-				}
-			}
+			setInputValue(form, name, sf, tf)
+			setFileValue(files, name, sf, tf)
 		} else if name := tf.Tag.Get("url"); len(urls) > 0 && name != "-" && name != "" {
-			if input, ok := urls[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						_ = setKindValue(skind, input[j], slice.Index(j))
-					}
-					sf.Set(slice)
-				} else {
-					_ = setKindValue(tf.Type.Kind(), input[0], sf)
-				}
-			}
+			setInputValue(urls, name, sf, tf)
 		} else if name := tf.Tag.Get("header"); len(header) > 0 && name != "-" && name != "" {
-			if input, ok := header[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						_ = setKindValue(skind, input[j], slice.Index(j))
-					}
-					sf.Set(slice)
-				} else {
-					_ = setKindValue(tf.Type.Kind(), input[0], sf)
-				}
-			}
+			setInputValue(header, name, sf, tf)
 		} else if name := tf.Tag.Get("cookie"); len(cookies) > 0 && name != "-" && name != "" {
-			if input, ok := cookies[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						_ = setKindValue(skind, input[j], slice.Index(j))
-					}
-					sf.Set(slice)
-				} else {
-					_ = setKindValue(tf.Type.Kind(), input[0], sf)
-				}
-			}
+			setInputValue(cookies, name, sf, tf)
 		}
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +18,39 @@ import (
 	"github.com/cxuhua/xweb/martini"
 	"github.com/stretchr/testify/require"
 )
+
+type Info struct {
+	A    int     `form:"a"`
+	B    string  `url:"b"`
+	C    float32 `cookie:"c"`
+	D    bool    `header:"d"`
+	Info *Info
+}
+
+func TestMapFormBindValue(t *testing.T) {
+	i := &Info{}
+	form := url.Values{}
+	form.Set("a", "1")
+	urls := url.Values{}
+	urls.Set("b", "b")
+	cookies := url.Values{}
+	cookies.Set("c", "12.3")
+	header := url.Values{}
+	header.Set("d", "true")
+	MapFormBindValue(reflect.ValueOf(i), form, nil, urls, cookies, header)
+	if i.A != 1 {
+		t.Fatal("A test error")
+	}
+	if i.B != "b" {
+		t.Fatal("B test error")
+	}
+	if i.C != 12.3 {
+		t.Fatal("C test error")
+	}
+	if i.D != true {
+		t.Fatal("D test error")
+	}
+}
 
 func TestBytesAes(t *testing.T) {
 	a := []byte{1, 2, 3}
