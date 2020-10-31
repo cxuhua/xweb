@@ -2,9 +2,10 @@ package inject_test
 
 import (
 	"fmt"
-	"github.com/codegangsta/inject"
 	"reflect"
 	"testing"
+
+	"github.com/cxuhua/xweb/inject"
 )
 
 type SpecialString interface {

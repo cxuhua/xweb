@@ -183,28 +183,46 @@ func makeTokenAesBlock() error {
 
 //token加密
 func TokenEncrypt(token string) (string, error) {
-	if err := makeTokenAesBlock(); err != nil {
-		return token, err
-	}
-	d, err := AesEncrypt(tokenAesBlock, []byte(token))
+	d, err := BytesEncrypt([]byte(token))
 	if err != nil {
-		return token, err
+		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(d), nil
 }
 
 //token解密
 func TokenDecrypt(value string) (string, error) {
-	if err := makeTokenAesBlock(); err != nil {
-		return value, err
-	}
 	d, err := base64.URLEncoding.DecodeString(value)
 	if err != nil {
 		return value, err
 	}
-	s, err := AesDecrypt(tokenAesBlock, d)
+	s, err := BytesDecrypt(d)
 	if err != nil {
 		return value, err
 	}
 	return string(s), nil
+}
+
+//token加密
+func BytesEncrypt(b []byte) ([]byte, error) {
+	if err := makeTokenAesBlock(); err != nil {
+		return nil, err
+	}
+	d, err := AesEncrypt(tokenAesBlock, b)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+//token解密
+func BytesDecrypt(b []byte) ([]byte, error) {
+	if err := makeTokenAesBlock(); err != nil {
+		return nil, err
+	}
+	s, err := AesDecrypt(tokenAesBlock, b)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }

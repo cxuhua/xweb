@@ -3,10 +3,11 @@ package xweb
 import (
 	"crypto/rand"
 	"fmt"
-	"github.com/cxuhua/xweb/now"
 	"math/big"
 	"strconv"
 	"time"
+
+	"github.com/cxuhua/xweb/now"
 )
 
 // 获取当前时间
@@ -42,7 +43,7 @@ func GenId() string {
 	if err != nil {
 		panic(err)
 	}
-	v := r.Uint64() + uint64(t.UnixNano() % 1000000)
+	v := r.Uint64() + uint64(t.UnixNano()%1000000)
 	x := v % 1000000
 	return fmt.Sprintf("%s%.5d%.6d", t.Format("20060102"), z, x)
 }

@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/graphql-go/handler"
+
 	"github.com/cxuhua/xweb/logging"
 	"github.com/cxuhua/xweb/martini"
 )
@@ -91,12 +93,12 @@ func (h *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tw.code = http.StatusOK
 		}
 		w.WriteHeader(tw.code)
-		w.Write(tw.wbuf.Bytes())
+		_, _ = w.Write(tw.wbuf.Bytes())
 	case <-ctx.Done():
 		tw.mu.Lock()
 		defer tw.mu.Unlock()
 		w.WriteHeader(http.StatusServiceUnavailable)
-		io.WriteString(w, h.errorBody())
+		_, _ = io.WriteString(w, h.errorBody())
 		tw.timedOut = true
 		h.logger.Println(r.RequestURI, "do timeout", time.Now().UnixNano()-now, " status=", http.StatusServiceUnavailable)
 	}
@@ -146,14 +148,57 @@ func (tw *timeoutWriter) writeHeader(code int) {
 
 var (
 	m            = NewHttpContext()
-	LoggerFormat = logging.MustStringFormatter(`%{color}%{time:15:04:05.000} %{shortfile} %{shortfunc} ▶ %{level:.5s} %{id:d}%{color:reset} %{message}`)
+	LoggerFormat = logging.MustStringFormatter(`%{time} %{level:.5s} %{message}`)
 	LoggerPrefix = ""
 	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 	HttpTimeout  = time.Second * 30
 )
 
 func AddExtType(ext string, typ string) {
-	mime.AddExtensionType(ext, typ)
+	_ = mime.AddExtensionType(ext, typ)
+}
+
+func GraphQL(path string, conf *handler.Config) {
+	hh := handler.New(conf)
+	m.Any(path, func(w http.ResponseWriter, r *http.Request) {
+		hh.ServeHTTP(w, r)
+	})
+}
+
+func Group(path string, fn func(martini.Router), handler ...martini.Handler) {
+	m.Group(path, fn, handler...)
+}
+
+func Get(path string, handler ...martini.Handler) martini.Route {
+	return m.Get(path, handler...)
+}
+
+func Patch(path string, handler ...martini.Handler) martini.Route {
+	return m.Patch(path, handler...)
+}
+
+func Post(path string, handler ...martini.Handler) martini.Route {
+	return m.Post(path, handler...)
+}
+
+func Put(path string, handler ...martini.Handler) martini.Route {
+	return m.Put(path, handler...)
+}
+
+func Delete(path string, handler ...martini.Handler) martini.Route {
+	return m.Delete(path, handler...)
+}
+
+func Options(path string, handler ...martini.Handler) martini.Route {
+	return m.Options(path, handler...)
+}
+
+func Head(path string, handler ...martini.Handler) martini.Route {
+	return m.Head(path, handler...)
+}
+
+func Any(path string, handler ...martini.Handler) martini.Route {
+	return m.Any(path, handler...)
 }
 
 func InitLogger(w io.Writer) {
@@ -204,6 +249,10 @@ func Serve(addr string) error {
 	return m.ListenAndServe(addr)
 }
 
+func Shutdown() {
+	m.Shutdown()
+}
+
 func ListenAndServe(addr string) error {
 	return m.ListenAndServe(addr)
 }
@@ -229,11 +278,11 @@ type URLS struct {
 }
 type HttpContext struct {
 	martini.ClassicMartini
-	Validator *Validator
-	URLS      []URLS
-
+	Validator      *Validator
+	URLS           []URLS
 	heapPPROFFiles []string
 	cpuPPROFFiles  []string
+	http           *http.Server
 }
 
 func (this *HttpContext) InitDefaultLogger(w io.Writer) {
@@ -309,6 +358,14 @@ func (this *HttpContext) writeCPUPprof() {
 		}
 	}
 }
+func (this *HttpContext) Shutdown() {
+	if this.http == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	_ = this.http.Shutdown(ctx)
+}
 
 func (this *HttpContext) ListenAndServe(addr string) error {
 	this.PrintURLS()
@@ -318,8 +375,11 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-	handler := TimeoutHandler(this, HttpTimeout, "time out")
-	return http.ListenAndServe(addr, handler)
+	this.http = &http.Server{
+		Addr:    addr,
+		Handler: TimeoutHandler(this, HttpTimeout, "time out"),
+	}
+	return this.http.ListenAndServe()
 }
 
 func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error {
@@ -330,8 +390,11 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 		go this.writeHeapPprof()
 		go this.writeCPUPprof()
 	}
-	handler := TimeoutHandler(this, HttpTimeout, "time out")
-	return http.ListenAndServeTLS(addr, cert, key, handler)
+	this.http = &http.Server{
+		Addr:    addr,
+		Handler: TimeoutHandler(this, HttpTimeout, "time out"),
+	}
+	return this.http.ListenAndServeTLS(cert, key)
 }
 
 func (this *HttpContext) PrintURLS() {

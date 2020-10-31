@@ -232,94 +232,100 @@ func setKindValue(vk reflect.Kind, val string, sf reflect.Value) error {
 	return nil
 }
 
-func MapFormBindType(v interface{}, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values, cookies url.Values) {
-	MapFormBindValue(reflect.ValueOf(v), form, files, urls, cookies)
+func MapFormBindType(v interface{}, form url.Values) {
+	MapFormBindValue(reflect.ValueOf(v), form, nil, nil, nil, nil)
 }
 
-func MapFormBindValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values, cookies url.Values) {
-	if value.Kind() == reflect.Ptr {
-		value = value.Elem()
+func hasTag(tag string, tf reflect.StructField) bool {
+	name := tf.Tag.Get(tag)
+	return name != "" && name != "-"
+}
+
+func hasParseTag(tf reflect.StructField) bool {
+	if hasTag("form", tf) {
+		return true
 	}
+	if hasTag("url", tf) {
+		return true
+	}
+	if hasTag("cookie", tf) {
+		return true
+	}
+	if hasTag("header", tf) {
+		return true
+	}
+	return false
+}
+
+func setInputValue(form url.Values, name string, sf reflect.Value, tf reflect.StructField) {
+	if len(form) == 0 {
+		return
+	}
+	if input, ok := form[name]; ok {
+		num := len(input)
+		if num == 0 {
+			return
+		}
+		if sf.Kind() == reflect.Slice {
+			skind := sf.Type().Elem().Kind()
+			slice := reflect.MakeSlice(sf.Type(), num, num)
+			for j := 0; j < num; j++ {
+				_ = setKindValue(skind, input[j], slice.Index(j))
+			}
+			sf.Set(slice)
+		} else {
+			_ = setKindValue(tf.Type.Kind(), input[0], sf)
+		}
+	}
+}
+
+func setFileValue(files map[string][]*multipart.FileHeader, name string, sf reflect.Value, tf reflect.StructField) {
+	if len(files) == 0 {
+		return
+	}
+	if input, ok := files[name]; ok {
+		num := len(input)
+		if num == 0 {
+			return
+		}
+		if sf.Kind() == reflect.Slice && sf.Type().Elem() == FormFileType {
+			slice := reflect.MakeSlice(sf.Type(), num, num)
+			for j := 0; j < num; j++ {
+				item := reflect.ValueOf(FormFile{FileHeader: input[j]})
+				slice.Index(j).Set(item)
+			}
+			sf.Set(slice)
+		} else if sf.Type() == FormFileType {
+			item := reflect.ValueOf(FormFile{FileHeader: input[0]})
+			sf.Set(item)
+		}
+	}
+}
+
+func MapFormBindValue(value reflect.Value, form url.Values, files map[string][]*multipart.FileHeader, urls url.Values, cookies url.Values, header url.Values) {
+	value = reflect.Indirect(value)
 	vtyp := value.Type()
 	for i := 0; i < vtyp.NumField(); i++ {
 		tf := vtyp.Field(i)
 		sf := value.Field(i)
-		if !sf.CanSet() {
+		if !sf.CanSet() || !hasParseTag(tf) {
 			continue
 		}
 		if tf.Type.Kind() == reflect.Ptr {
-			sf.Set(reflect.New(tf.Type.Elem()))
-			MapFormBindValue(sf.Elem(), form, files, urls, cookies)
+			ele := reflect.New(tf.Type.Elem())
+			MapFormBindValue(ele.Elem(), form, files, urls, cookies, header)
+			sf.Set(ele)
 		} else if tf.Type.Kind() == reflect.Struct && tf.Type != FormFileType {
-			MapFormBindValue(sf, form, files, urls, cookies)
-		} else if name := tf.Tag.Get("form"); name != "-" && name != "" {
-			if input, ok := form[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						setKindValue(skind, input[j], slice.Index(j))
-					}
-					sf.Set(slice)
-				} else {
-					setKindValue(tf.Type.Kind(), input[0], sf)
-				}
-			}
-			if input, ok := files[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice && sf.Type().Elem() == FormFileType {
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						item := reflect.ValueOf(FormFile{FileHeader: input[j]})
-						slice.Index(j).Set(item)
-					}
-					sf.Set(slice)
-				} else if sf.Type() == FormFileType {
-					item := reflect.ValueOf(FormFile{FileHeader: input[0]})
-					sf.Set(item)
-				}
-			}
-		} else if name := tf.Tag.Get("url"); name != "-" && name != "" {
-			if input, ok := urls[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						setKindValue(skind, input[j], slice.Index(j))
-					}
-					sf.Set(slice)
-				} else {
-					setKindValue(tf.Type.Kind(), input[0], sf)
-				}
-			}
-		} else if name := tf.Tag.Get("cookie"); name != "-" && name != "" {
-			if input, ok := cookies[name]; ok {
-				num := len(input)
-				if num == 0 {
-					continue
-				}
-				if sf.Kind() == reflect.Slice {
-					skind := sf.Type().Elem().Kind()
-					slice := reflect.MakeSlice(sf.Type(), num, num)
-					for j := 0; j < num; j++ {
-						setKindValue(skind, input[j], slice.Index(j))
-					}
-					sf.Set(slice)
-				} else {
-					setKindValue(tf.Type.Kind(), input[0], sf)
-				}
-			}
+			MapFormBindValue(sf, form, files, urls, cookies, header)
+		} else if name := tf.Tag.Get("form"); (len(form) > 0 || len(files) > 0) && name != "-" && name != "" {
+			setInputValue(form, name, sf, tf)
+			setFileValue(files, name, sf, tf)
+		} else if name := tf.Tag.Get("url"); len(urls) > 0 && name != "-" && name != "" {
+			setInputValue(urls, name, sf, tf)
+		} else if name := tf.Tag.Get("header"); len(header) > 0 && name != "-" && name != "" {
+			setInputValue(header, name, sf, tf)
+		} else if name := tf.Tag.Get("cookie"); len(cookies) > 0 && name != "-" && name != "" {
+			setInputValue(cookies, name, sf, tf)
 		}
 	}
 }
@@ -356,6 +362,12 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 	for _, v := range req.Cookies() {
 		cv.Add(v.Name, v.Value)
 	}
+	hv := url.Values{}
+	for k, vs := range req.Header {
+		for _, v := range vs {
+			hv.Add(k, v)
+		}
+	}
 	//
 	if strings.Contains(ct, MultipartFormData) {
 		if err := req.ParseMultipartForm(FormMaxMemory); err == nil {
@@ -369,7 +381,7 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 					log.Info(k, ":", v)
 				}
 			}
-			MapFormBindValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv, cv)
+			MapFormBindValue(v, req.MultipartForm.Value, req.MultipartForm.File, uv, cv, hv)
 		} else {
 			log.Error("parse multipart form error", err)
 		}
@@ -382,7 +394,7 @@ func UnmarshalForm(iv IArgs, param martini.Params, req *http.Request, log *loggi
 				log.Info(k, ":", v)
 			}
 		}
-		MapFormBindValue(v, req.Form, nil, uv, cv)
+		MapFormBindValue(v, req.Form, nil, uv, cv, hv)
 	} else {
 		log.Error("parse form error", err)
 	}
@@ -409,7 +421,13 @@ func UnmarshalURLCookie(iv IArgs, param martini.Params, req *http.Request) {
 	for _, v := range req.Cookies() {
 		cv.Add(v.Name, v.Value)
 	}
-	MapFormBindValue(v, nil, nil, uv, cv)
+	hv := url.Values{}
+	for k, vs := range req.Header {
+		for _, v := range vs {
+			hv.Add(k, v)
+		}
+	}
+	MapFormBindValue(v, nil, nil, uv, cv, hv)
 }
 
 func (ctx *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.Params, log *logging.Logger) IArgs {

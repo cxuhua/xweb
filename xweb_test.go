@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -17,10 +19,82 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenId(t *testing.T) {
-	log.Println(GenId(),GenId(),GenId())
+type Info struct {
+	A    int     `form:"a"`
+	B    string  `url:"b"`
+	C    float32 `cookie:"c"`
+	D    bool    `header:"d"`
+	Info *Info
 }
 
+func TestMapFormBindValue(t *testing.T) {
+	i := &Info{}
+	form := url.Values{}
+	form.Set("a", "1")
+	urls := url.Values{}
+	urls.Set("b", "b")
+	cookies := url.Values{}
+	cookies.Set("c", "12.3")
+	header := url.Values{}
+	header.Set("d", "true")
+	MapFormBindValue(reflect.ValueOf(i), form, nil, urls, cookies, header)
+	if i.A != 1 {
+		t.Fatal("A test error")
+	}
+	if i.B != "b" {
+		t.Fatal("B test error")
+	}
+	if i.C != 12.3 {
+		t.Fatal("C test error")
+	}
+	if i.D != true {
+		t.Fatal("D test error")
+	}
+}
+
+func TestBytesAes(t *testing.T) {
+	a := []byte{1, 2, 3}
+	b, err := BytesEncrypt(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := BytesDecrypt(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a, c) {
+		t.Error("test failed")
+	}
+}
+
+func TestStringAes(t *testing.T) {
+	a := "12121212"
+	b, err := TokenEncrypt(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := TokenDecrypt(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != c {
+		t.Error("test failed")
+	}
+}
+
+func TestShutdown(t *testing.T) {
+	go func() {
+		err := ListenAndServe(":9100")
+		log.Println("closed", err)
+	}()
+	time.Sleep(time.Second)
+	m.Shutdown()
+	time.Sleep(time.Second * 30)
+}
+
+func TestGenId(t *testing.T) {
+	log.Println(GenId(), GenId(), GenId())
+}
 
 func TestHttpGet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
