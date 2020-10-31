@@ -173,6 +173,10 @@ func Get(path string, handler ...martini.Handler) martini.Route {
 	return m.Get(path, handler...)
 }
 
+func NotFound(handler ...martini.Handler)  {
+	m.NotFound(handler...)
+}
+
 func Patch(path string, handler ...martini.Handler) martini.Route {
 	return m.Patch(path, handler...)
 }
