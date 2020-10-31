@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"time"
 )
 
 const (
@@ -286,14 +285,15 @@ func (this HTTPClient) NewForm(path string, v HTTPValues) (*http.Request, error)
 	return req, nil
 }
 
-func dialTimeout(network, addr string) (net.Conn, error) {
-	conn, err := net.DialTimeout(network, addr, time.Second*POST_REMOTE_TIMEOUT)
+func dialTimeout(ctx context.Context,network, addr string) (net.Conn, error) {
+	d := net.Dialer{}
+	conn, err := d.DialContext(ctx,network, addr)
 	if err != nil {
 		return conn, err
 	}
-	tcp_conn := conn.(*net.TCPConn)
-	tcp_conn.SetKeepAlive(false)
-	return tcp_conn, err
+	tcp := conn.(*net.TCPConn)
+	err = tcp.SetKeepAlive(false)
+	return tcp, err
 }
 
 func (this HTTPClient) NewPost(path string, bt string, body io.Reader) (*http.Request, error) {
@@ -396,7 +396,7 @@ func NewHTTPClientWithContext(ctx context.Context, host string, confs ...*tls.Co
 	ret.Host = host
 	ret.IsSecure = strings.HasPrefix(host, "https")
 	tr := &http.Transport{
-		Dial:              dialTimeout,
+		DialContext:              dialTimeout,
 		DisableKeepAlives: true,
 	}
 	if len(confs) > 0 {
