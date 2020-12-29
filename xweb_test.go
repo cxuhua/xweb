@@ -93,7 +93,14 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestGenId(t *testing.T) {
-	log.Println(GenId(), GenId(), GenId())
+	smap := map[string]bool{}
+	for i:=0; i < 100000;i ++ {
+		id := GenId()
+		if _, has := smap[id]; has {
+			panic(fmt.Errorf("id repead %d",i))
+		}
+		smap[id] = true
+	}
 }
 
 func TestHttpGet(t *testing.T) {
