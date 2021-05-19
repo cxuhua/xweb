@@ -51,7 +51,8 @@ func prepareStaticOptions(options []StaticOptions) StaticOptions {
 }
 
 // StaticFS returns a middleware handler that serves static files in the given directory.
-func StaticFS(dir http.FileSystem, staticOpt ...StaticOptions) Handler {
+func StaticFS(directory string,dir http.FileSystem, staticOpt ...StaticOptions) Handler {
+	baseDir := directory
 	opt := prepareStaticOptions(staticOpt)
 	return func(res http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		if req.Method != "GET" && req.Method != "HEAD" {
@@ -71,6 +72,10 @@ func StaticFS(dir http.FileSystem, staticOpt ...StaticOptions) Handler {
 				return
 			}
 		}
+		if baseDir != "" {
+			file = path.Join(baseDir,file)
+		}
+		log.Println("----------",baseDir, file)
 		f, err := dir.Open(file)
 		if err != nil {
 			// try any fallback before giving up
@@ -137,5 +142,5 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 	if !filepath.IsAbs(directory) {
 		directory = filepath.Join(Root, directory)
 	}
-	return StaticFS(http.Dir(directory), staticOpt...)
+	return StaticFS("",http.Dir(directory), staticOpt...)
 }
