@@ -19,13 +19,13 @@ import (
 	"github.com/cxuhua/xweb/martini"
 )
 
-
 var (
-	m            = NewHttpContext()
-	LoggerFormat = logging.MustStringFormatter(`%{time} %{level:.5s} %{message}`)
-	LoggerPrefix = ""
-	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
-	HttpTimeout  = time.Second * 30
+	m                            = NewHttpContext()
+	LoggerFormat                 = logging.MustStringFormatter(`%{time} %{level:.5s} %{message}`)
+	LoggerPrefix                 = ""
+	UserPprof                    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
+	HttpTimeout                  = time.Second * 30
+	PublicFS     http.FileSystem = nil
 )
 
 func AddExtType(ext string, typ string) {
@@ -47,7 +47,7 @@ func Get(path string, handler ...martini.Handler) martini.Route {
 	return m.Get(path, handler...)
 }
 
-func NotFound(handler ...martini.Handler)  {
+func NotFound(handler ...martini.Handler) {
 	m.NotFound(handler...)
 }
 
@@ -310,7 +310,11 @@ func NewHttpContext() *HttpContext {
 	m := martini.New()
 	m.Use(martini.Logger())
 	m.Use(martini.Recovery())
-	m.Use(martini.Static("public"))
+	if PublicFS != nil {
+		m.Use(martini.StaticFS(PublicFS))
+	} else {
+		m.Use(martini.Static("public"))
+	}
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	h.Validator = NewValidator()
