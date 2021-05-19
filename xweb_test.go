@@ -27,6 +27,18 @@ type Info struct {
 	Info *Info
 }
 
+func TestGenId(t *testing.T) {
+	smap := map[string]bool{}
+	for i := 0; i < 10000; i++ {
+		id := GenId()
+		if _, has := smap[id]; has {
+			panic("id repeat")
+		}
+		smap[id] = true
+		log.Println(id)
+	}
+}
+
 func TestMapFormBindValue(t *testing.T) {
 	i := &Info{}
 	form := url.Values{}
@@ -90,10 +102,6 @@ func TestShutdown(t *testing.T) {
 	time.Sleep(time.Second)
 	m.Shutdown()
 	time.Sleep(time.Second * 30)
-}
-
-func TestGenId(t *testing.T) {
-	log.Println(GenId(), GenId(), GenId())
 }
 
 func TestHttpGet(t *testing.T) {
