@@ -38,14 +38,18 @@ func RandNumber(l int) string {
 func GenId() string {
 	t := time.Now()
 	hour, min, sec := t.Clock()
-	z := int64(hour*60*60 + min*60 + sec)
-	r, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	z := uint64(hour*60*60 + min*60 + sec)
+	r1, err := rand.Int(rand.Reader, big.NewInt(13600))
 	if err != nil {
 		panic(err)
 	}
-	v := r.Uint64() + uint64(t.UnixNano()%1000000)
-	x := v % 1000000
-	return fmt.Sprintf("%s%.5d%.6d", t.Format("20060102"), z, x)
+	r2, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		panic(err)
+	}
+	z += r1.Uint64() % 100000
+	v := r2.Uint64() % 1000000
+	return fmt.Sprintf("%s%.5d%.6d", t.Format("20060102"), z, v)
 }
 
 func GenUInt64() uint64 {

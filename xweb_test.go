@@ -104,6 +104,17 @@ func TestShutdown(t *testing.T) {
 	time.Sleep(time.Second * 30)
 }
 
+func TestGenId(t *testing.T) {
+	smap := map[string]bool{}
+	for i := 0; i < 100000; i++ {
+		id := GenId()
+		if _, has := smap[id]; has {
+			panic(fmt.Errorf("id repead %d", i))
+		}
+		smap[id] = true
+	}
+}
+
 func TestHttpGet(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
