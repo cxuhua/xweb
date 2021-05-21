@@ -94,10 +94,10 @@ func TestShutdown(t *testing.T) {
 
 func TestGenId(t *testing.T) {
 	smap := map[string]bool{}
-	for i:=0; i < 100000;i ++ {
+	for i := 0; i < 100000; i++ {
 		id := GenId()
 		if _, has := smap[id]; has {
-			panic(fmt.Errorf("id repead %d",i))
+			panic(fmt.Errorf("id repead %d", i))
 		}
 		smap[id] = true
 	}
