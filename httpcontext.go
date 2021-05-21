@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"mime"
 	"net/http"
@@ -297,13 +298,31 @@ func (this *HttpContext) PrintURLS() {
 	}
 }
 
+var (
+	staticFS http.FileSystem = nil
+)
+
+// 读取镜头文件数据，如果存在staticFS 从这里读取
+func ReadStaticFile(path string) ([]byte, error) {
+	if staticFS != nil {
+		file, err := staticFS.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+		return io.ReadAll(file)
+	}
+	return ioutil.ReadFile(path)
+}
+
 func NewHttpContextWithFS(dir string, fs http.FileSystem) *HttpContext {
+	staticFS = fs
 	h := &HttpContext{}
 	r := martini.NewRouter()
 	m := martini.New()
 	m.Use(martini.Logger())
 	m.Use(martini.Recovery())
-	m.Use(martini.StaticFS(dir, fs))
+	m.Use(martini.StaticFS(dir, staticFS))
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	h.Validator = NewValidator()
