@@ -27,6 +27,18 @@ type Info struct {
 	Info *Info
 }
 
+func TestGenId(t *testing.T) {
+	smap := map[string]bool{}
+	for i := 0; i < 10000; i++ {
+		id := GenId()
+		if _, has := smap[id]; has {
+			panic("id repeat")
+		}
+		smap[id] = true
+		log.Println(id)
+	}
+}
+
 func TestMapFormBindValue(t *testing.T) {
 	i := &Info{}
 	form := url.Values{}

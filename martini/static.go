@@ -1,12 +1,13 @@
 package martini
 
 import (
-	"github.com/cxuhua/xweb/logging"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/cxuhua/xweb/logging"
 )
 
 // StaticOptions is a struct for specifying configuration options for the martini.Static middleware.
@@ -49,14 +50,10 @@ func prepareStaticOptions(options []StaticOptions) StaticOptions {
 	return opt
 }
 
-// Static returns a middleware handler that serves static files in the given directory.
-func Static(directory string, staticOpt ...StaticOptions) Handler {
-	if !filepath.IsAbs(directory) {
-		directory = filepath.Join(Root, directory)
-	}
-	dir := http.Dir(directory)
+// StaticFS returns a middleware handler that serves static files in the given directory.
+func StaticFS(directory string, dir http.FileSystem, staticOpt ...StaticOptions) Handler {
+	baseDir := directory
 	opt := prepareStaticOptions(staticOpt)
-
 	return func(res http.ResponseWriter, req *http.Request, log *logging.Logger) {
 		if req.Method != "GET" && req.Method != "HEAD" {
 			return
@@ -74,6 +71,9 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 			if file != "" && file[0] != '/' {
 				return
 			}
+		}
+		if baseDir != "" {
+			file = path.Join(baseDir, file)
 		}
 		f, err := dir.Open(file)
 		if err != nil {
@@ -134,4 +134,12 @@ func Static(directory string, staticOpt ...StaticOptions) Handler {
 
 		http.ServeContent(res, req, file, fi.ModTime(), f)
 	}
+}
+
+// Static returns a middleware handler that serves static files in the given directory.
+func Static(directory string, staticOpt ...StaticOptions) Handler {
+	if !filepath.IsAbs(directory) {
+		directory = filepath.Join(Root, directory)
+	}
+	return StaticFS("", http.Dir(directory), staticOpt...)
 }

@@ -2,7 +2,6 @@ package xweb
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -19,14 +18,16 @@ import (
 	"github.com/cxuhua/xweb/martini"
 )
 
-
 var (
 	m            = NewHttpContext()
 	LoggerFormat = logging.MustStringFormatter(`%{time} %{level:.5s} %{message}`)
 	LoggerPrefix = ""
-	UserPprof    = flag.Bool("usepprof", false, "write cpu pprof and heap pprof file")
 	HttpTimeout  = time.Second * 30
 )
+
+func UseFileSystem(dir string, fs http.FileSystem) {
+	m = NewHttpContextWithFS(dir, fs)
+}
 
 func AddExtType(ext string, typ string) {
 	_ = mime.AddExtensionType(ext, typ)
@@ -47,7 +48,7 @@ func Get(path string, handler ...martini.Handler) martini.Route {
 	return m.Get(path, handler...)
 }
 
-func NotFound(handler ...martini.Handler)  {
+func NotFound(handler ...martini.Handler) {
 	m.NotFound(handler...)
 }
 
@@ -249,10 +250,6 @@ func (this *HttpContext) ListenAndServe(addr string) error {
 	this.PrintURLS()
 	this.Logger().Infof("http listening on %s (%s)\n", addr, martini.Env)
 
-	if *UserPprof {
-		go this.writeHeapPprof()
-		go this.writeCPUPprof()
-	}
 	this.http = &http.Server{
 		Addr:    addr,
 		Handler: this,
@@ -264,10 +261,6 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 	this.PrintURLS()
 	this.Logger().Infof("https listening on %s (%s)\n", addr, martini.Env)
 
-	if *UserPprof {
-		go this.writeHeapPprof()
-		go this.writeCPUPprof()
-	}
 	this.http = &http.Server{
 		Addr:    addr,
 		Handler: this,
@@ -276,7 +269,7 @@ func (this *HttpContext) ListenAndServeTLS(addr string, cert, key string) error 
 }
 
 func (this *HttpContext) PrintURLS() {
-	log := this.GetLogger()
+	logv := this.GetLogger()
 	sort.Slice(this.URLS, func(i, j int) bool {
 		return this.URLS[i].Pattern < this.URLS[j].Pattern
 	})
@@ -300,11 +293,27 @@ func (this *HttpContext) PrintURLS() {
 	}
 	fs := fmt.Sprintf("+ %%-%ds %%-%ds %%-%ds %%-%ds\n", mc, pc, vc, rc)
 	for _, u := range this.URLS {
-		log.Infof(fs, u.Method, u.Pattern, u.View, u.Render)
+		logv.Infof(fs, u.Method, u.Pattern, u.View, u.Render)
 	}
 }
 
-func NewHttpContext() *HttpContext {
+func NewHttpContextWithFS(dir string, fs http.FileSystem) *HttpContext {
+	h := &HttpContext{}
+	r := martini.NewRouter()
+	m := martini.New()
+	m.Use(martini.Logger())
+	m.Use(martini.Recovery())
+	m.Use(martini.StaticFS(dir, fs))
+	m.MapTo(r, (*martini.Routes)(nil))
+	m.Action(r.Handle)
+	h.Validator = NewValidator()
+	h.URLS = []URLS{}
+	h.Martini = m
+	h.Router = r
+	return h
+}
+
+func NewHttpContext(fs ...http.FileSystem) *HttpContext {
 	h := &HttpContext{}
 	r := martini.NewRouter()
 	m := martini.New()
