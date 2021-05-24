@@ -304,7 +304,7 @@ var (
 
 //是否存在静态缓存文件
 func HasStaticFile(path string) bool {
-	file, err := staticFS.Open(path)
+	file, err := OpenStaticFile(path)
 	if err != nil {
 		return false
 	}
@@ -314,6 +314,14 @@ func HasStaticFile(path string) bool {
 		return false
 	}
 	return fs.Size() > 0
+}
+
+// 读取镜头文件数据，如果存在staticFS 从这里读取
+func OpenStaticFile(path string) (http.File, error) {
+	if staticFS != nil {
+		return staticFS.Open(path)
+	}
+	return os.Open(path)
 }
 
 // 读取镜头文件数据，如果存在staticFS 从这里读取
