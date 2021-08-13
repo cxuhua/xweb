@@ -26,8 +26,8 @@ var (
 	HttpTimeout  = time.Second * 30
 )
 
-func UseFileSystem(dir string, fs http.FileSystem) {
-	m = NewHttpContextWithFS(dir, fs)
+func UseFileSystem(dir string, fs http.FileSystem, staticOpt ...martini.StaticOptions) {
+	m = NewHttpContextWithFS(dir, fs, staticOpt...)
 }
 
 func AddExtType(ext string, typ string) {
