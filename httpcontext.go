@@ -337,14 +337,14 @@ func ReadStaticFile(path string) ([]byte, error) {
 	return ioutil.ReadFile(path)
 }
 
-func NewHttpContextWithFS(dir string, fs http.FileSystem) *HttpContext {
+func NewHttpContextWithFS(dir string, fs http.FileSystem, staticOpt ...martini.StaticOptions) *HttpContext {
 	staticFS = fs
 	h := &HttpContext{}
 	r := martini.NewRouter()
 	m := martini.New()
 	m.Use(martini.Logger())
 	m.Use(martini.Recovery())
-	m.Use(martini.StaticFS(dir, staticFS))
+	m.Use(martini.StaticFS(dir, staticFS, staticOpt...))
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	h.Validator = NewValidator()
