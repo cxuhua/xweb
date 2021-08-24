@@ -3,6 +3,7 @@ package martini
 import (
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,8 @@ type StaticOptions struct {
 	Fallback string
 	// Exclude defines a pattern for URLs this handler should never process.
 	Exclude string
+	//fall use os.open
+	FallFile bool
 }
 
 func prepareStaticOptions(options []StaticOptions) StaticOptions {
@@ -82,7 +85,9 @@ func StaticFS(directory string, dir http.FileSystem, staticOpt ...StaticOptions)
 				file = opt.Fallback // so that logging stays true
 				f, err = dir.Open(opt.Fallback)
 			}
-
+			if err != nil && opt.FallFile {
+				f, err = os.Open(file)
+			}
 			if err != nil {
 				// discard the error?
 				return
