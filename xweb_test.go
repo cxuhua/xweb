@@ -100,6 +100,7 @@ func TestGenId(t *testing.T) {
 			panic(fmt.Errorf("id repead %d", i))
 		}
 		smap[id] = true
+		log.Println(id)
 	}
 }
 

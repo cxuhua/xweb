@@ -43,13 +43,13 @@ func GenId() string {
 	if err != nil {
 		panic(err)
 	}
-	r2, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	r2, err := rand.Int(rand.Reader, big.NewInt(100000000))
 	if err != nil {
 		panic(err)
 	}
 	z += r1.Uint64() % 100000
-	v := r2.Uint64() % 1000000
-	return fmt.Sprintf("%s%.5d%.6d", t.Format("20060102"), z, v)
+	v := r2.Uint64() % 100000000
+	return fmt.Sprintf("%s%.5d%.8d", t.Format("060102"), z, v)
 }
 
 func GenUInt64() uint64 {
