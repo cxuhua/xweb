@@ -97,10 +97,11 @@ func TestGenId(t *testing.T) {
 	for i := 0; i < 100000; i++ {
 		id := GenId()
 		if _, has := smap[id]; has {
-			panic(fmt.Errorf("id repead %d", i))
+			t.Errorf("repeat id %d - %s", i, id)
+			break
 		}
 		smap[id] = true
-		log.Println(id)
+		log.Println(id, len(id))
 	}
 }
 

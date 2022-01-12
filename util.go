@@ -3,8 +3,11 @@ package xweb
 import (
 	"crypto/rand"
 	"fmt"
+	"math"
 	"math/big"
+	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/cxuhua/xweb/now"
@@ -34,22 +37,26 @@ func RandNumber(l int) string {
 	return ret
 }
 
+var (
+	ic = uint32(0)
+)
+
+func fixNum(pid int, num uint32) uint64 {
+	p := float64(pid)
+	n := int(math.Log10(100000000)) - int(math.Log10(p))
+	return uint64(math.Pow10(n-1)*p) + uint64(num)
+}
+
 // 创建一个guid
 func GenId() string {
 	t := time.Now()
 	hour, min, sec := t.Clock()
 	z := uint64(hour*60*60 + min*60 + sec)
-	r1, err := rand.Int(rand.Reader, big.NewInt(13600))
-	if err != nil {
-		panic(err)
-	}
-	r2, err := rand.Int(rand.Reader, big.NewInt(100000000))
-	if err != nil {
-		panic(err)
-	}
-	z += r1.Uint64() % 100000
-	v := r2.Uint64() % 100000000
-	return fmt.Sprintf("%s%.5d%.8d", t.Format("060102"), z, v)
+	i := atomic.AddUint32(&ic, 1) % 1000000000
+	p := os.Getpid()
+	s1 := fmt.Sprintf("%.8d", fixNum(p, i))
+	s2 := fmt.Sprintf("%.5d", z)
+	return t.Format("060102") + s2 + s1
 }
 
 func GenUInt64() uint64 {
