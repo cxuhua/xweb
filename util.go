@@ -41,10 +41,29 @@ var (
 	ic = uint32(0)
 )
 
-func fixNum(pid int, num uint32) uint64 {
+func fixInc(num uint32, max int) (uint32, int) {
+	org := int(math.Log10(float64(num)) + 1)
+	if org > max {
+		org = max
+	}
+	ret := num % uint32(math.Pow10(org))
+	if ret <= 0 {
+		ret = 1
+	}
+	bits := math.Log10(float64(ret)) + 1
+	return ret, int(bits)
+}
+
+func fixPid(pid int, num int) uint {
 	p := float64(pid)
-	n := int(math.Log10(100000000)) - int(math.Log10(p))
-	return uint64(math.Pow10(n-1)*p) + uint64(num)
+	n := int(math.Log10(p)) + 1
+	return uint(pid%int(math.Pow10(num)) + int(math.Pow10(num)*float64(n)))
+}
+
+func fixNum(pid int, num uint32) uint64 {
+	inc, bit := fixInc(num, 5)
+	np := fixPid(pid, 7-bit)
+	return uint64(float64(np)*math.Pow10(bit)) + uint64(inc)
 }
 
 // 创建一个guid
