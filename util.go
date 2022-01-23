@@ -38,7 +38,8 @@ func RandNumber(l int) string {
 }
 
 var (
-	ic = uint32(0)
+	ic  = uint32(0)
+	pid = os.Getpid()
 )
 
 func fixInc(num uint32, max int) (uint32, int) {
@@ -71,9 +72,8 @@ func GenId() string {
 	t := time.Now()
 	hour, min, sec := t.Clock()
 	z := uint64(hour*60*60 + min*60 + sec)
-	i := atomic.AddUint32(&ic, 1) % 1000000000
-	p := os.Getpid()
-	s1 := fmt.Sprintf("%.8d", fixNum(p, i))
+	i := atomic.AddUint32(&ic, 1) % 100000000
+	s1 := fmt.Sprintf("%.8d", fixNum(pid, i))
 	s2 := fmt.Sprintf("%.5d", z)
 	return t.Format("060102") + s2 + s1
 }

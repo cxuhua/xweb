@@ -94,16 +94,15 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestGenId(t *testing.T) {
-	log.Println(os.Getpid())
 	smap := map[string]bool{}
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 100000; i++ {
 		id := GenId()
 		if _, has := smap[id]; has {
 			t.Errorf("repeat id %d - %s", i, id)
 			break
 		}
 		smap[id] = true
-		log.Println(id, len(id))
+		log.Println(id, os.Getpid(), len(id))
 	}
 }
 

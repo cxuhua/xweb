@@ -3,6 +3,7 @@ module github.com/cxuhua/xweb
 go 1.14
 
 require (
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cxuhua/lzma v0.1.0
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/sessions v1.2.0
