@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"os"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/cxuhua/xweb/now"
@@ -38,8 +38,10 @@ func RandNumber(l int) string {
 }
 
 var (
-	ic  = uint32(0)
-	pid = os.Getpid()
+	idlck = sync.Mutex{}
+	icv   = uint32(0)
+	pcv   = uint32(0)
+	pid   = os.Getpid()
 )
 
 func fixInc(num uint32, max int) (uint32, int) {
@@ -69,10 +71,19 @@ func fixNum(pid int, num uint32) uint64 {
 
 // 创建一个guid
 func GenId() string {
+	idlck.Lock()
+	defer idlck.Unlock()
 	t := time.Now()
 	hour, min, sec := t.Clock()
 	z := uint32(hour*60*60 + min*60 + sec)
-	i := atomic.AddUint32(&ic, 1) % 100000000
+	if pcv == 0 {
+		pcv = z
+	} else if pcv != z {
+		icv = 0
+		pcv = z
+	}
+	icv++
+	i := icv % 100000000
 	s1 := fmt.Sprintf("%.8d", fixNum(pid, i))
 	s2 := fmt.Sprintf("%.5d", z)
 	return t.Format("060102") + s2 + s1
