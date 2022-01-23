@@ -71,7 +71,7 @@ func fixNum(pid int, num uint32) uint64 {
 func GenId() string {
 	t := time.Now()
 	hour, min, sec := t.Clock()
-	z := uint64(hour*60*60 + min*60 + sec)
+	z := uint32(hour*60*60 + min*60 + sec)
 	i := atomic.AddUint32(&ic, 1) % 100000000
 	s1 := fmt.Sprintf("%.8d", fixNum(pid, i))
 	s2 := fmt.Sprintf("%.5d", z)

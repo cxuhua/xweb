@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -95,14 +94,13 @@ func TestShutdown(t *testing.T) {
 
 func TestGenId(t *testing.T) {
 	smap := map[string]bool{}
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < 100000-1; i++ {
 		id := GenId()
 		if _, has := smap[id]; has {
 			t.Errorf("repeat id %d - %s", i, id)
 			break
 		}
 		smap[id] = true
-		log.Println(id, os.Getpid(), len(id))
 	}
 }
 
