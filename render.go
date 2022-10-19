@@ -292,6 +292,13 @@ func (r *renderer) JSON(status int, v interface{}) {
 	r.Header().Set(ContentType, ContentJSON+r.compiledCharset)
 	r.WriteHeader(status)
 	if len(r.opt.PrefixJSON) > 0 {
+		if UseSigner != nil {
+			err = UseSigner.Write(r.opt.PrefixJSON)
+			if err != nil {
+				http.Error(r, err.Error(), 500)
+				return
+			}
+		}
 		_, _ = r.Write(r.opt.PrefixJSON)
 	}
 	if r.cpv != nil {
@@ -299,6 +306,21 @@ func (r *renderer) JSON(status int, v interface{}) {
 	}
 	if martini.Env == martini.Dev && r.log != nil {
 		r.log.Println("Send JSON:", string(result))
+	}
+	if UseSigner != nil {
+		err = UseSigner.Write(result)
+		if err != nil {
+			http.Error(r, err.Error(), 500)
+			return
+		}
+		sign, ts, nonce, err := UseSigner.Create(r.req.Host, r.req.Method, r.req.URL.Path)
+		if err != nil {
+			http.Error(r, err.Error(), 500)
+			return
+		}
+		r.Header().Set(NF_Nonce, nonce)
+		r.Header().Set(NF_Signature, sign)
+		r.Header().Set(NF_Timestamp, ts)
 	}
 	_, _ = r.Write(result)
 }

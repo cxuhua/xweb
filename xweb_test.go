@@ -471,3 +471,67 @@ func TestCache(t *testing.T) {
 	}
 	log.Println(string(dat))
 }
+
+type TestSignModel struct {
+	JSONModel `json:"-"`
+	A         int `json:"a"`
+}
+
+type TestSignArgs struct {
+	JSONArgs
+	Info string `json:"info"`
+}
+
+func (a *TestSignArgs) Model() IModel {
+	return &TestSignModel{A: 1000}
+}
+
+func (a *TestSignArgs) Handler(m *TestSignModel, mvc IMVC) error {
+	m.A = 171718
+	m.Set("abc", "123")
+	return nil
+}
+
+func TestSignBody(t *testing.T) {
+	UseSigner = NewStandSigner("12345")
+
+	response := httptest.NewRecorder()
+	response.Body = new(bytes.Buffer)
+
+	csigner := NewStandSigner("12345")
+	js := `{"info":"trestinfo"}`
+	_ = csigner.Write([]byte(js))
+	sign, ts, nonce, err := csigner.Create("localhost:3000", "POST", "/test")
+	if err != nil {
+		t.Error(err)
+	}
+
+	type D struct {
+		HTTPDispatcher
+		Test TestSignArgs `url:"/test" method:"POST"`
+	}
+
+	UseRender()
+	UseDispatcher(&D{})
+
+	req, err := http.NewRequest("POST", "http://localhost:3000/test", strings.NewReader(js))
+	if err != nil {
+		t.Error(err)
+	}
+	req.Header.Set(NF_Nonce, nonce)
+	req.Header.Set(NF_Timestamp, ts)
+	req.Header.Set(NF_Signature, sign)
+
+	ServeHTTP(response, req)
+
+	for k, v := range response.Header() {
+		log.Println(k, v)
+	}
+
+	dat, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		t.Error(err)
+	}
+	log.Println(string(dat))
+
+}

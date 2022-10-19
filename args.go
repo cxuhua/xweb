@@ -117,10 +117,24 @@ type IArgs interface {
 	ReqType() int
 	//返回默认的输出模型
 	Model() IModel
+	//body sha256
+	GetSignBytes() []byte
+	//put sign bytes
+	PutSignBytes(data []byte) error
 }
 
 type xArgs struct {
+	data []byte
 	IArgs
+}
+
+func (this *xArgs) PutSignBytes(data []byte) error {
+	this.data = data
+	return nil
+}
+
+func (this *xArgs) GetSignBytes() []byte {
+	return this.data
 }
 
 func (this *xArgs) Model() IModel {

@@ -444,6 +444,9 @@ func (ctx *HttpContext) newJSONArgs(iv IArgs, req *http.Request, param martini.P
 	if martini.Env == martini.Dev {
 		log.Info("Recv JSON:", string(data))
 	}
+	if err := args.PutSignBytes(data); err != nil {
+		log.Error(err)
+	}
 	if err := json.Unmarshal(data, args); err != nil {
 		log.Error(err)
 	}
@@ -739,6 +742,18 @@ func (ctx *HttpContext) handlerWithArgs(iv IArgs, hv reflect.Value, dv reflect.V
 			//释放缓存锁
 			if lck != nil {
 				defer lck.Release()
+			}
+		}
+		//如果设置了签名数据 sha256
+		if UseSigner != nil {
+			sbb := args.GetSignBytes()
+			sign := req.Header.Get(NF_Signature)
+			ts := req.Header.Get(NF_Timestamp)
+			nonce := req.Header.Get(NF_Nonce)
+			ads := []string{req.Host, req.Method, req.URL.Path}
+			err := UseSigner.Verify(sbb, sign, ts, nonce, ads...)
+			if err != nil {
+				panic(err)
 			}
 		}
 		//
